@@ -1,33 +1,28 @@
 #include "Vultron/Vultron.h"
-
-class Application
-{
-private:
-public:
-    Application() = default;
-    virtual ~Application() = default;
-
-    void Init()
-    {
-    }
-
-    void Shutdown()
-    {
-    }
-
-    void Update()
-    {
-    }
-
-        void Run()
-    {
-        Vultron::PrintHelloWorld();
-    }
-};
+#include "Vultron/SceneRenderer.h"
+#include "Vultron/Window.h"
 
 int main()
 {
-    Application app;
-    app.Run();
+    Vultron::Window window;
+    return window.Run();
+
+    Vultron::SceneRenderer renderer;
+
+    if (!renderer.Initialize()) {
+        return -1;
+    }
+
+    while (true)
+    {
+        renderer.BeginFrame();
+
+        /* Draw stuff here */
+
+        renderer.EndFrame();
+    }
+
+    renderer.Shutdown();
+
     return 0;
 }

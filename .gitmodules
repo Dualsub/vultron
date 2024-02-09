@@ -1,0 +1,3 @@
+[submodule "Vultron\\third_party\\glfw"]
+	path = Vultron\\third_party\\glfw
+	url = https://github.com/glfw/glfw.git

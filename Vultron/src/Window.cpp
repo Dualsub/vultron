@@ -1,16 +1,19 @@
 #include "Vultron/Window.h"
 
-namespace Vultron {
+namespace Vultron
+{
 
     bool Window::Initialize()
     {
-        if(!glfwInit())
+        if (!glfwInit())
         {
             return false;
         }
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        m_windowHandle = glfwCreateWindow(640, 480, "Simple GLFW App without OpenGL", NULL, NULL);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+        m_windowHandle = glfwCreateWindow(1600, 900, "Vultron", NULL, NULL);
         if (m_windowHandle == nullptr)
         {
             glfwTerminate();
@@ -39,6 +42,21 @@ namespace Vultron {
     bool Window::ShouldShutdown()
     {
         return glfwWindowShouldClose(m_windowHandle);
+    }
+
+    std::vector<const char *> Window::GetWindowExtensions() const
+    {
+        uint32_t extensionCount = 0;
+        const char **extentions = glfwGetRequiredInstanceExtensions(&extensionCount);
+
+        std::vector<const char *> extensions(extentions, extentions + extensionCount);
+
+        return extensions;
+    }
+
+    void Window::CreateVulkanSurface(const Window &window, VkInstance instance, VkSurfaceKHR *surface)
+    {
+        glfwCreateWindowSurface(instance, window.GetWindowHandle(), nullptr, surface);
     }
 
 }

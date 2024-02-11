@@ -16,7 +16,7 @@ int main()
 
     Vultron::SceneRenderer renderer;
 
-    if (!renderer.Initialize()) 
+    if (!renderer.Initialize(window))
     {
         std::cerr << "Renderer failed to initialize" << std::endl;
         return -1;

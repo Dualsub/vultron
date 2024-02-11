@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Vultron/Core/Singleton.h"
+#include <vulkan/vulkan.h>
 
 namespace Vultron
 {
@@ -8,7 +8,7 @@ namespace Vultron
     class SceneRenderer
     {
     private:
-
+        VkInstance m_instance;
     public:
         SceneRenderer() = default;
         ~SceneRenderer() = default;

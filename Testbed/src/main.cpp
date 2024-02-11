@@ -2,27 +2,41 @@
 #include "Vultron/SceneRenderer.h"
 #include "Vultron/Window.h"
 
+#include <iostream>
+
 int main()
 {
     Vultron::Window window;
-    return window.Run();
 
-    Vultron::SceneRenderer renderer;
-
-    if (!renderer.Initialize()) {
+    if (!window.Initialize())
+    {
+        std::cerr << "Window failed to initialize" << std::endl;
         return -1;
     }
 
-    while (true)
+    Vultron::SceneRenderer renderer;
+
+    if (!renderer.Initialize()) 
     {
+        std::cerr << "Renderer failed to initialize" << std::endl;
+        return -1;
+    }
+
+    while (!window.ShouldShutdown())
+    {
+        window.PollEvents();
+
         renderer.BeginFrame();
 
         /* Draw stuff here */
 
         renderer.EndFrame();
+
+        // window.SwapBuffers();
     }
 
     renderer.Shutdown();
+    window.Shutdown();
 
     return 0;
 }

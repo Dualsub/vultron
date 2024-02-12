@@ -5,9 +5,12 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
+#include <cstdint>
+#include <algorithm>
 #include <vector>
 #include <iostream>
 #include <set>
+#include <limits>
 
 namespace Vultron
 {
@@ -39,19 +42,26 @@ namespace Vultron
 
         if (!InitializePhysicalDevice())
         {
-            std::cerr << "Faild to physical device." << std::endl;
+            std::cerr << "Faild to initialize physical device." << std::endl;
             return false;
         }
 
         if (!InitializeLogicalDevice())
         {
-            std::cerr << "Faild to logical device." << std::endl;
+            std::cerr << "Faild to initialize logical device." << std::endl;
             return false;
         }
 
-        if (!InitializeSwapChain(window))
+        const auto [width, height] = window.GetExtent();
+        if (!InitializeSwapChain(width, height))
         {
-            std::cerr << "Faild to swap chain." << std::endl;
+            std::cerr << "Faild to initialize swap chain." << std::endl;
+            return false;
+        }
+
+        if (!InitializeImageViews())
+        {
+            std::cerr << "Faild to initialize image views." << std::endl;
             return false;
         }
 
@@ -232,13 +242,15 @@ namespace Vultron
 
         VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
 
+        assert(families.graphicsFamily.has_value() && "No graphics family index.");
+
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
 
         return true;
     }
 
-    bool SceneRenderer::InitializeSwapChain(const Window &window)
+    bool SceneRenderer::InitializeSwapChain(uint32_t width, uint32_t height)
     {
         VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_physicalDevice, m_surface);
 
@@ -268,13 +280,12 @@ namespace Vultron
         VkExtent2D extent;
         VkSurfaceCapabilitiesKHR &capabilities = support.capabilities;
 
-        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+        if (capabilities.currentExtent.width != (std::numeric_limits<uint32_t>::max)())
         {
             extent = capabilities.currentExtent;
         }
         else
         {
-            const auto [width, height] = window.GetExtent();
             VkExtent2D actualExtent = {width, height};
 
             actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
@@ -301,7 +312,7 @@ namespace Vultron
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
         createInfo.imageExtent = extent;
         createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
         VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
         uint32_t queueFamilyIndices[] = {families.graphicsFamily.value(), families.presentFamily.value()};
@@ -330,6 +341,36 @@ namespace Vultron
         vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
         m_swapChainImages.resize(imageCount);
         vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
+
+        return true;
+    }
+
+    bool SceneRenderer::InitializeImageViews()
+    {
+        m_swapChainImageViews.resize(m_swapChainImages.size());
+
+        for (size_t i = 0; i < m_swapChainImages.size(); i++)
+        {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = m_swapChainImages[i];
+
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = m_swapChainImageFormat;
+
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            createInfo.subresourceRange.layerCount = 1;
+
+            VK_CHECK(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapChainImageViews[i]));
+        }
 
         return true;
     }
@@ -419,10 +460,22 @@ namespace Vultron
 
     void SceneRenderer::EndFrame()
     {
+        Draw();
+    }
+
+    void SceneRenderer::Draw()
+    {
     }
 
     void SceneRenderer::Shutdown()
     {
+        vkDeviceWaitIdle(m_device);
+
+        for (auto imageView : m_swapChainImageViews)
+        {
+            vkDestroyImageView(m_device, imageView, nullptr);
+        }
+
         vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
         vkDestroyDevice(m_device, nullptr);
 
@@ -434,5 +487,4 @@ namespace Vultron
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
     }
-
 }

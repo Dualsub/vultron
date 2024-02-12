@@ -4,10 +4,11 @@
 
 #include <cassert>
 #include <optional>
+#include <vector>
 
 #define VK_CHECK(x) assert(x == VK_SUCCESS)
 
-namespace Vultron
+namespace Vultron::VkUtil
 {
     struct QueueFamilies
     {
@@ -23,5 +24,14 @@ namespace Vultron
         }
     };
 
+    struct SwapChainSupport
+    {
+        VkSurfaceCapabilitiesKHR capabilities;
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
+
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+    SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+
 }

@@ -4,6 +4,6 @@
 [submodule "Vultron/third_party/glm"]
 	path = Vultron/third_party/glm
 	url = https://github.com/g-truc/glm.git
-[submodule "vultron/third_party/vma"]
-	path = vultron/third_party/vma
+[submodule "Vultron/third_party/vma"]
+	path = Vultron/third_party/vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

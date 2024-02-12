@@ -2,7 +2,7 @@
 
 #include <vector>
 
-namespace Vultron
+namespace Vultron::VkUtil
 {
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
     {
@@ -38,5 +38,31 @@ namespace Vultron
         }
 
         return families;
+    }
+
+    SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
+    {
+        SwapChainSupport support;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &support.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+        if (formatCount > 0)
+        {
+            support.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, support.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+        if (presentModeCount > 0)
+        {
+            support.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, support.presentModes.data());
+        }
+
+        return support;
     }
 }

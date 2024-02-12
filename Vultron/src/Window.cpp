@@ -5,6 +5,10 @@ namespace Vultron
 
     bool Window::Initialize()
     {
+        // FOr now we do this.
+        const uint32_t width = 1600;
+        const uint32_t height = 900;
+
         if (!glfwInit())
         {
             return false;
@@ -13,7 +17,11 @@ namespace Vultron
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        m_windowHandle = glfwCreateWindow(1600, 900, "Vultron", NULL, NULL);
+        m_width = width;
+        m_height = height;
+
+        m_windowHandle = glfwCreateWindow(width, height, "Vultron", NULL, NULL);
+
         if (m_windowHandle == nullptr)
         {
             glfwTerminate();

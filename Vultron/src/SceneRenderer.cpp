@@ -43,6 +43,18 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeLogicalDevice())
+        {
+            std::cerr << "Faild to logical device." << std::endl;
+            return false;
+        }
+
+        if (!InitializeSwapChain(window))
+        {
+            std::cerr << "Faild to swap chain." << std::endl;
+            return false;
+        }
+
         // if (!InitializeAllocator())
         // {
         //     std::cerr << "Faild to initialize instance" << std::endl;
@@ -67,13 +79,22 @@ namespace Vultron
         createInfo.pApplicationInfo = &appInfo;
 
         std::vector<const char *> windowExtensions = window.GetWindowExtensions();
+        auto requiredExtensions = std::vector<const char *>(windowExtensions.size());
+
+        std::copy(windowExtensions.begin(), windowExtensions.end(), requiredExtensions.begin());
+
         if (c_validationLayersEnabled)
         {
-            windowExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            requiredExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
 
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(windowExtensions.size());
-        createInfo.ppEnabledExtensionNames = windowExtensions.data();
+#if __APPLE__
+        requiredExtensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+        createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
+
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
         if (c_validationLayersEnabled)
         {
@@ -113,29 +134,64 @@ namespace Vultron
             VkPhysicalDeviceProperties deviceProperties;
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-            VkPhysicalDeviceFeatures deviceFeatures;
-            vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+            VkPhysicalDeviceVulkan12Features deviceFeatures12;
+            deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+            deviceFeatures12.pNext = nullptr;
 
-            QueueFamilies families = QueryQueueFamilies(device, m_surface);
+            VkPhysicalDeviceVulkan13Features deviceFeatures13;
+            deviceFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+            deviceFeatures13.pNext = &deviceFeatures12;
+
+            VkPhysicalDeviceFeatures2 allFeatures;
+            allFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            allFeatures.pNext = &deviceFeatures13;
+            vkGetPhysicalDeviceFeatures2(device, &allFeatures);
+            VkPhysicalDeviceFeatures &deviceFeatures = allFeatures.features;
+
+            VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(device, m_surface);
+
+            bool allowed = families.IsComplete() && CheckDeviceExtensionSupport(device);
+
+            bool swapChainAdequate = false;
+            if (allowed)
+            {
+                VkUtil::SwapChainSupport swapChainSupport = VkUtil::QuerySwapChainSupport(device, m_surface);
+                swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+                allowed &= swapChainAdequate;
+            }
 
             if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-                deviceFeatures.geometryShader && families.IsComplete())
+                deviceFeatures.geometryShader && allowed)
             {
                 m_physicalDevice = device;
-                std::cout << "Selected ";
-                std::cout << deviceProperties.deviceName;
-                std::cout << " for rendering.";
-                std::cout << std::endl;
+                break;
+            }
+
+            if (allowed)
+            {
+                m_physicalDevice = device;
                 break;
             }
         }
 
-        return m_physicalDevice != VK_NULL_HANDLE;
+        if (m_physicalDevice == VK_NULL_HANDLE)
+        {
+            std::cerr << "Could not find suitable device." << std::endl;
+            return false;
+        }
+
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &deviceProperties);
+        std::cout << "Selected ";
+        std::cout << deviceProperties.deviceName;
+        std::cout << " for rendering.";
+        std::cout << std::endl;
+        return true;
     }
 
     bool SceneRenderer::InitializeLogicalDevice()
     {
-        QueueFamilies families = QueryQueueFamilies(m_physicalDevice, m_surface);
+        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         std::set<uint32_t> uniqueQueueFamilies = {families.graphicsFamily.value(), families.presentFamily.value()};
@@ -161,7 +217,8 @@ namespace Vultron
 
         createInfo.pEnabledFeatures = &deviceFeatures;
 
-        createInfo.enabledExtensionCount = 0;
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(c_deviceExtensions.size());
+        createInfo.ppEnabledExtensionNames = c_deviceExtensions.data();
 
         if (c_validationLayersEnabled)
         {
@@ -177,6 +234,102 @@ namespace Vultron
 
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
+
+        return true;
+    }
+
+    bool SceneRenderer::InitializeSwapChain(const Window &window)
+    {
+        VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_physicalDevice, m_surface);
+
+        // Pick format
+        VkSurfaceFormatKHR surfaceFormat = support.formats[0];
+        for (const auto &availableFormat : support.formats)
+        {
+            if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                surfaceFormat = availableFormat;
+            }
+        }
+
+        m_swapChainImageFormat = surfaceFormat.format;
+
+        // Pick present mode
+        VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        for (const auto &mode : support.presentModes)
+        {
+            if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+            {
+                presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+            }
+        }
+
+        // Pick extent
+        VkExtent2D extent;
+        VkSurfaceCapabilitiesKHR &capabilities = support.capabilities;
+
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+        {
+            extent = capabilities.currentExtent;
+        }
+        else
+        {
+            const auto [width, height] = window.GetExtent();
+            VkExtent2D actualExtent = {width, height};
+
+            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+            extent = actualExtent;
+        }
+
+        m_swapChainExtent = extent;
+
+        // Pick image count
+        uint32_t imageCount = support.capabilities.minImageCount + 1;
+        if (support.capabilities.maxImageCount > 0 && imageCount > support.capabilities.maxImageCount)
+        {
+            imageCount = support.capabilities.maxImageCount;
+        }
+
+        //// Create swap chain
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = m_surface;
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        createInfo.imageArrayLayers = 1;
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
+        uint32_t queueFamilyIndices[] = {families.graphicsFamily.value(), families.presentFamily.value()};
+
+        if (families.graphicsFamily != families.presentFamily)
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+        else
+        {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createInfo.queueFamilyIndexCount = 0;     // Optional
+            createInfo.pQueueFamilyIndices = nullptr; // Optional
+        }
+
+        createInfo.preTransform = support.capabilities.currentTransform;
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = presentMode;
+        createInfo.clipped = VK_TRUE;
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain));
+
+        vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
+        m_swapChainImages.resize(imageCount);
+        vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
 
         return true;
     }
@@ -210,6 +363,24 @@ namespace Vultron
         VK_CHECK(CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugMessenger));
 
         return true;
+    }
+
+    bool SceneRenderer::CheckDeviceExtensionSupport(VkPhysicalDevice device)
+    {
+        uint32_t extensionCount = 0;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+
+        std::set<std::string> requiredExtensions(c_deviceExtensions.begin(), c_deviceExtensions.end());
+
+        for (const auto &extension : extensions)
+        {
+            requiredExtensions.erase(extension.extensionName);
+        }
+
+        return requiredExtensions.empty();
     }
 
     bool SceneRenderer::CheckValidationLayerSupport()
@@ -252,6 +423,7 @@ namespace Vultron
 
     void SceneRenderer::Shutdown()
     {
+        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
         vkDestroyDevice(m_device, nullptr);
 
         if (c_validationLayersEnabled)
@@ -259,6 +431,7 @@ namespace Vultron
             DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
         }
 
+        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
     }
 

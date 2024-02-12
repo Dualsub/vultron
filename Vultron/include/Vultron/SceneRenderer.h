@@ -55,6 +55,7 @@ namespace Vultron
         bool InitializeLogicalDevice();
         bool InitializeSwapChain(uint32_t width, uint32_t height);
         bool InitializeImageViews();
+        bool InitializeGraphicsPipeline();
         bool InitializeAllocator();
 
         bool CheckDeviceExtensionSupport(VkPhysicalDevice device);

@@ -65,6 +65,12 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeGraphicsPipeline())
+        {
+            std::cerr << "Faild to initialize graphics pipeline." << std::endl;
+            return false;
+        }
+
         // if (!InitializeAllocator())
         // {
         //     std::cerr << "Faild to initialize instance" << std::endl;
@@ -372,6 +378,11 @@ namespace Vultron
             VK_CHECK(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapChainImageViews[i]));
         }
 
+        return true;
+    }
+
+    bool SceneRenderer::InitializeGraphicsPipeline()
+    {
         return true;
     }
 

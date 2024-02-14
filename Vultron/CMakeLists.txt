@@ -7,6 +7,8 @@ add_library(Vultron STATIC
     src/Window.cpp
     src/Vulkan/Debug.cpp
     src/Vulkan/Utils.cpp
+    src/Vulkan/VulkanShader.cpp
+    src/Vulkan/VulkanInitializers.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

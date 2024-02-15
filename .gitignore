@@ -1,3 +1,4 @@
 .vscode/
 build/
 *.spv
+Vultron/tools/.venv/

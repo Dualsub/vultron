@@ -95,6 +95,12 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeSyncObjects())
+        {
+            std::cerr << "Faild to initialize sync objects." << std::endl;
+            return false;
+        }
+
         // if (!InitializeAllocator())
         // {
         //     std::cerr << "Faild to initialize instance" << std::endl;
@@ -433,6 +439,17 @@ namespace Vultron
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
 
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+
         VK_CHECK(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass));
 
         return true;
@@ -441,8 +458,8 @@ namespace Vultron
     bool SceneRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreateFromFile(m_device, "C:/dev/repos/vultron/Vultron/assets/shaders/triangle_vert.spv");
-        m_fragmentShader = VulkanShader::CreateFromFile(m_device, "C:/dev/repos/vultron/Vultron/assets/shaders/triangle_frag.spv");
+        m_vertexShader = VulkanShader::CreateFromFile(m_device, "../../Vultron/assets/shaders/triangle_vert.spv");
+        m_fragmentShader = VulkanShader::CreateFromFile(m_device, "../../Vultron/assets/shaders/triangle_frag.spv");
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -583,7 +600,7 @@ namespace Vultron
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = families.graphicsFamily.value();
-        poolInfo.flags = 0;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
         VK_CHECK(vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool));
 
@@ -592,13 +609,36 @@ namespace Vultron
 
     bool SceneRenderer::InitializeCommandBuffer()
     {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = m_commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            VkCommandBufferAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocInfo.commandPool = m_commandPool;
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandBufferCount = 1;
 
-        VK_CHECK(vkAllocateCommandBuffers(m_device, &allocInfo, &m_commandBuffer));
+            VK_CHECK(vkAllocateCommandBuffers(m_device, &allocInfo, &m_frames[i].commandBuffer));
+        }
+
+        return true;
+    }
+
+    bool SceneRenderer::InitializeSyncObjects()
+    {
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            VkSemaphoreCreateInfo semaphoreInfo{};
+            semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+            VK_CHECK(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_frames[i].imageAvailableSemaphore));
+            VK_CHECK(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_frames[i].renderFinishedSemaphore));
+
+            VkFenceCreateInfo fenceInfo{};
+            fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+            VK_CHECK(vkCreateFence(m_device, &fenceInfo, nullptr, &m_frames[i].inFlightFence));
+        }
 
         return true;
     }
@@ -632,6 +672,39 @@ namespace Vultron
         VK_CHECK(CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugMessenger));
 
         return true;
+    }
+
+    void SceneRenderer::RecreateSwapChain(uint32_t width, uint32_t height)
+    {
+        vkDeviceWaitIdle(m_device);
+
+        for (auto framebuffer : m_swapChainFramebuffers)
+        {
+            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+        }
+
+        for (const auto &frame : m_frames)
+        {
+            vkFreeCommandBuffers(m_device, m_commandPool, 1, &frame.commandBuffer);
+        }
+
+        vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+
+        for (auto imageView : m_swapChainImageViews)
+        {
+            vkDestroyImageView(m_device, imageView, nullptr);
+        }
+
+        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+
+        InitializeSwapChain(width, height);
+        InitializeImageViews();
+        InitializeRenderPass();
+        InitializeGraphicsPipeline();
+        InitializeFramebuffers();
+        InitializeCommandBuffer();
     }
 
     bool SceneRenderer::CheckDeviceExtensionSupport(VkPhysicalDevice device)
@@ -691,13 +764,108 @@ namespace Vultron
         Draw();
     }
 
+    void SceneRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0;                  // Optional
+        beginInfo.pInheritanceInfo = nullptr; // Optional
+
+        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = m_renderPass;
+        renderPassInfo.framebuffer = m_swapChainFramebuffers[imageIndex];
+
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = m_swapChainExtent;
+
+        VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)m_swapChainExtent.width;
+        viewport.height = (float)m_swapChainExtent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = m_swapChainExtent;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        VK_CHECK(vkEndCommandBuffer(commandBuffer));
+    }
+
     void SceneRenderer::Draw()
     {
+        constexpr uint32_t timeout = std::numeric_limits<uint32_t>::max();
+
+        vkWaitForFences(m_device, 1, &m_frames[m_currentFrameIndex].inFlightFence, VK_TRUE, timeout);
+        vkResetFences(m_device, 1, &m_frames[m_currentFrameIndex].inFlightFence);
+
+        uint32_t imageIndex;
+        VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, timeout, m_frames[m_currentFrameIndex].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+        vkResetCommandBuffer(m_frames[m_currentFrameIndex].commandBuffer, 0);
+        WriteCommandBuffer(m_frames[m_currentFrameIndex].commandBuffer, imageIndex);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore waitSemaphores[] = {m_frames[m_currentFrameIndex].imageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_frames[m_currentFrameIndex].commandBuffer;
+
+        VkSemaphore signalSemaphores[] = {m_frames[m_currentFrameIndex].renderFinishedSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_frames[m_currentFrameIndex].inFlightFence));
+
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+
+        VkSwapchainKHR swapChains[] = {m_swapChain};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+
+        VK_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo));
     }
 
     void SceneRenderer::Shutdown()
     {
         vkDeviceWaitIdle(m_device);
+
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            vkDestroySemaphore(m_device, m_frames[i].imageAvailableSemaphore, nullptr);
+            vkDestroySemaphore(m_device, m_frames[i].renderFinishedSemaphore, nullptr);
+            vkDestroyFence(m_device, m_frames[i].inFlightFence, nullptr);
+
+            vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_frames[i].commandBuffer);
+        }
 
         m_vertexShader->Destroy(m_device);
         m_fragmentShader->Destroy(m_device);

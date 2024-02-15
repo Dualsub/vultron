@@ -16,11 +16,21 @@ namespace Vultron
 {
     struct FrameData
     {
+        VkSemaphore imageAvailableSemaphore;
+        VkSemaphore renderFinishedSemaphore;
+        VkFence inFlightFence;
+
+        VkCommandBuffer commandBuffer;
     };
 
     constexpr unsigned int c_frameOverlap = 2;
 
-    constexpr std::array<const char *, 1> c_deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const std::vector<const char *> c_deviceExtensions =
+        {
+#if __APPLE__
+            "VK_KHR_portability_subset",
+#endif
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     constexpr std::array<const char *, 1> c_validationLayers = {"VK_LAYER_KHRONOS_validation"};
     constexpr bool c_validationLayersEnabled = true;
 
@@ -55,7 +65,6 @@ namespace Vultron
 
         // Command pool
         VkCommandPool m_commandPool;
-        VkCommandBuffer m_commandBuffer;
 
         // Allocator
         VmaAllocator m_allocator;
@@ -82,7 +91,10 @@ namespace Vultron
         bool InitializeFramebuffers();
         bool InitializeCommandPool();
         bool InitializeCommandBuffer();
+        bool InitializeSyncObjects();
         bool InitializeAllocator();
+
+        void RecreateSwapChain(uint32_t width, uint32_t height);
 
         bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 
@@ -90,6 +102,7 @@ namespace Vultron
         bool InitializeDebugMessenger();
         bool CheckValidationLayerSupport();
 
+        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
         void Draw();
 
     public:

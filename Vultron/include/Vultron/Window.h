@@ -38,9 +38,14 @@ namespace Vultron
         bool ShouldShutdown();
 
         std::vector<const char *> GetWindowExtensions() const;
-        std::pair<uint32_t, uint32_t> GetExtent() const { return std::make_pair(m_width, m_height); }
-        GLFWwindow *GetWindowHandle() const { return m_windowHandle; }
+        std::pair<uint32_t, uint32_t> GetExtent() const
+        {
+            return std::make_pair(m_width, m_height);
+        }
+        GLFWwindow *GetWindowHandle() const
+        {
+            return m_windowHandle;
+        }
         static void CreateVulkanSurface(const Window &window, VkInstance instance, VkSurfaceKHR *surface);
     };
-
 }

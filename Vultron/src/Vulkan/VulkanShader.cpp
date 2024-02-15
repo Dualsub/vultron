@@ -3,6 +3,8 @@
 #include <fstream>
 #include <cassert>
 #include <vector>
+#include <iostream>
+#include <filesystem>
 
 namespace Vultron
 {
@@ -33,6 +35,8 @@ namespace Vultron
     std::shared_ptr<VulkanShader> VulkanShader::CreateFromFile(VkDevice device, const std::string &filepath)
     {
         std::ifstream file(filepath, std::ios::ate | std::ios::binary);
+        // Print absolute path to file
+        std::cout << "Filepath: " << std::filesystem::absolute(filepath) << std::endl;
         assert(file.is_open());
 
         size_t fileSize = static_cast<size_t>(file.tellg());

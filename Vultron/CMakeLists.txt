@@ -7,8 +7,11 @@ add_library(Vultron STATIC
     src/Window.cpp
     src/Vulkan/Debug.cpp
     src/Vulkan/Utils.cpp
-    src/Vulkan/VulkanShader.cpp
+    src/Vulkan/VulkanBackend.cpp
+    src/Vulkan/VulkanBuffer.cpp
+    src/Vulkan/VulkanMesh.cpp
     src/Vulkan/VulkanInitializers.cpp
+    src/Vulkan/VulkanShader.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)
@@ -19,3 +22,4 @@ target_link_libraries(Vultron PUBLIC
     Vulkan::Vulkan
     GPUOpen::VulkanMemoryAllocator
 )
+

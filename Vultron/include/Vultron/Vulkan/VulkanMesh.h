@@ -44,20 +44,26 @@ namespace Vultron
         }
     };
 
+    // TODO: Combine vertex and index buffer into a single buffer
     class VulkanMesh
     {
     private:
-        std::unique_ptr<VulkanBuffer> m_vertexBuffer;
-        std::unique_ptr<VulkanBuffer> m_IndexBuffer;
+        VulkanBuffer m_vertexBuffer;
+        VulkanBuffer m_IndexBuffer;
 
     public:
-        VulkanMesh(std::unique_ptr<VulkanBuffer> vertexBuffer, std::unique_ptr<VulkanBuffer> indexBuffer)
-            : m_vertexBuffer(std::move(vertexBuffer)), m_IndexBuffer(std::move(indexBuffer))
+        VulkanMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer)
+            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer)
         {
         }
         ~VulkanMesh() = default;
 
-        static std::unique_ptr<VulkanMesh> Create(VmaAllocator allocator, const std::vector<StaticMeshVertex> &vertices, const std::vector<uint32_t> &indices);
+        static std::unique_ptr<VulkanMesh> Create(VkDevice device, VkCommandPool commandPool, VkQueue queue, VmaAllocator allocator, const std::vector<StaticMeshVertex> &vertices, const std::vector<uint32_t> &indices);
         void Destroy(VmaAllocator allocator);
+
+        VkBuffer GetVertexBuffer() const { return m_vertexBuffer.GetBuffer(); }
+        VkBuffer GetIndexBuffer() const { return m_IndexBuffer.GetBuffer(); }
+
+        size_t GetIndexCount() const { return m_IndexBuffer.GetSize() / sizeof(uint32_t); }
     };
 }

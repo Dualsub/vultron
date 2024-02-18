@@ -23,6 +23,15 @@ namespace Vultron
         VkCommandBuffer commandBuffer;
     };
 
+    struct UniformBuffer
+    {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
+
+    static_assert(sizeof(UniformBuffer) % 16 == 0);
+
     constexpr unsigned int c_frameOverlap = 2;
 
     const std::vector<const char *> c_deviceExtensions =
@@ -63,6 +72,12 @@ namespace Vultron
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
 
+        VkDescriptorSetLayout m_descriptorSetLayout;
+        VkDescriptorPool m_descriptorPool;
+        VkDescriptorSet m_descriptorSets[c_frameOverlap];
+
+        VulkanBuffer m_uniformBuffers[c_frameOverlap];
+
         // Command pool
         VkCommandPool m_commandPool;
 
@@ -79,7 +94,7 @@ namespace Vultron
         // Assets, will be removed in the future
         std::shared_ptr<VulkanShader> m_vertexShader;
         std::shared_ptr<VulkanShader> m_fragmentShader;
-        std::unique_ptr<VulkanBuffer> m_vertexBuffer;
+        std::unique_ptr<VulkanMesh> m_mesh;
 
         bool InitializeInstance(const Window &window);
         bool InitializeSurface(const Window &window);
@@ -88,6 +103,7 @@ namespace Vultron
         bool InitializeSwapChain(uint32_t width, uint32_t height);
         bool InitializeImageViews();
         bool InitializeRenderPass();
+        bool InitializeDescriptorSetLayout();
         bool InitializeGraphicsPipeline();
         bool InitializeFramebuffers();
         bool InitializeCommandPool();
@@ -95,6 +111,9 @@ namespace Vultron
         bool InitializeSyncObjects();
         bool InitializeAllocator();
         bool InitializeGeometry();
+        bool InitializeUniformBuffers();
+        bool InitializeDescriptorPool();
+        bool InitializeDescriptorSets();
 
         void RecreateSwapChain(uint32_t width, uint32_t height);
 

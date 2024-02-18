@@ -34,4 +34,5 @@ namespace Vultron::VkUtil
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
     SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
+    void CopyBuffer(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 }

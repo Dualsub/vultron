@@ -77,6 +77,10 @@ namespace Vultron
 
         // Samplers
         VkSampler m_textureSampler;
+        VkSampler m_depthSampler;
+
+        // Depth buffer
+        VulkanImage m_depthImage;
 
         // Descriptor set
         VkDescriptorSetLayout m_descriptorSetLayout;
@@ -122,6 +126,7 @@ namespace Vultron
         // TODO: Remove this in the future
         bool InitializeTestResources();
         bool InitializeSamplers();
+        bool InitializeDepthBuffer();
         bool InitializeUniformBuffers();
         bool InitializeDescriptorPool();
         bool InitializeDescriptorSets();

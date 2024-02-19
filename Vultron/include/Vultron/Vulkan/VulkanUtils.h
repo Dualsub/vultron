@@ -34,6 +34,9 @@ namespace Vultron::VkUtil
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
     SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
+    VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice);
+    VkFormat FindSupportedFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool commandPool);
     void EndSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer);
 

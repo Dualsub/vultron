@@ -10,19 +10,12 @@
 namespace Vultron
 {
 
-    enum class ImageFormat
-    {
-        NONE = 0,
-        R8G8B8A8_SRGB = 1,
-        R8G8B8_SRGB = 2,
-    };
-
     struct ImageInfo
     {
         uint32_t width = 0;
         uint32_t height = 0;
         uint32_t depth = 0;
-        ImageFormat format = ImageFormat::NONE;
+        VkFormat format = VK_FORMAT_UNDEFINED;
     };
 
     class VulkanImage
@@ -39,8 +32,7 @@ namespace Vultron
             : m_image(image), m_imageView(imageView), m_allocation(allocation), m_info(info)
         {
         }
-        VulkanImage(const VulkanImage &other) = default;
-        VulkanImage(VulkanImage &&other) = default;
+        VulkanImage() = default;
         ~VulkanImage() = default;
 
         struct ImageCreateInfo
@@ -51,6 +43,8 @@ namespace Vultron
             VmaAllocator allocator = VK_NULL_HANDLE;
             void *data = nullptr;
             ImageInfo info = {};
+            VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+            VkImageUsageFlags additionalUsageFlags = 0;
         };
 
         static VulkanImage Create(const ImageCreateInfo &createInfo);
@@ -62,11 +56,15 @@ namespace Vultron
             VkCommandPool commandPool = VK_NULL_HANDLE;
             VkQueue queue = VK_NULL_HANDLE;
             VmaAllocator allocator = VK_NULL_HANDLE;
+            VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
             const std::string &filepath;
         };
 
         static VulkanImage CreateFromFile(const ImageFromFileCreateInfo &createInfo);
         static Ptr<VulkanImage> CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo);
+
+        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, void *data, size_t size);
+        void TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
 
         void Destroy(VkDevice device, VmaAllocator allocator);
 

@@ -97,12 +97,6 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeFramebuffers())
-        {
-            std::cerr << "Faild to initialize framebuffers." << std::endl;
-            return false;
-        }
-
         if (!InitializeCommandPool())
         {
             std::cerr << "Faild to initialize command pool." << std::endl;
@@ -112,6 +106,18 @@ namespace Vultron
         if (!InitializeCommandBuffer())
         {
             std::cerr << "Faild to initialize command buffer." << std::endl;
+            return false;
+        }
+
+        if (!InitializeDepthBuffer())
+        {
+            std::cerr << "Faild to initialize depth buffer." << std::endl;
+            return false;
+        }
+
+        if (!InitializeFramebuffers())
+        {
+            std::cerr << "Faild to initialize framebuffers." << std::endl;
             return false;
         }
 
@@ -464,6 +470,7 @@ namespace Vultron
 
     bool VulkanBackend::InitializeRenderPass()
     {
+        // Color attachment
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = m_swapChainImageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -478,26 +485,42 @@ namespace Vultron
         colorAttachmentRef.attachment = 0;
         colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+        // Depth attachment
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depthAttachmentRef{};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
-
-        VkRenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+        std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        renderPassInfo.pAttachments = attachments.data();
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
@@ -626,6 +649,14 @@ namespace Vultron
         pipelineLayoutInfo.pushConstantRangeCount = 0;
         pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+
         VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
 
         VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -638,6 +669,7 @@ namespace Vultron
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = m_pipelineLayout;
         pipelineInfo.renderPass = m_renderPass;
@@ -654,15 +686,15 @@ namespace Vultron
 
         for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
         {
-            VkImageView attachments[] = {
+            std::array<VkImageView, 2> attachments = {
                 m_swapChainImageViews[i],
-            };
+                m_depthImage.GetImageView()};
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebufferInfo.renderPass = m_renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = m_swapChainExtent.width;
             framebufferInfo.height = m_swapChainExtent.height;
             framebufferInfo.layers = 1;
@@ -738,22 +770,20 @@ namespace Vultron
 
     bool VulkanBackend::InitializeTestResources()
     {
-        const std::vector<StaticMeshVertex> vertices = {
-            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
-            {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
-            {{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
-            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}}};
-
-        const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
-
-        m_mesh = VulkanMesh::CreatePtr(m_device, m_commandPool, m_graphicsQueue, m_allocator, vertices, indices);
+        m_mesh = VulkanMesh::CreatePtrFromFile(
+            {.device = m_device,
+             .commandPool = m_commandPool,
+             .queue = m_graphicsQueue,
+             .allocator = m_allocator,
+             .filepath = std::string(VLT_ASSETS_DIR) + "/meshes/DamagedHelmet.dat"});
 
         m_texture = VulkanImage::CreatePtrFromFile(
             {.device = m_device,
              .commandPool = m_commandPool,
              .queue = m_graphicsQueue,
              .allocator = m_allocator,
-             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/wood.jpg"});
+             .format = VK_FORMAT_R8G8B8A8_SRGB,
+             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.jpg"});
 
         return true;
     }
@@ -779,6 +809,30 @@ namespace Vultron
         samplerInfo.maxLod = 0.0f;
 
         VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSampler));
+
+        return true;
+    }
+
+    bool VulkanBackend::InitializeDepthBuffer()
+    {
+        VkFormat depthFormat = VkUtil::FindDepthFormat(m_physicalDevice);
+
+        m_depthImage = VulkanImage::Create(
+            {.device = m_device,
+             .commandPool = m_commandPool,
+             .queue = m_graphicsQueue,
+             .allocator = m_allocator,
+             .data = nullptr,
+             .info = {
+                 .width = m_swapChainExtent.width,
+                 .height = m_swapChainExtent.height,
+                 .depth = 1,
+                 .format = depthFormat,
+             },
+             .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
+             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
+
+        m_depthImage.TransitionLayout(m_device, m_commandPool, m_graphicsQueue, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         return true;
     }
@@ -987,9 +1041,12 @@ namespace Vultron
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = m_swapChainExtent;
 
-        VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        std::array<VkClearValue, 2> clearValues{};
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1041,8 +1098,9 @@ namespace Vultron
         float time = std::chrono::duration<float, std::chrono::seconds::period>(now - start).count();
 
         UniformBuffer ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
+                    glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
@@ -1103,6 +1161,7 @@ namespace Vultron
             m_uniformBuffers[i].Destroy(m_allocator);
         }
 
+        m_depthImage.Destroy(m_device, m_allocator);
         m_texture->Destroy(m_device, m_allocator);
         m_mesh->Destroy(m_allocator);
         m_vertexShader->Destroy(m_device);

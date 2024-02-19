@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Vultron/Window.h"
-#include "Vultron/Vulkan/Utils.h"
+#include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
 #include "Vultron/Vulkan/VulkanShader.h"

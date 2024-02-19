@@ -1,5 +1,5 @@
 #include "Vultron/Vulkan/VulkanBuffer.h"
-#include "Vultron/Vulkan/Utils.h"
+#include "Vultron/Vulkan/VulkanUtils.h"
 
 namespace Vultron
 {

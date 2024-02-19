@@ -1,4 +1,5 @@
 #include "Vultron/Vulkan/VulkanShader.h"
+#include "Vultron/Vulkan/VulkanUtils.h"
 
 #include <fstream>
 #include <cassert>
@@ -8,35 +9,22 @@
 
 namespace Vultron
 {
-    void VulkanShader::Destroy(VkDevice device)
+    Ptr<VulkanShader> VulkanShader::CreatePtr(const ShaderCreateInfo &createInfo)
     {
-        vkDestroyShaderModule(device, m_ShaderModule, nullptr);
-    }
-
-    std::shared_ptr<VulkanShader> VulkanShader::Create(VkDevice device, const std::string &source)
-    {
-        VkShaderModuleCreateInfo createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = source.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t *>(source.data());
+        VkShaderModuleCreateInfo createInfoVk = {};
+        createInfoVk.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfoVk.codeSize = createInfo.source.size();
+        createInfoVk.pCode = reinterpret_cast<const uint32_t *>(createInfo.source.data());
 
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create shader module!");
-        }
+        VK_CHECK(vkCreateShaderModule(createInfo.device, &createInfoVk, nullptr, &shaderModule));
 
-        std::shared_ptr<VulkanShader> shader = std::make_shared<VulkanShader>();
-        shader->m_ShaderModule = shaderModule;
-
-        return shader;
+        return MakePtr<VulkanShader>(shaderModule);
     }
 
-    std::shared_ptr<VulkanShader> VulkanShader::CreateFromFile(VkDevice device, const std::string &filepath)
+    Ptr<VulkanShader> VulkanShader::CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo)
     {
-        std::ifstream file(filepath, std::ios::ate | std::ios::binary);
-        // Print absolute path to file
-        std::cout << "Filepath: " << std::filesystem::absolute(filepath) << std::endl;
+        std::ifstream file(createInfo.filepath, std::ios::ate | std::ios::binary);
         assert(file.is_open());
 
         size_t fileSize = static_cast<size_t>(file.tellg());
@@ -45,6 +33,11 @@ namespace Vultron
         file.read(buffer.data(), fileSize);
         file.close();
 
-        return Create(device, std::string(buffer.data(), fileSize));
+        return CreatePtr({.device = createInfo.device, .source = std::string(buffer.data(), fileSize)});
+    }
+
+    void VulkanShader::Destroy(VkDevice device)
+    {
+        vkDestroyShaderModule(device, m_ShaderModule, nullptr);
     }
 }

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Vultron/Core/Core.h"
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
+#include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
 #include "Vultron/Vulkan/VulkanShader.h"
 
@@ -49,6 +51,7 @@ namespace Vultron
         // Vulkan
         VkInstance m_instance;
         VkPhysicalDevice m_physicalDevice;
+        VkPhysicalDeviceProperties m_deviceProperties;
         VkDevice m_device;
 
         // Queues
@@ -72,10 +75,15 @@ namespace Vultron
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
 
+        // Sampler
+        std::vector<VkSampler> m_samplers;
+
+        // Descriptor set
         VkDescriptorSetLayout m_descriptorSetLayout;
         VkDescriptorPool m_descriptorPool;
         VkDescriptorSet m_descriptorSets[c_frameOverlap];
 
+        // Uniform buffer
         VulkanBuffer m_uniformBuffers[c_frameOverlap];
 
         // Command pool
@@ -92,9 +100,10 @@ namespace Vultron
         uint32_t m_currentFrameIndex = 0;
 
         // Assets, will be removed in the future
-        std::shared_ptr<VulkanShader> m_vertexShader;
-        std::shared_ptr<VulkanShader> m_fragmentShader;
-        std::unique_ptr<VulkanMesh> m_mesh;
+        Ptr<VulkanShader> m_vertexShader;
+        Ptr<VulkanShader> m_fragmentShader;
+        Ptr<VulkanMesh> m_mesh;
+        Ptr<VulkanImage> m_texture;
 
         bool InitializeInstance(const Window &window);
         bool InitializeSurface(const Window &window);
@@ -110,7 +119,9 @@ namespace Vultron
         bool InitializeCommandBuffer();
         bool InitializeSyncObjects();
         bool InitializeAllocator();
-        bool InitializeGeometry();
+        // TODO: Remove this in the future
+        bool InitializeTestResources();
+        bool InitializeSampler();
         bool InitializeUniformBuffers();
         bool InitializeDescriptorPool();
         bool InitializeDescriptorSets();

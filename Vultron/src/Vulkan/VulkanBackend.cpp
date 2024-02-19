@@ -121,9 +121,15 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeGeometry())
+        if (!InitializeTestResources())
         {
             std::cerr << "Faild to initialize geometry." << std::endl;
+            return false;
+        }
+
+        if (!InitializeSampler())
+        {
+            std::cerr << "Faild to initialize sampler." << std::endl;
             return false;
         }
 
@@ -229,12 +235,14 @@ namespace Vultron
             VkPhysicalDeviceFeatures2 allFeatures;
             allFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             allFeatures.pNext = &deviceFeatures13;
+
             vkGetPhysicalDeviceFeatures2(device, &allFeatures);
             VkPhysicalDeviceFeatures &deviceFeatures = allFeatures.features;
 
             VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(device, m_surface);
 
             bool allowed = families.IsComplete() && CheckDeviceExtensionSupport(device);
+            allowed &= (deviceFeatures.samplerAnisotropy == VK_TRUE);
 
             bool swapChainAdequate = false;
             if (allowed)
@@ -264,10 +272,9 @@ namespace Vultron
             return false;
         }
 
-        VkPhysicalDeviceProperties deviceProperties;
-        vkGetPhysicalDeviceProperties(m_physicalDevice, &deviceProperties);
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &m_deviceProperties);
         std::cout << "Selected ";
-        std::cout << deviceProperties.deviceName;
+        std::cout << m_deviceProperties.deviceName;
         std::cout << " for rendering.";
         std::cout << std::endl;
         return true;
@@ -291,9 +298,10 @@ namespace Vultron
             queueCreateInfos.push_back(queueCreateInfo);
         }
 
-        VkPhysicalDeviceFeatures deviceFeatures{};
         VkPhysicalDeviceFeatures2 deviceFeatures2{};
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
+
         VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{};
         bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
         bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
@@ -519,8 +527,8 @@ namespace Vultron
     bool VulkanBackend::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreateFromFile(m_device, std::string(VLT_ASSETS_DIR) + "/shaders/triangle_vert.spv");
-        m_fragmentShader = VulkanShader::CreateFromFile(m_device, std::string(VLT_ASSETS_DIR) + "/shaders/triangle_frag.spv");
+        m_vertexShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle_vert.spv"});
+        m_fragmentShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle_frag.spv"});
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -720,7 +728,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeGeometry()
+    bool VulkanBackend::InitializeTestResources()
     {
         const std::vector<StaticMeshVertex> vertices = {
             {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
@@ -730,7 +738,51 @@ namespace Vultron
 
         const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
-        m_mesh = VulkanMesh::Create(m_device, m_commandPool, m_graphicsQueue, m_allocator, vertices, indices);
+        m_mesh = VulkanMesh::CreatePtr(m_device, m_commandPool, m_graphicsQueue, m_allocator, vertices, indices);
+
+        uint32_t *data = new uint32_t[2048 * 2048 * 4];
+
+        m_texture = VulkanImage::CreatePtr(
+            {.device = m_device,
+             .allocator = m_allocator,
+             .queue = m_graphicsQueue,
+             .commandPool = m_commandPool,
+             .data = data,
+             .info = {
+                 .width = 2048,
+                 .height = 2048,
+                 .depth = 1,
+                 .format = ImageFormat::R8G8B8A8_SRGB,
+             }});
+
+        delete[] data;
+
+        return true;
+    }
+
+    bool VulkanBackend::InitializeSampler()
+    {
+        m_samplers.resize(1);
+
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable = VK_TRUE;
+        samplerInfo.maxAnisotropy = m_deviceProperties.limits.maxSamplerAnisotropy;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+
+        VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, m_samplers.data()));
 
         return true;
     }
@@ -741,7 +793,7 @@ namespace Vultron
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            m_uniformBuffers[i] = VulkanBuffer::Create(m_allocator, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, size, VMA_MEMORY_USAGE_CPU_TO_GPU);
+            m_uniformBuffers[i] = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             m_uniformBuffers[i].Map(m_allocator);
         }
 
@@ -974,7 +1026,7 @@ namespace Vultron
 
         UniformBuffer ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(0.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
@@ -1027,12 +1079,18 @@ namespace Vultron
             vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_frames[i].commandBuffer);
         }
 
+        for (auto sampler : m_samplers)
+        {
+            vkDestroySampler(m_device, sampler, nullptr);
+        }
+
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             m_uniformBuffers[i].Unmap(m_allocator);
             m_uniformBuffers[i].Destroy(m_allocator);
         }
 
+        m_texture->Destroy(m_device, m_allocator);
         m_mesh->Destroy(m_allocator);
         m_vertexShader->Destroy(m_device);
         m_fragmentShader->Destroy(m_device);

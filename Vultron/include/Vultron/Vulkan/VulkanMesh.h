@@ -58,7 +58,7 @@ namespace Vultron
         }
         ~VulkanMesh() = default;
 
-        static std::unique_ptr<VulkanMesh> Create(VkDevice device, VkCommandPool commandPool, VkQueue queue, VmaAllocator allocator, const std::vector<StaticMeshVertex> &vertices, const std::vector<uint32_t> &indices);
+        static std::unique_ptr<VulkanMesh> CreatePtr(VkDevice device, VkCommandPool commandPool, VkQueue queue, VmaAllocator allocator, const std::vector<StaticMeshVertex> &vertices, const std::vector<uint32_t> &indices);
         void Destroy(VmaAllocator allocator);
 
         VkBuffer GetVertexBuffer() const { return m_vertexBuffer.GetBuffer(); }

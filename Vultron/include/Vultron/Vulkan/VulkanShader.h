@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Vultron/Core/Core.h"
+
 #include "vulkan/vulkan.h"
 
 #include <memory>
@@ -13,13 +15,24 @@ namespace Vultron
         VkShaderModule m_ShaderModule;
 
     public:
-        VulkanShader() = default;
+        VulkanShader(VkShaderModule shaderModule) : m_ShaderModule(shaderModule) {}
         ~VulkanShader() = default;
 
         VkShaderModule GetShaderModule() const { return m_ShaderModule; }
 
+        struct ShaderCreateInfo
+        {
+            VkDevice device = VK_NULL_HANDLE;
+            const std::string &source;
+        };
+        static Ptr<VulkanShader> CreatePtr(const ShaderCreateInfo &createInfo);
+        
+        struct ShaderFromFileCreateInfo
+        {
+            VkDevice device = VK_NULL_HANDLE;
+            const std::string &filepath;
+        };
+        static Ptr<VulkanShader> CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo);
         void Destroy(VkDevice device);
-        static std::shared_ptr<VulkanShader> Create(VkDevice device, const std::string &source);
-        static std::shared_ptr<VulkanShader> CreateFromFile(VkDevice device, const std::string &filepath);
     };
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Vultron/Core/Core.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 
 #include "vulkan/vulkan.h"
@@ -27,8 +28,16 @@ namespace Vultron
         VulkanBuffer() = default;
         ~VulkanBuffer() = default;
 
-        static std::unique_ptr<VulkanBuffer> CreatePtr(VmaAllocator allocator, VkBufferUsageFlags usage, size_t size, VmaMemoryUsage allocationUsage = VMA_MEMORY_USAGE_AUTO);
-        static VulkanBuffer Create(VmaAllocator allocator, VkBufferUsageFlags usage, size_t size, VmaMemoryUsage allocationUsage = VMA_MEMORY_USAGE_AUTO);
+        struct BufferCreateInfo
+        {
+            VkDevice device = VK_NULL_HANDLE;
+            VmaAllocator allocator = VK_NULL_HANDLE;
+            VkBufferUsageFlags usage = 0;
+            size_t size = 0;
+            VmaMemoryUsage allocationUsage = VMA_MEMORY_USAGE_AUTO;
+        };
+        static Ptr<VulkanBuffer> CreatePtr(const BufferCreateInfo &createInfo);
+        static VulkanBuffer Create(const BufferCreateInfo &createInfo);
         void Destroy(VmaAllocator allocator);
 
         template <typename T>
@@ -55,7 +64,7 @@ namespace Vultron
         template <typename T>
         void UploadStaged(VkDevice device, VkCommandPool commandPool, VkQueue queue, VmaAllocator allocator, T *data, size_t size, size_t offset = 0)
         {
-            VulkanBuffer stagingBuffer = Create(allocator, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, size, VMA_MEMORY_USAGE_CPU_TO_GPU);
+            VulkanBuffer stagingBuffer = Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             stagingBuffer.Write(allocator, data, size);
 
             VkUtil::CopyBuffer(device, commandPool, queue, stagingBuffer.GetBuffer(), m_buffer, size);

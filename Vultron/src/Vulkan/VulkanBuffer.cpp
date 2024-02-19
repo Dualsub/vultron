@@ -1,42 +1,30 @@
 #include "Vultron/Vulkan/VulkanBuffer.h"
+
 #include "Vultron/Vulkan/VulkanUtils.h"
 
 namespace Vultron
 {
-    std::unique_ptr<VulkanBuffer> VulkanBuffer::CreatePtr(VmaAllocator allocator, VkBufferUsageFlags usage, size_t size, VmaMemoryUsage allocationUsage)
+    Ptr<VulkanBuffer> VulkanBuffer::CreatePtr(const BufferCreateInfo &createInfo)
     {
-        VkBufferCreateInfo bufferInfo = {};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = size;
-        bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = allocationUsage;
-
-        VkBuffer buffer;
-        VmaAllocation allocation;
-        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr);
-
-        return std::make_unique<VulkanBuffer>(buffer, allocation, size);
+        return MakePtr<VulkanBuffer>(Create(createInfo));
     }
 
-    VulkanBuffer VulkanBuffer::Create(VmaAllocator allocator, VkBufferUsageFlags usage, size_t size, VmaMemoryUsage allocationUsage)
+    VulkanBuffer VulkanBuffer::Create(const BufferCreateInfo &createInfo)
     {
         VkBufferCreateInfo bufferInfo = {};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = size;
-        bufferInfo.usage = usage;
+        bufferInfo.size = createInfo.size;
+        bufferInfo.usage = createInfo.usage;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = allocationUsage;
+        allocInfo.usage = createInfo.allocationUsage;
 
         VkBuffer buffer;
         VmaAllocation allocation;
-        vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr);
+        vmaCreateBuffer(createInfo.allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr);
 
-        return VulkanBuffer(buffer, allocation, size);
+        return VulkanBuffer(buffer, allocation, createInfo.size);
     }
 
     void VulkanBuffer::Destroy(VmaAllocator allocator)

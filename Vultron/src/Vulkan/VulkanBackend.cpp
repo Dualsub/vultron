@@ -127,7 +127,7 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeSampler())
+        if (!InitializeSamplers())
         {
             std::cerr << "Faild to initialize sampler." << std::endl;
             return false;
@@ -508,16 +508,24 @@ namespace Vultron
 
     bool VulkanBackend::InitializeDescriptorSetLayout()
     {
-        VkDescriptorSetLayoutBinding layoutBinding = {};
-        layoutBinding.binding = 0;
-        layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        layoutBinding.descriptorCount = 1;
-        layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        std::array<VkDescriptorSetLayoutBinding, 2> layoutBindings = {};
+
+        VkDescriptorSetLayoutBinding &uniformBinding = layoutBindings[0];
+        uniformBinding.binding = 0;
+        uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniformBinding.descriptorCount = 1;
+        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding &samplerBinding = layoutBindings[1];
+        samplerBinding.binding = 1;
+        samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerBinding.descriptorCount = 1;
+        samplerBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
         VkDescriptorSetLayoutCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        createInfo.bindingCount = 1;
-        createInfo.pBindings = &layoutBinding;
+        createInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
+        createInfo.pBindings = layoutBindings.data();
 
         VK_CHECK(vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &m_descriptorSetLayout));
 
@@ -731,39 +739,27 @@ namespace Vultron
     bool VulkanBackend::InitializeTestResources()
     {
         const std::vector<StaticMeshVertex> vertices = {
-            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-            {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-            {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}}};
+            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
+            {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
+            {{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},
+            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}}};
 
         const std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
 
         m_mesh = VulkanMesh::CreatePtr(m_device, m_commandPool, m_graphicsQueue, m_allocator, vertices, indices);
 
-        uint32_t *data = new uint32_t[2048 * 2048 * 4];
-
-        m_texture = VulkanImage::CreatePtr(
+        m_texture = VulkanImage::CreatePtrFromFile(
             {.device = m_device,
-             .allocator = m_allocator,
-             .queue = m_graphicsQueue,
              .commandPool = m_commandPool,
-             .data = data,
-             .info = {
-                 .width = 2048,
-                 .height = 2048,
-                 .depth = 1,
-                 .format = ImageFormat::R8G8B8A8_SRGB,
-             }});
-
-        delete[] data;
+             .queue = m_graphicsQueue,
+             .allocator = m_allocator,
+             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/wood.jpg"});
 
         return true;
     }
 
-    bool VulkanBackend::InitializeSampler()
+    bool VulkanBackend::InitializeSamplers()
     {
-        m_samplers.resize(1);
-
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -782,7 +778,7 @@ namespace Vultron
         samplerInfo.minLod = 0.0f;
         samplerInfo.maxLod = 0.0f;
 
-        VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, m_samplers.data()));
+        VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSampler));
 
         return true;
     }
@@ -802,14 +798,20 @@ namespace Vultron
 
     bool VulkanBackend::InitializeDescriptorPool()
     {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
+        std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+
+        VkDescriptorPoolSize &uniformPoolSize = poolSizes[0];
+        uniformPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniformPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
+
+        VkDescriptorPoolSize &samplerPoolSize = poolSizes[1];
+        samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(c_frameOverlap);
 
         VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
@@ -835,18 +837,32 @@ namespace Vultron
             bufferInfo.offset = 0;
             bufferInfo.range = m_uniformBuffers[i].GetSize();
 
-            VkWriteDescriptorSet descriptorWrite{};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = m_descriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
+            VkDescriptorImageInfo imageInfo{};
+            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageView = m_texture->GetImageView();
+            imageInfo.sampler = m_textureSampler;
 
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrite.descriptorCount = 1;
+            std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
-            descriptorWrite.pBufferInfo = &bufferInfo;
+            VkWriteDescriptorSet &uniformBufferWrite = descriptorWrites[0];
+            uniformBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            uniformBufferWrite.dstSet = m_descriptorSets[i];
+            uniformBufferWrite.dstBinding = 0;
+            uniformBufferWrite.dstArrayElement = 0;
+            uniformBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            uniformBufferWrite.descriptorCount = 1;
+            uniformBufferWrite.pBufferInfo = &bufferInfo;
 
-            vkUpdateDescriptorSets(m_device, 1, &descriptorWrite, 0, nullptr);
+            VkWriteDescriptorSet &samplerWrite = descriptorWrites[1];
+            samplerWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            samplerWrite.dstSet = m_descriptorSets[i];
+            samplerWrite.dstBinding = 1;
+            samplerWrite.dstArrayElement = 0;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.pImageInfo = &imageInfo;
+
+            vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
 
         return true;
@@ -1079,10 +1095,7 @@ namespace Vultron
             vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_frames[i].commandBuffer);
         }
 
-        for (auto sampler : m_samplers)
-        {
-            vkDestroySampler(m_device, sampler, nullptr);
-        }
+        vkDestroySampler(m_device, m_textureSampler, nullptr);
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {

@@ -3,6 +3,9 @@
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <iostream>
 
 namespace Vultron
@@ -13,7 +16,19 @@ namespace Vultron
         VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = createInfo.allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = imageSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
         stagingBuffer.Write(createInfo.allocator, createInfo.data, imageSize);
 
-        const VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        switch (createInfo.info.format)
+        {
+        case ImageFormat::R8G8B8A8_SRGB:
+            format = VK_FORMAT_R8G8B8A8_SRGB;
+            break;
+        case ImageFormat::R8G8B8_SRGB:
+            format = VK_FORMAT_R8G8B8_SRGB;
+            break;
+        default:
+            assert(false && "Unsupported image format");
+            break;
+        }
 
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -91,6 +106,38 @@ namespace Vultron
     Ptr<VulkanImage> VulkanImage::CreatePtr(const ImageCreateInfo &createInfo)
     {
         return MakePtr<VulkanImage>(VulkanImage::Create(createInfo));
+    }
+
+    VulkanImage VulkanImage::CreateFromFile(const ImageFromFileCreateInfo &createInfo)
+    {
+        int texWidth, texHeight, texChannels;
+        stbi_uc *pixels = stbi_load(createInfo.filepath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        assert(pixels);
+
+        stbi_set_flip_vertically_on_load(true);
+
+        ImageFormat format = ImageFormat::R8G8B8A8_SRGB;
+
+        VulkanImage image = VulkanImage::Create(
+            {.device = createInfo.device,
+             .commandPool = createInfo.commandPool,
+             .queue = createInfo.queue,
+             .allocator = createInfo.allocator,
+             .data = pixels,
+             .info = {
+                 .width = static_cast<uint32_t>(texWidth),
+                 .height = static_cast<uint32_t>(texHeight),
+                 .depth = 1,
+                 .format = format}});
+
+        stbi_image_free(pixels);
+
+        return image;
+    }
+
+    Ptr<VulkanImage> VulkanImage::CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo)
+    {
+        return MakePtr<VulkanImage>(VulkanImage::CreateFromFile(createInfo));
     }
 
     void VulkanImage::Destroy(VkDevice device, VmaAllocator allocator)

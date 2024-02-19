@@ -14,7 +14,7 @@ namespace Vultron
     struct StaticMeshVertex
     {
         glm::vec3 position;
-        glm::vec3 color;
+        glm::vec2 texCoord;
 
         static VkVertexInputBindingDescription GetBindingDescription()
         {
@@ -37,8 +37,8 @@ namespace Vultron
 
             attributeDescriptions[1].binding = 0;
             attributeDescriptions[1].location = 1;
-            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[1].offset = offsetof(StaticMeshVertex, color);
+            attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(StaticMeshVertex, texCoord);
 
             return attributeDescriptions;
         }

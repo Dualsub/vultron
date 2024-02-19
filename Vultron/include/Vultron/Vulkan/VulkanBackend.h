@@ -75,8 +75,8 @@ namespace Vultron
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
 
-        // Sampler
-        std::vector<VkSampler> m_samplers;
+        // Samplers
+        VkSampler m_textureSampler;
 
         // Descriptor set
         VkDescriptorSetLayout m_descriptorSetLayout;
@@ -121,7 +121,7 @@ namespace Vultron
         bool InitializeAllocator();
         // TODO: Remove this in the future
         bool InitializeTestResources();
-        bool InitializeSampler();
+        bool InitializeSamplers();
         bool InitializeUniformBuffers();
         bool InitializeDescriptorPool();
         bool InitializeDescriptorSets();

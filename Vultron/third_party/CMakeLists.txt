@@ -1,3 +1,5 @@
 add_subdirectory(glfw)
 add_subdirectory(glm)
 add_subdirectory(vma)
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image INTERFACE stb_image)

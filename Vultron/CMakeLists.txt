@@ -22,6 +22,7 @@ target_link_libraries(Vultron PUBLIC
     glm
     Vulkan::Vulkan
     GPUOpen::VulkanMemoryAllocator
+    stb_image
 )
 
 # Define a macro for the absolute path to the assets directory

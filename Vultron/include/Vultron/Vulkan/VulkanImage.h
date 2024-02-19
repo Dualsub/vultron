@@ -12,6 +12,7 @@ namespace Vultron
     {
         NONE = 0,
         R8G8B8A8_SRGB = 1,
+        R8G8B8_SRGB = 2,
     };
 
     struct ImageInfo
@@ -52,6 +53,22 @@ namespace Vultron
 
         static VulkanImage Create(const ImageCreateInfo &createInfo);
         static Ptr<VulkanImage> CreatePtr(const ImageCreateInfo &createInfo);
+
+        struct ImageFromFileCreateInfo
+        {
+            VkDevice device = VK_NULL_HANDLE;
+            VkCommandPool commandPool = VK_NULL_HANDLE;
+            VkQueue queue = VK_NULL_HANDLE;
+            VmaAllocator allocator = VK_NULL_HANDLE;
+            const std::string &filepath;
+        };
+
+        static VulkanImage CreateFromFile(const ImageFromFileCreateInfo &createInfo);
+        static Ptr<VulkanImage> CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo);
+
         void Destroy(VkDevice device, VmaAllocator allocator);
+
+        VkImage GetImage() const { return m_image; }
+        VkImageView GetImageView() const { return m_imageView; }
     };
 }

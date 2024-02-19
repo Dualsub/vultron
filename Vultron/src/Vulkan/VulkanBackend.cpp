@@ -4,16 +4,21 @@
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-
-#include <cstdint>
-#include <algorithm>
-#include <vector>
-#include <iostream>
-#include <set>
-#include <limits>
-#include <chrono>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <algorithm>
+#include <cstdint>
+#include <chrono>
+#include <iostream>
+#include <limits>
+#include <vector>
+#include <set>
+#include <string>
+
+#ifndef VLT_ASSETS_DIR
+#define VLT_ASSETS_DIR "assets"
+#endif
 
 namespace Vultron
 {
@@ -514,8 +519,8 @@ namespace Vultron
     bool VulkanBackend::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreateFromFile(m_device, "C:/dev/repos/vultron/Vultron/assets/shaders/triangle_vert.spv");
-        m_fragmentShader = VulkanShader::CreateFromFile(m_device, "C:/dev/repos/vultron/Vultron/assets/shaders/triangle_frag.spv");
+        m_vertexShader = VulkanShader::CreateFromFile(m_device, std::string(VLT_ASSETS_DIR) + "/shaders/triangle_vert.spv");
+        m_fragmentShader = VulkanShader::CreateFromFile(m_device, std::string(VLT_ASSETS_DIR) + "/shaders/triangle_frag.spv");
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {

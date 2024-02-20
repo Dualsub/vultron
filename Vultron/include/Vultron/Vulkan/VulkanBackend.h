@@ -25,16 +25,20 @@ namespace Vultron
         VkCommandBuffer commandBuffer;
     };
 
-    struct UniformBuffer
+    struct UniformBufferData
     {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
+        glm::vec3 lightDir;
+        float _padding1;
+        glm::vec3 viewPos;
+        float _padding2;
     };
 
-    static_assert(sizeof(UniformBuffer) % 16 == 0);
+    static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr unsigned int c_frameOverlap = 2;
+    constexpr uint32_t c_frameOverlap = 2;
 
     const std::vector<const char *> c_deviceExtensions =
         {
@@ -89,6 +93,7 @@ namespace Vultron
 
         // Uniform buffer
         VulkanBuffer m_uniformBuffers[c_frameOverlap];
+        UniformBufferData m_uniformBufferData{};
 
         // Command pool
         VkCommandPool m_commandPool;

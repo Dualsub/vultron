@@ -537,7 +537,7 @@ namespace Vultron
         uniformBinding.binding = 0;
         uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uniformBinding.descriptorCount = 1;
-        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
         VkDescriptorSetLayoutBinding &samplerBinding = layoutBindings[1];
         samplerBinding.binding = 1;
@@ -558,8 +558,8 @@ namespace Vultron
     bool VulkanBackend::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle_vert.spv"});
-        m_fragmentShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle_frag.spv"});
+        m_vertexShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_fragmentShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -839,7 +839,7 @@ namespace Vultron
 
     bool VulkanBackend::InitializeUniformBuffers()
     {
-        size_t size = sizeof(UniformBuffer);
+        size_t size = sizeof(UniformBufferData);
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
@@ -847,6 +847,9 @@ namespace Vultron
             m_uniformBuffers[i].Map(m_allocator);
         }
 
+        m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
+        m_uniformBufferData.proj[1][1] *= -1;
         return true;
     }
 
@@ -1097,14 +1100,12 @@ namespace Vultron
         std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(now - start).count();
 
-        UniformBuffer ubo{};
+        UniformBufferData ubo = m_uniformBufferData;
         ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
                     glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
-        ubo.proj[1][1] *= -1;
 
-        std::memcpy(m_uniformBuffers[currentFrame].GetMapped<UniformBuffer>(), &ubo, sizeof(ubo));
+        std::memcpy(m_uniformBuffers[currentFrame].GetMapped<UniformBufferData>(), &ubo, sizeof(ubo));
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

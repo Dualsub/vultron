@@ -64,6 +64,7 @@ namespace Vultron
             : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer)
         {
         }
+        VulkanMesh() = default;
         ~VulkanMesh() = default;
 
         struct MeshCreateInfo

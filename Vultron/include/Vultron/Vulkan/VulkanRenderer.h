@@ -23,6 +23,17 @@ namespace Vultron
         VkFence inFlightFence;
 
         VkCommandBuffer commandBuffer;
+
+        VulkanBuffer instanceBuffer;
+        uint32_t instanceCount = 0;
+
+        VulkanBuffer uniformBuffer;
+        VkDescriptorSet descriptorSet;
+    };
+
+    struct InstanceData
+    {
+        glm::mat4 model;
     };
 
     struct UniformBufferData
@@ -45,11 +56,12 @@ namespace Vultron
 #if __APPLE__
             "VK_KHR_portability_subset",
 #endif
+            VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
             VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     constexpr std::array<const char *, 1> c_validationLayers = {"VK_LAYER_KHRONOS_validation"};
-    constexpr bool c_validationLayersEnabled = true;
+    constexpr bool c_validationLayersEnabled = false;
 
-    class VulkanBackend
+    class VulkanRenderer
     {
     private:
         // Vulkan
@@ -89,10 +101,8 @@ namespace Vultron
         // Descriptor set
         VkDescriptorSetLayout m_descriptorSetLayout;
         VkDescriptorPool m_descriptorPool;
-        VkDescriptorSet m_descriptorSets[c_frameOverlap];
 
         // Uniform buffer
-        VulkanBuffer m_uniformBuffers[c_frameOverlap];
         UniformBufferData m_uniformBufferData{};
 
         // Command pool
@@ -109,10 +119,10 @@ namespace Vultron
         uint32_t m_currentFrameIndex = 0;
 
         // Assets, will be removed in the future
-        Ptr<VulkanShader> m_vertexShader;
-        Ptr<VulkanShader> m_fragmentShader;
-        Ptr<VulkanMesh> m_mesh;
-        Ptr<VulkanImage> m_texture;
+        VulkanShader m_vertexShader;
+        VulkanShader m_fragmentShader;
+        VulkanMesh m_mesh;
+        VulkanImage m_texture;
 
         bool InitializeInstance(const Window &window);
         bool InitializeSurface(const Window &window);
@@ -133,11 +143,11 @@ namespace Vultron
         bool InitializeSamplers();
         bool InitializeDepthBuffer();
         bool InitializeUniformBuffers();
+        bool InitializeInstanceBuffer();
         bool InitializeDescriptorPool();
         bool InitializeDescriptorSets();
 
         void RecreateSwapChain(uint32_t width, uint32_t height);
-
         bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 
         // Validation/debugging
@@ -148,8 +158,8 @@ namespace Vultron
         void Draw();
 
     public:
-        VulkanBackend() = default;
-        ~VulkanBackend() = default;
+        VulkanRenderer() = default;
+        ~VulkanRenderer() = default;
 
         bool Initialize(const Window &window);
 

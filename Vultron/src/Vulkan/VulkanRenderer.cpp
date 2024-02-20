@@ -22,7 +22,13 @@
 
 namespace Vultron
 {
-    bool VulkanBackend::Initialize(const Window &window)
+    constexpr uint32_t c_numInstances = 10000;
+    constexpr uint32_t c_numPerRow = 100;
+    constexpr float c_spacing = 3.0f;
+
+    std::array<InstanceData, c_numInstances> instanceBufferData;
+
+    bool VulkanRenderer::Initialize(const Window &window)
     {
         if (c_validationLayersEnabled && !CheckValidationLayerSupport())
         {
@@ -145,6 +151,12 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeInstanceBuffer())
+        {
+            std::cerr << "Faild to initialize instance buffer." << std::endl;
+            return false;
+        }
+
         if (!InitializeDescriptorPool())
         {
             std::cerr << "Faild to initialize descriptor pool." << std::endl;
@@ -160,7 +172,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeInstance(const Window &window)
+    bool VulkanRenderer::InitializeInstance(const Window &window)
     {
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -207,13 +219,13 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeSurface(const Window &window)
+    bool VulkanRenderer::InitializeSurface(const Window &window)
     {
         Window::CreateVulkanSurface(window, m_instance, &m_surface);
         return true;
     }
 
-    bool VulkanBackend::InitializePhysicalDevice()
+    bool VulkanRenderer::InitializePhysicalDevice()
     {
         m_physicalDevice = VK_NULL_HANDLE;
 
@@ -230,9 +242,14 @@ namespace Vultron
             VkPhysicalDeviceProperties deviceProperties;
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
+            VkPhysicalDeviceShaderDrawParameterFeatures drawParamsFeatures;
+            drawParamsFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES;
+            drawParamsFeatures.pNext = nullptr;
+            drawParamsFeatures.shaderDrawParameters = VK_TRUE;
+
             VkPhysicalDeviceVulkan12Features deviceFeatures12;
             deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-            deviceFeatures12.pNext = nullptr;
+            deviceFeatures12.pNext = &drawParamsFeatures;
 
             VkPhysicalDeviceVulkan13Features deviceFeatures13;
             deviceFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -286,7 +303,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeLogicalDevice()
+    bool VulkanRenderer::InitializeLogicalDevice()
     {
         VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
 
@@ -304,14 +321,23 @@ namespace Vultron
             queueCreateInfos.push_back(queueCreateInfo);
         }
 
-        VkPhysicalDeviceFeatures2 deviceFeatures2{};
-        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
-
         VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{};
         bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
         bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
-        deviceFeatures2.pNext = &bufferDeviceAddressFeatures;
+        bufferDeviceAddressFeatures.pNext = nullptr;
+
+        VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
+        descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+        descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+        descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+        descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+        descriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+        descriptorIndexingFeatures.pNext = &bufferDeviceAddressFeatures;
+
+        VkPhysicalDeviceFeatures2 deviceFeatures2{};
+        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
+        deviceFeatures2.pNext = &descriptorIndexingFeatures;
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -343,7 +369,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeSwapChain(uint32_t width, uint32_t height)
+    bool VulkanRenderer::InitializeSwapChain(uint32_t width, uint32_t height)
     {
         VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_physicalDevice, m_surface);
 
@@ -438,7 +464,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeImageViews()
+    bool VulkanRenderer::InitializeImageViews()
     {
         m_swapChainImageViews.resize(m_swapChainImages.size());
 
@@ -468,7 +494,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeRenderPass()
+    bool VulkanRenderer::InitializeRenderPass()
     {
         // Color attachment
         VkAttachmentDescription colorAttachment{};
@@ -529,9 +555,9 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeDescriptorSetLayout()
+    bool VulkanRenderer::InitializeDescriptorSetLayout()
     {
-        std::array<VkDescriptorSetLayoutBinding, 2> layoutBindings = {};
+        std::array<VkDescriptorSetLayoutBinding, 3> layoutBindings = {};
 
         VkDescriptorSetLayoutBinding &uniformBinding = layoutBindings[0];
         uniformBinding.binding = 0;
@@ -539,8 +565,14 @@ namespace Vultron
         uniformBinding.descriptorCount = 1;
         uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-        VkDescriptorSetLayoutBinding &samplerBinding = layoutBindings[1];
-        samplerBinding.binding = 1;
+        VkDescriptorSetLayoutBinding &instanceBinding = layoutBindings[1];
+        instanceBinding.binding = 1;
+        instanceBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        instanceBinding.descriptorCount = 1;
+        instanceBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutBinding &samplerBinding = layoutBindings[2];
+        samplerBinding.binding = 2;
         samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerBinding.descriptorCount = 1;
         samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -555,23 +587,23 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeGraphicsPipeline()
+    bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
-        m_fragmentShader = VulkanShader::CreatePtrFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
+        m_vertexShader = VulkanShader::CreateFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                .module = m_vertexShader->GetShaderModule(),
+                .module = m_vertexShader.GetShaderModule(),
                 .pName = "main",
             },
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .module = m_fragmentShader->GetShaderModule(),
+                .module = m_fragmentShader.GetShaderModule(),
                 .pName = "main",
             }};
 
@@ -680,7 +712,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeFramebuffers()
+    bool VulkanRenderer::InitializeFramebuffers()
     {
         m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
 
@@ -705,7 +737,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeCommandPool()
+    bool VulkanRenderer::InitializeCommandPool()
     {
         VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
 
@@ -719,7 +751,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeCommandBuffer()
+    bool VulkanRenderer::InitializeCommandBuffer()
     {
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
@@ -735,7 +767,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeSyncObjects()
+    bool VulkanRenderer::InitializeSyncObjects()
     {
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
@@ -755,7 +787,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeAllocator()
+    bool VulkanRenderer::InitializeAllocator()
     {
         VmaAllocatorCreateInfo allocatorCreateInfo = {};
         allocatorCreateInfo.physicalDevice = m_physicalDevice;
@@ -768,16 +800,16 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeTestResources()
+    bool VulkanRenderer::InitializeTestResources()
     {
-        m_mesh = VulkanMesh::CreatePtrFromFile(
+        m_mesh = VulkanMesh::CreateFromFile(
             {.device = m_device,
              .commandPool = m_commandPool,
              .queue = m_graphicsQueue,
              .allocator = m_allocator,
              .filepath = std::string(VLT_ASSETS_DIR) + "/meshes/DamagedHelmet.dat"});
 
-        m_texture = VulkanImage::CreatePtrFromFile(
+        m_texture = VulkanImage::CreateFromFile(
             {.device = m_device,
              .commandPool = m_commandPool,
              .queue = m_graphicsQueue,
@@ -788,7 +820,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeSamplers()
+    bool VulkanRenderer::InitializeSamplers()
     {
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -813,7 +845,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeDepthBuffer()
+    bool VulkanRenderer::InitializeDepthBuffer()
     {
         VkFormat depthFormat = VkUtil::FindDepthFormat(m_physicalDevice);
 
@@ -837,31 +869,62 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeUniformBuffers()
+    bool VulkanRenderer::InitializeUniformBuffers()
     {
         size_t size = sizeof(UniformBufferData);
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            m_uniformBuffers[i] = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
-            m_uniformBuffers[i].Map(m_allocator);
+            VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
+            uniformBuffer = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            uniformBuffer.Map(m_allocator);
         }
 
         m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
-        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
         return true;
     }
 
-    bool VulkanBackend::InitializeDescriptorPool()
+    bool VulkanRenderer::InitializeInstanceBuffer()
     {
-        std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+        // Initial matrix should be rotated around Y axis
+        const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        for (uint32_t i = 0; i < c_numInstances; i++)
+        {
+            const float x = (i % c_numPerRow) * c_spacing - (c_numPerRow * c_spacing) / 2.0f;
+            const float y = (i / c_numPerRow) * c_spacing * -1.0f;
+            const glm::mat4 model = rot * glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f + i), glm::vec3(0.0f, 0.0f, 1.0f));
+            instanceBufferData[i] = {model};
+        }
+
+        const size_t size = sizeof(InstanceData) * instanceBufferData.size();
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            m_frames[i].instanceCount = static_cast<uint32_t>(instanceBufferData.size());
+            VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
+            instanceBuffer = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            instanceBuffer.Map(m_allocator);
+            instanceBuffer.CopyData(instanceBufferData.data(), size);
+        }
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeDescriptorPool()
+    {
+        std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 
         VkDescriptorPoolSize &uniformPoolSize = poolSizes[0];
         uniformPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uniformPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
 
-        VkDescriptorPoolSize &samplerPoolSize = poolSizes[1];
+        VkDescriptorPoolSize &instancePoolSize = poolSizes[1];
+        instancePoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        instancePoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
+
+        VkDescriptorPoolSize &samplerPoolSize = poolSizes[2];
         samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
 
@@ -876,7 +939,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeDescriptorSets()
+    bool VulkanRenderer::InitializeDescriptorSets()
     {
         std::array<VkDescriptorSetLayout, c_frameOverlap> layouts = {m_descriptorSetLayout, m_descriptorSetLayout};
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -885,35 +948,55 @@ namespace Vultron
         allocInfo.descriptorSetCount = static_cast<uint32_t>(c_frameOverlap);
         allocInfo.pSetLayouts = layouts.data();
 
-        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocInfo, m_descriptorSets));
+        std::array<VkDescriptorSet, c_frameOverlap> descriptorSets;
+        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocInfo, descriptorSets.data()));
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = m_uniformBuffers[i].GetBuffer();
-            bufferInfo.offset = 0;
-            bufferInfo.range = m_uniformBuffers[i].GetSize();
+            m_frames[i].descriptorSet = descriptorSets[i];
+
+            VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
+            VkDescriptorBufferInfo uniformBufferInfo{};
+            uniformBufferInfo.buffer = uniformBuffer.GetBuffer();
+            uniformBufferInfo.range = uniformBuffer.GetSize();
+            uniformBufferInfo.offset = 0;
+
+            VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
+            VkDescriptorBufferInfo instanceBufferInfo{};
+            instanceBufferInfo.buffer = instanceBuffer.GetBuffer();
+            instanceBufferInfo.range = instanceBuffer.GetSize();
+            instanceBufferInfo.offset = 0;
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = m_texture->GetImageView();
+            imageInfo.imageView = m_texture.GetImageView();
             imageInfo.sampler = m_textureSampler;
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+            std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
+            VkDescriptorSet &descriptorSet = m_frames[i].descriptorSet;
 
             VkWriteDescriptorSet &uniformBufferWrite = descriptorWrites[0];
             uniformBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            uniformBufferWrite.dstSet = m_descriptorSets[i];
+            uniformBufferWrite.dstSet = descriptorSet;
             uniformBufferWrite.dstBinding = 0;
             uniformBufferWrite.dstArrayElement = 0;
             uniformBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             uniformBufferWrite.descriptorCount = 1;
-            uniformBufferWrite.pBufferInfo = &bufferInfo;
+            uniformBufferWrite.pBufferInfo = &uniformBufferInfo;
 
-            VkWriteDescriptorSet &samplerWrite = descriptorWrites[1];
+            VkWriteDescriptorSet &instanceBufferWrite = descriptorWrites[1];
+            instanceBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            instanceBufferWrite.dstSet = descriptorSet;
+            instanceBufferWrite.dstBinding = 1;
+            instanceBufferWrite.dstArrayElement = 0;
+            instanceBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            instanceBufferWrite.descriptorCount = 1;
+            instanceBufferWrite.pBufferInfo = &instanceBufferInfo;
+
+            VkWriteDescriptorSet &samplerWrite = descriptorWrites[2];
             samplerWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            samplerWrite.dstSet = m_descriptorSets[i];
-            samplerWrite.dstBinding = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = 2;
             samplerWrite.dstArrayElement = 0;
             samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             samplerWrite.descriptorCount = 1;
@@ -925,7 +1008,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanBackend::InitializeDebugMessenger()
+    bool VulkanRenderer::InitializeDebugMessenger()
     {
         VkDebugUtilsMessengerCreateInfoEXT createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -937,7 +1020,7 @@ namespace Vultron
         return true;
     }
 
-    void VulkanBackend::RecreateSwapChain(uint32_t width, uint32_t height)
+    void VulkanRenderer::RecreateSwapChain(uint32_t width, uint32_t height)
     {
         vkDeviceWaitIdle(m_device);
 
@@ -970,7 +1053,7 @@ namespace Vultron
         InitializeCommandBuffer();
     }
 
-    bool VulkanBackend::CheckDeviceExtensionSupport(VkPhysicalDevice device)
+    bool VulkanRenderer::CheckDeviceExtensionSupport(VkPhysicalDevice device)
     {
         uint32_t extensionCount = 0;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -988,7 +1071,7 @@ namespace Vultron
         return requiredExtensions.empty();
     }
 
-    bool VulkanBackend::CheckValidationLayerSupport()
+    bool VulkanRenderer::CheckValidationLayerSupport()
     {
         uint32_t layerCount;
         vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -1018,17 +1101,19 @@ namespace Vultron
         return true;
     }
 
-    void VulkanBackend::BeginFrame()
+    void VulkanRenderer::BeginFrame()
     {
     }
 
-    void VulkanBackend::EndFrame()
+    void VulkanRenderer::EndFrame()
     {
         Draw();
     }
 
-    void VulkanBackend::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
+        const FrameData &frame = m_frames[m_currentFrameIndex];
+
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0;                  // Optional
@@ -1069,61 +1154,70 @@ namespace Vultron
         scissor.extent = m_swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkBuffer vertexBuffers[] = {m_mesh->GetVertexBuffer()};
+        VkBuffer vertexBuffers[] = {m_mesh.GetVertexBuffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_mesh->GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(commandBuffer, m_mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameIndex], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
 
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_mesh->GetIndexCount()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_mesh.GetIndexCount()), frame.instanceCount, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
 
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
-    void VulkanBackend::Draw()
+    void VulkanRenderer::Draw()
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
         const uint32_t currentFrame = m_currentFrameIndex;
+        const FrameData &frame = m_frames[currentFrame];
 
-        vkWaitForFences(m_device, 1, &m_frames[currentFrame].inFlightFence, VK_TRUE, timeout);
-        vkResetFences(m_device, 1, &m_frames[currentFrame].inFlightFence);
+        vkWaitForFences(m_device, 1, &frame.inFlightFence, VK_TRUE, timeout);
+        vkResetFences(m_device, 1, &frame.inFlightFence);
 
         uint32_t imageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, timeout, m_frames[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
-        vkResetCommandBuffer(m_frames[currentFrame].commandBuffer, 0);
-        WriteCommandBuffer(m_frames[currentFrame].commandBuffer, imageIndex);
+        VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+        vkResetCommandBuffer(frame.commandBuffer, 0);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex);
 
-        static std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-        std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(now - start).count();
+        static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
+        const auto currentTime = std::chrono::high_resolution_clock::now();
+        const float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+        lastTime = currentTime;
 
+        // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
-        ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
-                    glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        const glm::vec3 viewPos = glm::vec3(0.0f, 20.0f, 10.0f);
+        const glm::vec3 viewDir = glm::normalize(glm::vec3(0.0f, -1.0f, -0.3f));
+        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 0.0f, 1.0f));
+        frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
-        std::memcpy(m_uniformBuffers[currentFrame].GetMapped<UniformBufferData>(), &ubo, sizeof(ubo));
+        // Instance buffer
+        for (uint32_t i = 0; i < c_numInstances; i++)
+        {
+            instanceBufferData[i].model *= glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+        frame.instanceBuffer.CopyData(instanceBufferData.data(), sizeof(InstanceData) * instanceBufferData.size());
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {m_frames[currentFrame].imageAvailableSemaphore};
+        VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_frames[currentFrame].commandBuffer;
+        submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-        VkSemaphore signalSemaphores[] = {m_frames[currentFrame].renderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_frames[currentFrame].inFlightFence));
+        VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.inFlightFence));
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1141,7 +1235,7 @@ namespace Vultron
         m_currentFrameIndex = (currentFrame + 1) % c_frameOverlap;
     }
 
-    void VulkanBackend::Shutdown()
+    void VulkanRenderer::Shutdown()
     {
         vkDeviceWaitIdle(m_device);
 
@@ -1152,21 +1246,21 @@ namespace Vultron
             vkDestroyFence(m_device, m_frames[i].inFlightFence, nullptr);
 
             vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_frames[i].commandBuffer);
+
+            m_frames[i].uniformBuffer.Unmap(m_allocator);
+            m_frames[i].uniformBuffer.Destroy(m_allocator);
+
+            m_frames[i].instanceBuffer.Unmap(m_allocator);
+            m_frames[i].instanceBuffer.Destroy(m_allocator);
         }
 
         vkDestroySampler(m_device, m_textureSampler, nullptr);
 
-        for (size_t i = 0; i < c_frameOverlap; i++)
-        {
-            m_uniformBuffers[i].Unmap(m_allocator);
-            m_uniformBuffers[i].Destroy(m_allocator);
-        }
-
         m_depthImage.Destroy(m_device, m_allocator);
-        m_texture->Destroy(m_device, m_allocator);
-        m_mesh->Destroy(m_allocator);
-        m_vertexShader->Destroy(m_device);
-        m_fragmentShader->Destroy(m_device);
+        m_texture.Destroy(m_device, m_allocator);
+        m_mesh.Destroy(m_allocator);
+        m_vertexShader.Destroy(m_device);
+        m_fragmentShader.Destroy(m_device);
 
         vmaDestroyAllocator(m_allocator);
 

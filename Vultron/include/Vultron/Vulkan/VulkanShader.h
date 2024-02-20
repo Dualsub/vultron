@@ -16,6 +16,7 @@ namespace Vultron
 
     public:
         VulkanShader(VkShaderModule shaderModule) : m_ShaderModule(shaderModule) {}
+        VulkanShader() = default;
         ~VulkanShader() = default;
 
         VkShaderModule GetShaderModule() const { return m_ShaderModule; }
@@ -25,13 +26,15 @@ namespace Vultron
             VkDevice device = VK_NULL_HANDLE;
             const std::string &source;
         };
+        static VulkanShader Create(const ShaderCreateInfo &createInfo);
         static Ptr<VulkanShader> CreatePtr(const ShaderCreateInfo &createInfo);
-        
+
         struct ShaderFromFileCreateInfo
         {
             VkDevice device = VK_NULL_HANDLE;
             const std::string &filepath;
         };
+        static VulkanShader CreateFromFile(const ShaderFromFileCreateInfo &createInfo);
         static Ptr<VulkanShader> CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo);
         void Destroy(VkDevice device);
     };

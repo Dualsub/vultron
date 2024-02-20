@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragNormal;
@@ -12,7 +12,7 @@ layout(binding = 0) uniform UniformBufferObject {
     vec3 lightDir;
     vec3 viewPos;
 } ubo;
-layout(binding = 1) uniform sampler2D texSampler;
+layout(binding = 2) uniform sampler2D texSampler;
 
 void main() {
     vec3 normal = normalize(fragNormal);

@@ -6,7 +6,16 @@
 #include <optional>
 #include <vector>
 
-#define VK_CHECK(x) assert(x == VK_SUCCESS)
+// Check if result was ok, elese exit
+#define VK_CHECK(x)                                     \
+    {                                                   \
+        VkResult err = x;                               \
+        if (err)                                        \
+        {                                               \
+            printf("Detected Vulkan error: %d\n", err); \
+            assert(!err);                               \
+        }                                               \
+    }
 
 namespace Vultron::VkUtil
 {

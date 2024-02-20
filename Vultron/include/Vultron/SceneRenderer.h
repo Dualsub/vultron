@@ -1,14 +1,14 @@
 #pragma once
 
 #include "Vultron/Window.h"
-#include "Vultron/Vulkan/VulkanBackend.h"
+#include "Vultron/Vulkan/VulkanRenderer.h"
 
 namespace Vultron
 {
     class SceneRenderer
     {
     private:
-        VulkanBackend backend;
+        VulkanRenderer backend;
 
     public:
         SceneRenderer() = default;

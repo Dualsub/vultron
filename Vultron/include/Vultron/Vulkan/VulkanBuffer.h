@@ -62,6 +62,13 @@ namespace Vultron
         }
 
         template <typename T>
+        void CopyData(T *data, size_t size, size_t offset = 0) const
+        {
+            assert(mapped != nullptr && "Buffer is not mapped.");
+            std::memcpy(mapped, data, size);
+        }
+
+        template <typename T>
         void UploadStaged(VkDevice device, VkCommandPool commandPool, VkQueue queue, VmaAllocator allocator, T *data, size_t size, size_t offset = 0)
         {
             VulkanBuffer stagingBuffer = Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});

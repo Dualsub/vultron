@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Types.h"
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
@@ -49,6 +50,7 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
+    constexpr size_t c_maxInstances = 1000;
     constexpr uint32_t c_frameOverlap = 2;
 
     const std::vector<const char *> c_deviceExtensions =
@@ -60,6 +62,51 @@ namespace Vultron
             VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     constexpr std::array<const char *, 1> c_validationLayers = {"VK_LAYER_KHRONOS_validation"};
     constexpr bool c_validationLayersEnabled = false;
+
+    class ResourcePool
+    {
+        std::unordered_map<RenderHandle, VulkanMesh> m_meshes;
+        std::unordered_map<RenderHandle, VulkanImage> m_images;
+
+        RenderHandle m_meshCounter = 0;
+        RenderHandle m_imageCounter = 0;
+
+    public:
+        ResourcePool() = default;
+        ~ResourcePool() = default;
+
+        RenderHandle AddMesh(const VulkanMesh &mesh)
+        {
+            m_meshes.insert({m_meshCounter, mesh});
+            return m_meshCounter++;
+        }
+
+        RenderHandle AddImage(const VulkanImage &image)
+        {
+            m_images.insert({m_imageCounter, image});
+            return m_imageCounter++;
+        }
+
+        const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
+        const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
+
+        void Destroy(VkDevice device, VmaAllocator allocator)
+        {
+            for (auto &mesh : m_meshes)
+            {
+                mesh.second.Destroy(allocator);
+            }
+
+            m_meshes.clear();
+
+            for (auto &image : m_images)
+            {
+                image.second.Destroy(device, allocator);
+            }
+
+            m_images.clear();
+        }
+    };
 
     class VulkanRenderer
     {
@@ -121,8 +168,9 @@ namespace Vultron
         // Assets, will be removed in the future
         VulkanShader m_vertexShader;
         VulkanShader m_fragmentShader;
-        VulkanMesh m_mesh;
         VulkanImage m_texture;
+
+        ResourcePool m_resourcePool;
 
         bool InitializeInstance(const Window &window);
         bool InitializeSurface(const Window &window);
@@ -154,19 +202,17 @@ namespace Vultron
         bool InitializeDebugMessenger();
         bool CheckValidationLayerSupport();
 
-        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-        void Draw();
+        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches);
 
     public:
         VulkanRenderer() = default;
         ~VulkanRenderer() = default;
 
         bool Initialize(const Window &window);
-
-        void BeginFrame();
-        void EndFrame();
-
+        void Draw(const std::vector<RenderBatch> &batches, const std::vector<glm::mat4> &instances);
         void Shutdown();
+
+        RenderHandle LoadMesh(const std::string &filepath);
     };
 
 }

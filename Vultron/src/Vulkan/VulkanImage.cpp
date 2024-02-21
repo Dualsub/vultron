@@ -6,6 +6,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <fstream>
 #include <iostream>
 
 namespace Vultron
@@ -18,7 +19,7 @@ namespace Vultron
         imageInfo.extent.width = createInfo.info.width;
         imageInfo.extent.height = createInfo.info.height;
         imageInfo.extent.depth = createInfo.info.depth;
-        imageInfo.mipLevels = 1;
+        imageInfo.mipLevels = createInfo.info.mipLevels;
         imageInfo.arrayLayers = 1;
         imageInfo.format = createInfo.info.format;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -46,7 +47,7 @@ namespace Vultron
         viewInfo.format = createInfo.info.format;
         viewInfo.subresourceRange.aspectMask = createInfo.aspectFlags;
         viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.levelCount = createInfo.info.mipLevels;
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
@@ -54,11 +55,6 @@ namespace Vultron
         VK_CHECK(vkCreateImageView(createInfo.device, &viewInfo, nullptr, &imageView));
 
         VulkanImage outImage = VulkanImage(image, imageView, allocation, createInfo.info);
-
-        if (createInfo.data)
-        {
-            outImage.UploadData(createInfo.device, createInfo.allocator, createInfo.commandPool, createInfo.queue, createInfo.data, createInfo.info.width * createInfo.info.height * createInfo.info.depth * 4 * sizeof(uint8_t));
-        }
 
         return outImage;
     }
@@ -71,34 +67,66 @@ namespace Vultron
     VulkanImage VulkanImage::CreateFromFile(const ImageFromFileCreateInfo &createInfo)
     {
         int texWidth, texHeight, texChannels;
-        stbi_uc *pixels = stbi_load(createInfo.filepath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        assert(pixels);
+        uint8_t *pixels;
 
-        stbi_set_flip_vertically_on_load(true);
+        std::fstream file(createInfo.filepath, std::ios::in | std::ios::binary);
+        assert(file.is_open() && "Failed to open file");
+
+        struct Header
+        {
+            uint32_t numChannels;
+            uint32_t numBytesPerChannel;
+            uint32_t numMipLevels;
+        } header;
+
+        file.seekg(0);
+        file.read(reinterpret_cast<char *>(&header), sizeof(header));
+
+        header.numMipLevels = std::clamp(header.numMipLevels, 1u, 10u);
+
+        struct MipLevelHeader
+        {
+            uint32_t width;
+            uint32_t height;
+        } mipLevelHeader;
+
+        std::vector<MipInfo> mips;
+        mips.reserve(header.numMipLevels);
+        for (uint32_t i = 0; i < header.numMipLevels; i++)
+        {
+            file.read(reinterpret_cast<char *>(&mipLevelHeader), sizeof(mipLevelHeader));
+            uint8_t *data = new uint8_t[mipLevelHeader.width * mipLevelHeader.height * header.numChannels * header.numBytesPerChannel];
+            file.read(reinterpret_cast<char *>(data), mipLevelHeader.width * mipLevelHeader.height * header.numChannels * header.numBytesPerChannel);
+            mips.push_back({.width = mipLevelHeader.width, .height = mipLevelHeader.height, .depth = 1, .mipLevel = i, .data = data});
+        }
+
+        file.close();
 
         VulkanImage image = VulkanImage::Create(
             {.device = createInfo.device,
              .commandPool = createInfo.commandPool,
              .queue = createInfo.queue,
              .allocator = createInfo.allocator,
-             .data = pixels,
              .info = {
-                 .width = static_cast<uint32_t>(texWidth),
-                 .height = static_cast<uint32_t>(texHeight),
+                 .width = static_cast<uint32_t>(mips[0].width),
+                 .height = static_cast<uint32_t>(mips[0].height),
                  .depth = 1,
+                 .mipLevels = static_cast<uint32_t>(mips.size()),
                  .format = createInfo.format}});
 
-        stbi_image_free(pixels);
+        image.UploadData(createInfo.device, createInfo.allocator, createInfo.commandPool, createInfo.queue, mips);
+
+        for (const MipInfo &mip : mips)
+        {
+            delete[] reinterpret_cast<uint8_t *>(mip.data);
+        }
 
         return image;
     }
 
-    void VulkanImage::UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, void *data, size_t size)
+    void VulkanImage::UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, const std::vector<MipInfo> &mips)
     {
-        const size_t imageSize = m_info.width * m_info.height * m_info.depth * 4 * sizeof(uint8_t); // Doing it like this for now.
-        assert(size <= imageSize && "Data size is larger than image size");
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = imageSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
-        stagingBuffer.Write(allocator, data, imageSize);
+        uint32_t mipLevels = static_cast<uint32_t>(mips.size());
 
         VkUtil::TransitionImageLayout(
             device,
@@ -107,15 +135,28 @@ namespace Vultron
             m_image,
             m_info.format,
             VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            mipLevels);
 
-        VkUtil::CopyBufferToImage(
-            device,
-            commandPool,
-            queue,
-            stagingBuffer.GetBuffer(),
-            m_image, m_info.width,
-            m_info.height);
+        for (size_t i = 0; i < mips.size(); i++)
+        {
+            const MipInfo &mip = mips[i];
+            const size_t imageSize = mip.width * mip.height * 4 * sizeof(uint8_t); // Doing it like this for now.
+            VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = imageSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            stagingBuffer.Write(allocator, mip.data, imageSize);
+
+            VkUtil::CopyBufferToImage(
+                device,
+                commandPool,
+                queue,
+                stagingBuffer.GetBuffer(),
+                m_image,
+                mip.width,
+                mip.height,
+                i);
+
+            stagingBuffer.Destroy(allocator);
+        }
 
         VkUtil::TransitionImageLayout(
             device,
@@ -124,9 +165,8 @@ namespace Vultron
             m_image,
             m_info.format,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-        stagingBuffer.Destroy(allocator);
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            mipLevels);
     }
 
     void VulkanImage::TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout)

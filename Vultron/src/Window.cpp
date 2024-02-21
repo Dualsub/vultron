@@ -6,8 +6,8 @@ namespace Vultron
     bool Window::Initialize()
     {
         // FOr now we do this.
-        const uint32_t width = 1600;
-        const uint32_t height = 900;
+        const uint32_t width = 1280;
+        const uint32_t height = 720;
 
         if (!glfwInit())
         {

@@ -1,4 +1,4 @@
-#include "Vultron/SceneRenderer.h"
+#include "Vultron/Vulkan/VulkanRenderer.h"
 
 #include "Vultron/Vulkan/Debug.h"
 
@@ -15,19 +15,10 @@
 #include <vector>
 #include <set>
 #include <string>
-
-#ifndef VLT_ASSETS_DIR
-#define VLT_ASSETS_DIR "assets"
-#endif
+#include <random>
 
 namespace Vultron
 {
-    constexpr uint32_t c_numInstances = 10000;
-    constexpr uint32_t c_numPerRow = 100;
-    constexpr float c_spacing = 3.0f;
-
-    std::array<InstanceData, c_numInstances> instanceBufferData;
-
     bool VulkanRenderer::Initialize(const Window &window)
     {
         if (c_validationLayersEnabled && !CheckValidationLayerSupport())
@@ -802,20 +793,13 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeTestResources()
     {
-        m_mesh = VulkanMesh::CreateFromFile(
-            {.device = m_device,
-             .commandPool = m_commandPool,
-             .queue = m_graphicsQueue,
-             .allocator = m_allocator,
-             .filepath = std::string(VLT_ASSETS_DIR) + "/meshes/DamagedHelmet.dat"});
-
         m_texture = VulkanImage::CreateFromFile(
             {.device = m_device,
              .commandPool = m_commandPool,
              .queue = m_graphicsQueue,
              .allocator = m_allocator,
              .format = VK_FORMAT_R8G8B8A8_SRGB,
-             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.jpg"});
+             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat"});
 
         return true;
     }
@@ -838,7 +822,7 @@ namespace Vultron
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
+        samplerInfo.maxLod = 10.0f;
 
         VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSampler));
 
@@ -854,7 +838,6 @@ namespace Vultron
              .commandPool = m_commandPool,
              .queue = m_graphicsQueue,
              .allocator = m_allocator,
-             .data = nullptr,
              .info = {
                  .width = m_swapChainExtent.width,
                  .height = m_swapChainExtent.height,
@@ -888,25 +871,12 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeInstanceBuffer()
     {
-        // Initial matrix should be rotated around Y axis
-        const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-        for (uint32_t i = 0; i < c_numInstances; i++)
-        {
-            const float x = (i % c_numPerRow) * c_spacing - (c_numPerRow * c_spacing) / 2.0f;
-            const float y = (i / c_numPerRow) * c_spacing * -1.0f;
-            const glm::mat4 model = rot * glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f + i), glm::vec3(0.0f, 0.0f, 1.0f));
-            instanceBufferData[i] = {model};
-        }
-
-        const size_t size = sizeof(InstanceData) * instanceBufferData.size();
+        constexpr size_t size = sizeof(InstanceData) * c_maxInstances;
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            m_frames[i].instanceCount = static_cast<uint32_t>(instanceBufferData.size());
             VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
             instanceBuffer = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             instanceBuffer.Map(m_allocator);
-            instanceBuffer.CopyData(instanceBufferData.data(), size);
         }
 
         return true;
@@ -1101,16 +1071,7 @@ namespace Vultron
         return true;
     }
 
-    void VulkanRenderer::BeginFrame()
-    {
-    }
-
-    void VulkanRenderer::EndFrame()
-    {
-        Draw();
-    }
-
-    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches)
     {
         const FrameData &frame = m_frames[m_currentFrameIndex];
 
@@ -1154,21 +1115,26 @@ namespace Vultron
         scissor.extent = m_swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkBuffer vertexBuffers[] = {m_mesh.GetVertexBuffer()};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        for (const auto &batch : batches)
+        {
+            const VulkanMesh mesh = m_resourcePool.GetMesh(batch.mesh);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+            VkBuffer vertexBuffers[] = {mesh.GetVertexBuffer()};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_mesh.GetIndexCount()), frame.instanceCount, 0, 0, 0);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.GetIndexCount()), batch.instanceCount, 0, 0, batch.firstInstance);
+        }
 
         vkCmdEndRenderPass(commandBuffer);
 
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
-    void VulkanRenderer::Draw()
+    void VulkanRenderer::Draw(const std::vector<RenderBatch> &batches, const std::vector<glm::mat4> &instances)
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
         const uint32_t currentFrame = m_currentFrameIndex;
@@ -1180,7 +1146,7 @@ namespace Vultron
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
-        WriteCommandBuffer(frame.commandBuffer, imageIndex);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex, batches);
 
         static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
         const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1189,17 +1155,14 @@ namespace Vultron
 
         // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
-        const glm::vec3 viewPos = glm::vec3(0.0f, 20.0f, 10.0f);
+        const glm::vec3 viewPos = glm::vec3(0.0f, 4.0f, 3.0f);
         const glm::vec3 viewDir = glm::normalize(glm::vec3(0.0f, -1.0f, -0.3f));
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 0.0f, 1.0f));
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
         // Instance buffer
-        for (uint32_t i = 0; i < c_numInstances; i++)
-        {
-            instanceBufferData[i].model *= glm::rotate(glm::mat4(1.0f), dt * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        }
-        frame.instanceBuffer.CopyData(instanceBufferData.data(), sizeof(InstanceData) * instanceBufferData.size());
+        const size_t size = sizeof(InstanceData) * instances.size();
+        frame.instanceBuffer.CopyData(instances.data(), size);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1258,7 +1221,7 @@ namespace Vultron
 
         m_depthImage.Destroy(m_device, m_allocator);
         m_texture.Destroy(m_device, m_allocator);
-        m_mesh.Destroy(m_allocator);
+        m_resourcePool.Destroy(m_device, m_allocator);
         m_vertexShader.Destroy(m_device);
         m_fragmentShader.Destroy(m_device);
 
@@ -1292,5 +1255,17 @@ namespace Vultron
 
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         vkDestroyInstance(m_instance, nullptr);
+    }
+
+    RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
+    {
+        VulkanMesh mesh = VulkanMesh::CreateFromFile(
+            {.device = m_device,
+             .commandPool = m_commandPool,
+             .queue = m_graphicsQueue,
+             .allocator = m_allocator,
+             .filepath = filepath});
+
+        return m_resourcePool.AddMesh(std::move(mesh));
     }
 }

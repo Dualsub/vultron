@@ -15,7 +15,17 @@ namespace Vultron
         uint32_t width = 0;
         uint32_t height = 0;
         uint32_t depth = 0;
+        uint32_t mipLevels = 1;
         VkFormat format = VK_FORMAT_UNDEFINED;
+    };
+
+    struct MipInfo
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t depth = 0;
+        uint32_t mipLevel = 0;
+        void *data = nullptr;
     };
 
     class VulkanImage
@@ -41,7 +51,6 @@ namespace Vultron
             VkCommandPool commandPool = VK_NULL_HANDLE;
             VkQueue queue = VK_NULL_HANDLE;
             VmaAllocator allocator = VK_NULL_HANDLE;
-            void *data = nullptr;
             ImageInfo info = {};
             VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
             VkImageUsageFlags additionalUsageFlags = 0;
@@ -63,7 +72,7 @@ namespace Vultron
         static VulkanImage CreateFromFile(const ImageFromFileCreateInfo &createInfo);
         static Ptr<VulkanImage> CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo);
 
-        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, void *data, size_t size);
+        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, const std::vector<MipInfo> &mips);
         void TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
 
         void Destroy(VkDevice device, VmaAllocator allocator);

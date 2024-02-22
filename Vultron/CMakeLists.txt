@@ -13,6 +13,7 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanMesh.cpp
     src/Vulkan/VulkanInitializers.cpp
     src/Vulkan/VulkanShader.cpp
+    src/Vulkan/VulkanContext.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

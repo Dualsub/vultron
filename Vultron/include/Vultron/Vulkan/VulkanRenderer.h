@@ -4,6 +4,7 @@
 #include "Vultron/Types.h"
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
+#include "Vultron/Vulkan/VulkanContext.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
@@ -25,9 +26,11 @@ namespace Vultron
 
         VkCommandBuffer commandBuffer;
 
+        // Global resources
         VulkanBuffer instanceBuffer;
         uint32_t instanceCount = 0;
 
+        // Material instance resources
         VulkanBuffer uniformBuffer;
         VkDescriptorSet descriptorSet;
     };
@@ -52,16 +55,6 @@ namespace Vultron
 
     constexpr size_t c_maxInstances = 1000;
     constexpr uint32_t c_frameOverlap = 2;
-
-    const std::vector<const char *> c_deviceExtensions =
-        {
-#if __APPLE__
-            "VK_KHR_portability_subset",
-#endif
-            VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-    constexpr std::array<const char *, 1> c_validationLayers = {"VK_LAYER_KHRONOS_validation"};
-    constexpr bool c_validationLayersEnabled = false;
 
     class ResourcePool
     {
@@ -111,19 +104,9 @@ namespace Vultron
     class VulkanRenderer
     {
     private:
-        // Vulkan
-        VkInstance m_instance;
-        VkPhysicalDevice m_physicalDevice;
-        VkPhysicalDeviceProperties m_deviceProperties;
-        VkDevice m_device;
-
-        // Queues
-        VkQueue m_graphicsQueue;
-        uint32_t m_graphicsQueueFamily;
-        VkQueue m_presentQueue;
+        VulkanContext m_context;
 
         // Swap chain
-        VkSurfaceKHR m_surface;
         VkSwapchainKHR m_swapChain;
         std::vector<VkImage> m_swapChainImages;
         std::vector<VkImageView> m_swapChainImageViews;
@@ -134,29 +117,20 @@ namespace Vultron
         // Render pass
         VkRenderPass m_renderPass;
 
-        // Pipeline
+        // Material pipeline
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
-
-        // Samplers
-        VkSampler m_textureSampler;
-        VkSampler m_depthSampler;
-
-        // Depth buffer
-        VulkanImage m_depthImage;
-
-        // Descriptor set
         VkDescriptorSetLayout m_descriptorSetLayout;
         VkDescriptorPool m_descriptorPool;
 
-        // Uniform buffer
+        // Material instance resources
         UniformBufferData m_uniformBufferData{};
+        VulkanImage m_depthImage;
+        VkSampler m_textureSampler;
+        VkSampler m_depthSampler;
 
         // Command pool
         VkCommandPool m_commandPool;
-
-        // Allocator
-        VmaAllocator m_allocator;
 
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;
@@ -170,38 +144,46 @@ namespace Vultron
         VulkanShader m_fragmentShader;
         VulkanImage m_texture;
 
+        // Permanent resources
         ResourcePool m_resourcePool;
 
-        bool InitializeInstance(const Window &window);
+        // Swapchain
         bool InitializeSurface(const Window &window);
-        bool InitializePhysicalDevice();
-        bool InitializeLogicalDevice();
         bool InitializeSwapChain(uint32_t width, uint32_t height);
         bool InitializeImageViews();
+
+        // Render pass
         bool InitializeRenderPass();
+        bool InitializeFramebuffers();
+
+        // Material pipeline
         bool InitializeDescriptorSetLayout();
         bool InitializeGraphicsPipeline();
-        bool InitializeFramebuffers();
+
+        // Command pool
         bool InitializeCommandPool();
         bool InitializeCommandBuffer();
+
         bool InitializeSyncObjects();
-        bool InitializeAllocator();
-        // TODO: Remove this in the future
         bool InitializeTestResources();
+
+        // Permanent resources
         bool InitializeSamplers();
         bool InitializeDepthBuffer();
+
+        // Material instance resources
+        bool InitializeDescriptorPool();
         bool InitializeUniformBuffers();
         bool InitializeInstanceBuffer();
-        bool InitializeDescriptorPool();
         bool InitializeDescriptorSets();
 
+        // Swapchain
         void RecreateSwapChain(uint32_t width, uint32_t height);
-        bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 
         // Validation/debugging
         bool InitializeDebugMessenger();
-        bool CheckValidationLayerSupport();
 
+        // Command buffer
         void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches);
 
     public:

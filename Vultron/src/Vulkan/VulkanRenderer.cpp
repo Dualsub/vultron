@@ -21,45 +21,15 @@ namespace Vultron
 {
     bool VulkanRenderer::Initialize(const Window &window)
     {
-        if (c_validationLayersEnabled && !CheckValidationLayerSupport())
+        if (!m_context.Initialize(window))
         {
-            std::cerr << "Validation layer not supported." << std::endl;
-            return false;
-        }
-
-        if (!InitializeInstance(window))
-        {
-            std::cerr << "Faild to initialize instance." << std::endl;
-            return false;
-        }
-
-        if (!InitializeSurface(window))
-        {
-            std::cerr << "Faild to surface." << std::endl;
+            std::cerr << "Faild to initialize context." << std::endl;
             return false;
         }
 
         if (c_validationLayersEnabled && !InitializeDebugMessenger())
         {
             std::cerr << "Faild to initialize debug messages." << std::endl;
-            return false;
-        }
-
-        if (!InitializePhysicalDevice())
-        {
-            std::cerr << "Faild to initialize physical device." << std::endl;
-            return false;
-        }
-
-        if (!InitializeLogicalDevice())
-        {
-            std::cerr << "Faild to initialize logical device." << std::endl;
-            return false;
-        }
-
-        if (!InitializeAllocator())
-        {
-            std::cerr << "Faild to initialize instance." << std::endl;
             return false;
         }
 
@@ -163,206 +133,9 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanRenderer::InitializeInstance(const Window &window)
-    {
-        VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Vultron";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_3;
-
-        VkInstanceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-
-        std::vector<const char *> windowExtensions = window.GetWindowExtensions();
-        auto requiredExtensions = std::vector<const char *>(windowExtensions.size());
-
-        std::copy(windowExtensions.begin(), windowExtensions.end(), requiredExtensions.begin());
-
-        if (c_validationLayersEnabled)
-        {
-            requiredExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
-
-#if __APPLE__
-        requiredExtensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-        createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#endif
-
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-        createInfo.ppEnabledExtensionNames = requiredExtensions.data();
-
-        if (c_validationLayersEnabled)
-        {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(c_validationLayers.size());
-            createInfo.ppEnabledLayerNames = c_validationLayers.data();
-        }
-        else
-        {
-            createInfo.enabledLayerCount = 0;
-        }
-
-        VK_CHECK(vkCreateInstance(&createInfo, nullptr, &m_instance));
-
-        return true;
-    }
-
-    bool VulkanRenderer::InitializeSurface(const Window &window)
-    {
-        Window::CreateVulkanSurface(window, m_instance, &m_surface);
-        return true;
-    }
-
-    bool VulkanRenderer::InitializePhysicalDevice()
-    {
-        m_physicalDevice = VK_NULL_HANDLE;
-
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-
-        assert(deviceCount > 0 && "No devices.");
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
-
-        for (const auto &device : devices)
-        {
-            VkPhysicalDeviceProperties deviceProperties;
-            vkGetPhysicalDeviceProperties(device, &deviceProperties);
-
-            VkPhysicalDeviceShaderDrawParameterFeatures drawParamsFeatures;
-            drawParamsFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES;
-            drawParamsFeatures.pNext = nullptr;
-            drawParamsFeatures.shaderDrawParameters = VK_TRUE;
-
-            VkPhysicalDeviceVulkan12Features deviceFeatures12;
-            deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-            deviceFeatures12.pNext = &drawParamsFeatures;
-
-            VkPhysicalDeviceVulkan13Features deviceFeatures13;
-            deviceFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-            deviceFeatures13.pNext = &deviceFeatures12;
-
-            VkPhysicalDeviceFeatures2 allFeatures;
-            allFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-            allFeatures.pNext = &deviceFeatures13;
-
-            vkGetPhysicalDeviceFeatures2(device, &allFeatures);
-            VkPhysicalDeviceFeatures &deviceFeatures = allFeatures.features;
-
-            VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(device, m_surface);
-
-            bool allowed = families.IsComplete() && CheckDeviceExtensionSupport(device);
-            allowed &= (deviceFeatures.samplerAnisotropy == VK_TRUE);
-
-            bool swapChainAdequate = false;
-            if (allowed)
-            {
-                VkUtil::SwapChainSupport swapChainSupport = VkUtil::QuerySwapChainSupport(device, m_surface);
-                swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-                allowed &= swapChainAdequate;
-            }
-
-            if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-                deviceFeatures.geometryShader && allowed)
-            {
-                m_physicalDevice = device;
-                break;
-            }
-
-            if (allowed)
-            {
-                m_physicalDevice = device;
-                break;
-            }
-        }
-
-        if (m_physicalDevice == VK_NULL_HANDLE)
-        {
-            std::cerr << "Could not find suitable device." << std::endl;
-            return false;
-        }
-
-        vkGetPhysicalDeviceProperties(m_physicalDevice, &m_deviceProperties);
-        std::cout << "Selected ";
-        std::cout << m_deviceProperties.deviceName;
-        std::cout << " for rendering.";
-        std::cout << std::endl;
-        return true;
-    }
-
-    bool VulkanRenderer::InitializeLogicalDevice()
-    {
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
-
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = {families.graphicsFamily.value(), families.presentFamily.value()};
-
-        float queuePriority = 1.0f;
-        for (uint32_t queueFamily : uniqueQueueFamilies)
-        {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(queueCreateInfo);
-        }
-
-        VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures{};
-        bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-        bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
-        bufferDeviceAddressFeatures.pNext = nullptr;
-
-        VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures{};
-        descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-        descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-        descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-        descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
-        descriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-        descriptorIndexingFeatures.pNext = &bufferDeviceAddressFeatures;
-
-        VkPhysicalDeviceFeatures2 deviceFeatures2{};
-        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
-        deviceFeatures2.pNext = &descriptorIndexingFeatures;
-
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.pNext = &deviceFeatures2;
-
-        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(c_deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = c_deviceExtensions.data();
-
-        if (c_validationLayersEnabled)
-        {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(c_validationLayers.size());
-            createInfo.ppEnabledLayerNames = c_validationLayers.data();
-        }
-        else
-        {
-            createInfo.enabledLayerCount = 0;
-        }
-
-        VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
-
-        assert(families.graphicsFamily.has_value() && "No graphics family index.");
-
-        vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
-        vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
-
-        return true;
-    }
-
     bool VulkanRenderer::InitializeSwapChain(uint32_t width, uint32_t height)
     {
-        VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_physicalDevice, m_surface);
+        VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_context.GetPhysicalDevice(), m_context.GetSurface());
 
         // Pick format
         VkSurfaceFormatKHR surfaceFormat = support.formats[0];
@@ -416,7 +189,7 @@ namespace Vultron
         //// Create swap chain
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = m_surface;
+        createInfo.surface = m_context.GetSurface();
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -424,7 +197,7 @@ namespace Vultron
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
+        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_context.GetPhysicalDevice(), m_context.GetSurface());
         uint32_t queueFamilyIndices[] = {families.graphicsFamily.value(), families.presentFamily.value()};
 
         if (families.graphicsFamily != families.presentFamily)
@@ -446,11 +219,11 @@ namespace Vultron
         createInfo.clipped = VK_TRUE;
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain));
+        VK_CHECK(vkCreateSwapchainKHR(m_context.GetDevice(), &createInfo, nullptr, &m_swapChain));
 
-        vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
+        vkGetSwapchainImagesKHR(m_context.GetDevice(), m_swapChain, &imageCount, nullptr);
         m_swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, m_swapChainImages.data());
+        vkGetSwapchainImagesKHR(m_context.GetDevice(), m_swapChain, &imageCount, m_swapChainImages.data());
 
         return true;
     }
@@ -479,7 +252,7 @@ namespace Vultron
             createInfo.subresourceRange.baseArrayLayer = 0;
             createInfo.subresourceRange.layerCount = 1;
 
-            VK_CHECK(vkCreateImageView(m_device, &createInfo, nullptr, &m_swapChainImageViews[i]));
+            VK_CHECK(vkCreateImageView(m_context.GetDevice(), &createInfo, nullptr, &m_swapChainImageViews[i]));
         }
 
         return true;
@@ -541,7 +314,7 @@ namespace Vultron
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        VK_CHECK(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass));
+        VK_CHECK(vkCreateRenderPass(m_context.GetDevice(), &renderPassInfo, nullptr, &m_renderPass));
 
         return true;
     }
@@ -573,7 +346,7 @@ namespace Vultron
         createInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
         createInfo.pBindings = layoutBindings.data();
 
-        VK_CHECK(vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &m_descriptorSetLayout));
+        VK_CHECK(vkCreateDescriptorSetLayout(m_context.GetDevice(), &createInfo, nullptr, &m_descriptorSetLayout));
 
         return true;
     }
@@ -581,8 +354,8 @@ namespace Vultron
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreateFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
-        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_device, .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
+        m_vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -680,7 +453,7 @@ namespace Vultron
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.stencilTestEnable = VK_FALSE;
 
-        VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
+        VK_CHECK(vkCreatePipelineLayout(m_context.GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
 
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -698,7 +471,7 @@ namespace Vultron
         pipelineInfo.renderPass = m_renderPass;
         pipelineInfo.subpass = 0;
 
-        VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline));
+        VK_CHECK(vkCreateGraphicsPipelines(m_context.GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline));
 
         return true;
     }
@@ -722,7 +495,7 @@ namespace Vultron
             framebufferInfo.height = m_swapChainExtent.height;
             framebufferInfo.layers = 1;
 
-            VK_CHECK(vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]));
+            VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]));
         }
 
         return true;
@@ -730,14 +503,14 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeCommandPool()
     {
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
+        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_context.GetPhysicalDevice(), m_context.GetSurface());
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.queueFamilyIndex = families.graphicsFamily.value();
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-        VK_CHECK(vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool));
+        VK_CHECK(vkCreateCommandPool(m_context.GetDevice(), &poolInfo, nullptr, &m_commandPool));
 
         return true;
     }
@@ -752,7 +525,7 @@ namespace Vultron
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             allocInfo.commandBufferCount = 1;
 
-            VK_CHECK(vkAllocateCommandBuffers(m_device, &allocInfo, &m_frames[i].commandBuffer));
+            VK_CHECK(vkAllocateCommandBuffers(m_context.GetDevice(), &allocInfo, &m_frames[i].commandBuffer));
         }
 
         return true;
@@ -765,28 +538,15 @@ namespace Vultron
             VkSemaphoreCreateInfo semaphoreInfo{};
             semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-            VK_CHECK(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_frames[i].imageAvailableSemaphore));
-            VK_CHECK(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_frames[i].renderFinishedSemaphore));
+            VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].imageAvailableSemaphore));
+            VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].renderFinishedSemaphore));
 
             VkFenceCreateInfo fenceInfo{};
             fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
             fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-            VK_CHECK(vkCreateFence(m_device, &fenceInfo, nullptr, &m_frames[i].inFlightFence));
+            VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].inFlightFence));
         }
-
-        return true;
-    }
-
-    bool VulkanRenderer::InitializeAllocator()
-    {
-        VmaAllocatorCreateInfo allocatorCreateInfo = {};
-        allocatorCreateInfo.physicalDevice = m_physicalDevice;
-        allocatorCreateInfo.device = m_device;
-        allocatorCreateInfo.instance = m_instance;
-        allocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-
-        VK_CHECK(vmaCreateAllocator(&allocatorCreateInfo, &m_allocator));
 
         return true;
     }
@@ -794,10 +554,10 @@ namespace Vultron
     bool VulkanRenderer::InitializeTestResources()
     {
         m_texture = VulkanImage::CreateFromFile(
-            {.device = m_device,
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
-             .queue = m_graphicsQueue,
-             .allocator = m_allocator,
+             .queue = m_context.GetGraphicsQueue(),
+             .allocator = m_context.GetAllocator(),
              .format = VK_FORMAT_R8G8B8A8_SRGB,
              .filepath = std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat"});
 
@@ -814,7 +574,7 @@ namespace Vultron
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = m_deviceProperties.limits.maxSamplerAnisotropy;
+        samplerInfo.maxAnisotropy = m_context.GetDeviceProperties().limits.maxSamplerAnisotropy;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.unnormalizedCoordinates = VK_FALSE;
         samplerInfo.compareEnable = VK_FALSE;
@@ -824,20 +584,20 @@ namespace Vultron
         samplerInfo.minLod = 0.0f;
         samplerInfo.maxLod = 10.0f;
 
-        VK_CHECK(vkCreateSampler(m_device, &samplerInfo, nullptr, &m_textureSampler));
+        VK_CHECK(vkCreateSampler(m_context.GetDevice(), &samplerInfo, nullptr, &m_textureSampler));
 
         return true;
     }
 
     bool VulkanRenderer::InitializeDepthBuffer()
     {
-        VkFormat depthFormat = VkUtil::FindDepthFormat(m_physicalDevice);
+        VkFormat depthFormat = VkUtil::FindDepthFormat(m_context.GetPhysicalDevice());
 
         m_depthImage = VulkanImage::Create(
-            {.device = m_device,
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
-             .queue = m_graphicsQueue,
-             .allocator = m_allocator,
+             .queue = m_context.GetGraphicsQueue(),
+             .allocator = m_context.GetAllocator(),
              .info = {
                  .width = m_swapChainExtent.width,
                  .height = m_swapChainExtent.height,
@@ -847,7 +607,7 @@ namespace Vultron
              .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
              .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
 
-        m_depthImage.TransitionLayout(m_device, m_commandPool, m_graphicsQueue, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         return true;
     }
@@ -859,8 +619,8 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
-            uniformBuffer = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
-            uniformBuffer.Map(m_allocator);
+            uniformBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            uniformBuffer.Map(m_context.GetAllocator());
         }
 
         m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -875,8 +635,8 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
-            instanceBuffer = VulkanBuffer::Create({.allocator = m_allocator, .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
-            instanceBuffer.Map(m_allocator);
+            instanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            instanceBuffer.Map(m_context.GetAllocator());
         }
 
         return true;
@@ -904,7 +664,7 @@ namespace Vultron
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(c_frameOverlap);
 
-        VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
+        VK_CHECK(vkCreateDescriptorPool(m_context.GetDevice(), &poolInfo, nullptr, &m_descriptorPool));
 
         return true;
     }
@@ -919,7 +679,7 @@ namespace Vultron
         allocInfo.pSetLayouts = layouts.data();
 
         std::array<VkDescriptorSet, c_frameOverlap> descriptorSets;
-        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocInfo, descriptorSets.data()));
+        VK_CHECK(vkAllocateDescriptorSets(m_context.GetDevice(), &allocInfo, descriptorSets.data()));
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
@@ -972,7 +732,7 @@ namespace Vultron
             samplerWrite.descriptorCount = 1;
             samplerWrite.pImageInfo = &imageInfo;
 
-            vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            vkUpdateDescriptorSets(m_context.GetDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
 
         return true;
@@ -985,35 +745,35 @@ namespace Vultron
         createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         createInfo.pfnUserCallback = VulkanDebugCallback;
-        VK_CHECK(CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugMessenger));
+        VK_CHECK(CreateDebugUtilsMessengerEXT(m_context.GetInstance(), &createInfo, nullptr, &m_debugMessenger));
 
         return true;
     }
 
     void VulkanRenderer::RecreateSwapChain(uint32_t width, uint32_t height)
     {
-        vkDeviceWaitIdle(m_device);
+        vkDeviceWaitIdle(m_context.GetDevice());
 
         for (auto framebuffer : m_swapChainFramebuffers)
         {
-            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+            vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
         }
 
         for (const auto &frame : m_frames)
         {
-            vkFreeCommandBuffers(m_device, m_commandPool, 1, &frame.commandBuffer);
+            vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &frame.commandBuffer);
         }
 
-        vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+        vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
+        vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
 
         for (auto imageView : m_swapChainImageViews)
         {
-            vkDestroyImageView(m_device, imageView, nullptr);
+            vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
         }
 
-        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+        vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
 
         InitializeSwapChain(width, height);
         InitializeImageViews();
@@ -1021,54 +781,6 @@ namespace Vultron
         InitializeGraphicsPipeline();
         InitializeFramebuffers();
         InitializeCommandBuffer();
-    }
-
-    bool VulkanRenderer::CheckDeviceExtensionSupport(VkPhysicalDevice device)
-    {
-        uint32_t extensionCount = 0;
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
-
-        std::set<std::string> requiredExtensions(c_deviceExtensions.begin(), c_deviceExtensions.end());
-
-        for (const auto &extension : extensions)
-        {
-            requiredExtensions.erase(extension.extensionName);
-        }
-
-        return requiredExtensions.empty();
-    }
-
-    bool VulkanRenderer::CheckValidationLayerSupport()
-    {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-        std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-        for (const char *layerName : c_validationLayers)
-        {
-            bool layerFound = false;
-
-            for (const auto &layerProperties : availableLayers)
-            {
-                if (std::strcmp(layerName, layerProperties.layerName) == 0)
-                {
-                    layerFound = true;
-                    break;
-                }
-            }
-
-            if (!layerFound)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches)
@@ -1140,11 +852,11 @@ namespace Vultron
         const uint32_t currentFrame = m_currentFrameIndex;
         const FrameData &frame = m_frames[currentFrame];
 
-        vkWaitForFences(m_device, 1, &frame.inFlightFence, VK_TRUE, timeout);
-        vkResetFences(m_device, 1, &frame.inFlightFence);
+        vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
+        vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
 
         uint32_t imageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapChain, timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapChain, timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
         WriteCommandBuffer(frame.commandBuffer, imageIndex, batches);
 
@@ -1180,7 +892,7 @@ namespace Vultron
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.inFlightFence));
+        VK_CHECK(vkQueueSubmit(m_context.GetGraphicsQueue(), 1, &submitInfo, frame.inFlightFence));
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1193,77 +905,75 @@ namespace Vultron
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        VK_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo));
+        VK_CHECK(vkQueuePresentKHR(m_context.GetPresentQueue(), &presentInfo));
 
         m_currentFrameIndex = (currentFrame + 1) % c_frameOverlap;
     }
 
     void VulkanRenderer::Shutdown()
     {
-        vkDeviceWaitIdle(m_device);
+        vkDeviceWaitIdle(m_context.GetDevice());
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            vkDestroySemaphore(m_device, m_frames[i].imageAvailableSemaphore, nullptr);
-            vkDestroySemaphore(m_device, m_frames[i].renderFinishedSemaphore, nullptr);
-            vkDestroyFence(m_device, m_frames[i].inFlightFence, nullptr);
+            vkDestroySemaphore(m_context.GetDevice(), m_frames[i].imageAvailableSemaphore, nullptr);
+            vkDestroySemaphore(m_context.GetDevice(), m_frames[i].renderFinishedSemaphore, nullptr);
+            vkDestroyFence(m_context.GetDevice(), m_frames[i].inFlightFence, nullptr);
 
-            vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_frames[i].commandBuffer);
+            vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &m_frames[i].commandBuffer);
 
-            m_frames[i].uniformBuffer.Unmap(m_allocator);
-            m_frames[i].uniformBuffer.Destroy(m_allocator);
+            m_frames[i].uniformBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].uniformBuffer.Destroy(m_context.GetAllocator());
 
-            m_frames[i].instanceBuffer.Unmap(m_allocator);
-            m_frames[i].instanceBuffer.Destroy(m_allocator);
+            m_frames[i].instanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].instanceBuffer.Destroy(m_context.GetAllocator());
         }
 
-        vkDestroySampler(m_device, m_textureSampler, nullptr);
+        vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
 
-        m_depthImage.Destroy(m_device, m_allocator);
-        m_texture.Destroy(m_device, m_allocator);
-        m_resourcePool.Destroy(m_device, m_allocator);
-        m_vertexShader.Destroy(m_device);
-        m_fragmentShader.Destroy(m_device);
+        m_depthImage.Destroy(m_context.GetDevice(), m_context.GetAllocator());
+        m_texture.Destroy(m_context.GetDevice(), m_context.GetAllocator());
+        m_resourcePool.Destroy(m_context.GetDevice(), m_context.GetAllocator());
+        m_vertexShader.Destroy(m_context.GetDevice());
+        m_fragmentShader.Destroy(m_context.GetDevice());
 
-        vmaDestroyAllocator(m_allocator);
+        vmaDestroyAllocator(m_context.GetAllocator());
 
-        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+        vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
         for (auto framebuffer : m_swapChainFramebuffers)
         {
-            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+            vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
         }
 
-        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-        vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+        vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
+        vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
+        vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
 
         for (auto imageView : m_swapChainImageViews)
         {
-            vkDestroyImageView(m_device, imageView, nullptr);
+            vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
         }
 
-        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-        vkDestroyDevice(m_device, nullptr);
+        vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
 
         if (c_validationLayersEnabled)
         {
-            DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
+            DestroyDebugUtilsMessengerEXT(m_context.GetInstance(), m_debugMessenger, nullptr);
         }
 
-        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-        vkDestroyInstance(m_instance, nullptr);
+        m_context.Destroy();
     }
 
     RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
     {
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
-            {.device = m_device,
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
-             .queue = m_graphicsQueue,
-             .allocator = m_allocator,
+             .queue = m_context.GetGraphicsQueue(),
+             .allocator = m_context.GetAllocator(),
              .filepath = filepath});
 
         return m_resourcePool.AddMesh(std::move(mesh));

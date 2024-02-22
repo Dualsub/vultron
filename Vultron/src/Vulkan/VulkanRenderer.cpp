@@ -34,15 +34,9 @@ namespace Vultron
         }
 
         const auto [width, height] = window.GetExtent();
-        if (!InitializeSwapChain(width, height))
+        if (!m_swapchain.Initialize(m_context, width, height))
         {
             std::cerr << "Faild to initialize swap chain." << std::endl;
-            return false;
-        }
-
-        if (!InitializeImageViews())
-        {
-            std::cerr << "Faild to initialize image views." << std::endl;
             return false;
         }
 
@@ -133,136 +127,11 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanRenderer::InitializeSwapChain(uint32_t width, uint32_t height)
-    {
-        VkUtil::SwapChainSupport support = VkUtil::QuerySwapChainSupport(m_context.GetPhysicalDevice(), m_context.GetSurface());
-
-        // Pick format
-        VkSurfaceFormatKHR surfaceFormat = support.formats[0];
-        for (const auto &availableFormat : support.formats)
-        {
-            if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-            {
-                surfaceFormat = availableFormat;
-            }
-        }
-
-        m_swapChainImageFormat = surfaceFormat.format;
-
-        // Pick present mode
-        VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-        for (const auto &mode : support.presentModes)
-        {
-            if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
-            {
-                presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-            }
-        }
-
-        // Pick extent
-        VkExtent2D extent;
-        VkSurfaceCapabilitiesKHR &capabilities = support.capabilities;
-
-        if (capabilities.currentExtent.width != (std::numeric_limits<uint32_t>::max)())
-        {
-            extent = capabilities.currentExtent;
-        }
-        else
-        {
-            VkExtent2D actualExtent = {width, height};
-
-            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-            extent = actualExtent;
-        }
-
-        m_swapChainExtent = extent;
-
-        // Pick image count
-        uint32_t imageCount = support.capabilities.minImageCount + 1;
-        if (support.capabilities.maxImageCount > 0 && imageCount > support.capabilities.maxImageCount)
-        {
-            imageCount = support.capabilities.maxImageCount;
-        }
-
-        //// Create swap chain
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = m_context.GetSurface();
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_context.GetPhysicalDevice(), m_context.GetSurface());
-        uint32_t queueFamilyIndices[] = {families.graphicsFamily.value(), families.presentFamily.value()};
-
-        if (families.graphicsFamily != families.presentFamily)
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-        else
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            createInfo.queueFamilyIndexCount = 0;     // Optional
-            createInfo.pQueueFamilyIndices = nullptr; // Optional
-        }
-
-        createInfo.preTransform = support.capabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = presentMode;
-        createInfo.clipped = VK_TRUE;
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        VK_CHECK(vkCreateSwapchainKHR(m_context.GetDevice(), &createInfo, nullptr, &m_swapChain));
-
-        vkGetSwapchainImagesKHR(m_context.GetDevice(), m_swapChain, &imageCount, nullptr);
-        m_swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(m_context.GetDevice(), m_swapChain, &imageCount, m_swapChainImages.data());
-
-        return true;
-    }
-
-    bool VulkanRenderer::InitializeImageViews()
-    {
-        m_swapChainImageViews.resize(m_swapChainImages.size());
-
-        for (size_t i = 0; i < m_swapChainImages.size(); i++)
-        {
-            VkImageViewCreateInfo createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            createInfo.image = m_swapChainImages[i];
-
-            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            createInfo.format = m_swapChainImageFormat;
-
-            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            createInfo.subresourceRange.baseMipLevel = 0;
-            createInfo.subresourceRange.levelCount = 1;
-            createInfo.subresourceRange.baseArrayLayer = 0;
-            createInfo.subresourceRange.layerCount = 1;
-
-            VK_CHECK(vkCreateImageView(m_context.GetDevice(), &createInfo, nullptr, &m_swapChainImageViews[i]));
-        }
-
-        return true;
-    }
-
     bool VulkanRenderer::InitializeRenderPass()
     {
         // Color attachment
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = m_swapChainImageFormat;
+        colorAttachment.format = m_swapchain.GetImageFormat();
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -389,14 +258,14 @@ namespace Vultron
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)m_swapChainExtent.width;
-        viewport.height = (float)m_swapChainExtent.height;
+        viewport.width = (float)m_swapchain.GetExtent().width;
+        viewport.height = (float)m_swapchain.GetExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = m_swapChainExtent;
+        scissor.extent = m_swapchain.GetExtent();
 
         const std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -478,12 +347,14 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeFramebuffers()
     {
-        m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
+        std::vector<VkFramebuffer> &framebuffers = m_swapchain.GetFramebuffers();
+        const std::vector<VkImageView> &imageViews = m_swapchain.GetImageViews();
+        framebuffers.resize(imageViews.size());
 
-        for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+        for (size_t i = 0; i < imageViews.size(); i++)
         {
             std::array<VkImageView, 2> attachments = {
-                m_swapChainImageViews[i],
+                imageViews[i],
                 m_depthImage.GetImageView()};
 
             VkFramebufferCreateInfo framebufferInfo{};
@@ -491,11 +362,11 @@ namespace Vultron
             framebufferInfo.renderPass = m_renderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = m_swapChainExtent.width;
-            framebufferInfo.height = m_swapChainExtent.height;
+            framebufferInfo.width = m_swapchain.GetExtent().width;
+            framebufferInfo.height = m_swapchain.GetExtent().height;
             framebufferInfo.layers = 1;
 
-            VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]));
+            VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &framebuffers[i]));
         }
 
         return true;
@@ -599,8 +470,8 @@ namespace Vultron
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
              .info = {
-                 .width = m_swapChainExtent.width,
-                 .height = m_swapChainExtent.height,
+                 .width = m_swapchain.GetExtent().width,
+                 .height = m_swapchain.GetExtent().height,
                  .depth = 1,
                  .format = depthFormat,
              },
@@ -624,7 +495,7 @@ namespace Vultron
         }
 
         m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
-        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10000.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
         return true;
     }
@@ -756,35 +627,35 @@ namespace Vultron
 
     void VulkanRenderer::RecreateSwapChain(uint32_t width, uint32_t height)
     {
-        vkDeviceWaitIdle(m_context.GetDevice());
+        // vkDeviceWaitIdle(m_context.GetDevice());
 
-        for (auto framebuffer : m_swapChainFramebuffers)
-        {
-            vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
-        }
+        // for (auto framebuffer : m_swapchain.GetFramebuffers())
+        // {
+        //     vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
+        // }
 
-        for (const auto &frame : m_frames)
-        {
-            vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &frame.commandBuffer);
-        }
+        // for (const auto &frame : m_frames)
+        // {
+        //     vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &frame.commandBuffer);
+        // }
 
-        vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
+        // vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
+        // vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
+        // vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
 
-        for (auto imageView : m_swapChainImageViews)
-        {
-            vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
-        }
+        // for (auto imageView : m_swapChainImageViews)
+        // {
+        //     vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
+        // }
 
-        vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
+        // vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
 
-        InitializeSwapChain(width, height);
-        InitializeImageViews();
-        InitializeRenderPass();
-        InitializeGraphicsPipeline();
-        InitializeFramebuffers();
-        InitializeCommandBuffer();
+        // InitializeSwapChain(width, height);
+        // InitializeImageViews();
+        // InitializeRenderPass();
+        // InitializeGraphicsPipeline();
+        // InitializeFramebuffers();
+        // InitializeCommandBuffer();
     }
 
     void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches)
@@ -801,10 +672,10 @@ namespace Vultron
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = m_renderPass;
-        renderPassInfo.framebuffer = m_swapChainFramebuffers[imageIndex];
+        renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
 
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = m_swapChainExtent;
+        renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -820,15 +691,15 @@ namespace Vultron
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)m_swapChainExtent.width;
-        viewport.height = (float)m_swapChainExtent.height;
+        viewport.width = (float)m_swapchain.GetExtent().width;
+        viewport.height = (float)m_swapchain.GetExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = m_swapChainExtent;
+        scissor.extent = m_swapchain.GetExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         for (const auto &batch : batches)
@@ -860,7 +731,7 @@ namespace Vultron
         vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
 
         uint32_t imageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapChain, timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
         WriteCommandBuffer(frame.commandBuffer, imageIndex, batches);
 
@@ -904,7 +775,7 @@ namespace Vultron
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {m_swapChain};
+        VkSwapchainKHR swapChains[] = {m_swapchain.GetSwapchain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
@@ -943,23 +814,13 @@ namespace Vultron
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
-        for (auto framebuffer : m_swapChainFramebuffers)
-        {
-            vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
-        }
-
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
         vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
         vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
 
-        for (auto imageView : m_swapChainImageViews)
-        {
-            vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
-        }
-
-        vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
+        m_swapchain.Destroy(m_context);
 
         if (c_validationLayersEnabled)
         {

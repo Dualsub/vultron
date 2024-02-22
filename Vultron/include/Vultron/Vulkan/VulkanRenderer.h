@@ -5,6 +5,7 @@
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanContext.h"
+#include "Vultron/Vulkan/VulkanSwapchain.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
@@ -107,12 +108,7 @@ namespace Vultron
         VulkanContext m_context;
 
         // Swap chain
-        VkSwapchainKHR m_swapChain;
-        std::vector<VkImage> m_swapChainImages;
-        std::vector<VkImageView> m_swapChainImageViews;
-        std::vector<VkFramebuffer> m_swapChainFramebuffers;
-        VkFormat m_swapChainImageFormat;
-        VkExtent2D m_swapChainExtent;
+        VulkanSwapchain m_swapchain;
 
         // Render pass
         VkRenderPass m_renderPass;
@@ -146,11 +142,6 @@ namespace Vultron
 
         // Permanent resources
         ResourcePool m_resourcePool;
-
-        // Swapchain
-        bool InitializeSurface(const Window &window);
-        bool InitializeSwapChain(uint32_t width, uint32_t height);
-        bool InitializeImageViews();
 
         // Render pass
         bool InitializeRenderPass();

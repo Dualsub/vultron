@@ -937,8 +937,6 @@ namespace Vultron
         m_vertexShader.Destroy(m_context.GetDevice());
         m_fragmentShader.Destroy(m_context.GetDevice());
 
-        vmaDestroyAllocator(m_context.GetAllocator());
-
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
         for (auto framebuffer : m_swapChainFramebuffers)

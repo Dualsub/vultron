@@ -53,7 +53,7 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr size_t c_maxInstances = 1000;
+    constexpr size_t c_maxInstances = 20000;
     constexpr uint32_t c_frameOverlap = 2;
 
     class ResourcePool
@@ -83,18 +83,18 @@ namespace Vultron
         const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
         const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
 
-        void Destroy(VkDevice device, VmaAllocator allocator)
+        void Destroy(const VulkanContext &context)
         {
             for (auto &mesh : m_meshes)
             {
-                mesh.second.Destroy(allocator);
+                mesh.second.Destroy(context);
             }
 
             m_meshes.clear();
 
             for (auto &image : m_images)
             {
-                image.second.Destroy(device, allocator);
+                image.second.Destroy(context);
             }
 
             m_images.clear();

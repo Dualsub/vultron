@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Vulkan/VulkanContext.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 
 #include <glm/glm.hpp>
@@ -92,7 +93,7 @@ namespace Vultron
         static VulkanMesh CreateFromFile(const MeshFromFilesCreateInfo &createInfo);
         static Ptr<VulkanMesh> CreatePtrFromFile(const MeshFromFilesCreateInfo &createInfo);
 
-        void Destroy(VmaAllocator allocator);
+        void Destroy(const VulkanContext &context);
 
         VkBuffer GetVertexBuffer() const { return m_vertexBuffer.GetBuffer(); }
         VkBuffer GetIndexBuffer() const { return m_IndexBuffer.GetBuffer(); }

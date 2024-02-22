@@ -56,8 +56,8 @@ namespace Vultron
         return MakePtr<VulkanShader>(Create({.device = createInfo.device, .source = std::string(buffer.data(), fileSize)}));
     }
 
-    void VulkanShader::Destroy(VkDevice device)
+    void VulkanShader::Destroy(const VulkanContext &context)
     {
-        vkDestroyShaderModule(device, m_ShaderModule, nullptr);
+        vkDestroyShaderModule(context.GetDevice(), m_ShaderModule, nullptr);
     }
 }

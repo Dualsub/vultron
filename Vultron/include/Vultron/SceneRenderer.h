@@ -22,7 +22,7 @@ namespace Vultron
         // Compute hash of mesh and texture
         uint64_t GetHash() const
         {
-            return reinterpret_cast<uint64_t>(mesh) ^ reinterpret_cast<uint64_t>(material);
+            return static_cast<uint64_t>(mesh) ^ static_cast<uint64_t>(material);
         }
     };
 

@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
+#include <chrono>
 
 int main()
 {
@@ -29,7 +30,8 @@ int main()
 
     const uint32_t numPerRow = 20;
     const float spacing = 2.5f;
-    std::array<glm::mat4, 1000> transforms;
+    std::vector<glm::mat4> transforms;
+    transforms.resize(Vultron::c_maxInstances);
 
     const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     for (uint32_t i = 0; i < transforms.size(); i++)

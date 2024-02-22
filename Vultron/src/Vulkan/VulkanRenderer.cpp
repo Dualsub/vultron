@@ -671,7 +671,11 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorSets()
     {
-        std::array<VkDescriptorSetLayout, c_frameOverlap> layouts = {m_descriptorSetLayout, m_descriptorSetLayout};
+        std::array<VkDescriptorSetLayout, c_frameOverlap> layouts = {};
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            layouts[i] = m_descriptorSetLayout;
+        }
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = m_descriptorPool;
@@ -931,11 +935,11 @@ namespace Vultron
 
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
 
-        m_depthImage.Destroy(m_context.GetDevice(), m_context.GetAllocator());
-        m_texture.Destroy(m_context.GetDevice(), m_context.GetAllocator());
-        m_resourcePool.Destroy(m_context.GetDevice(), m_context.GetAllocator());
-        m_vertexShader.Destroy(m_context.GetDevice());
-        m_fragmentShader.Destroy(m_context.GetDevice());
+        m_depthImage.Destroy(m_context);
+        m_texture.Destroy(m_context);
+        m_resourcePool.Destroy(m_context);
+        m_vertexShader.Destroy(m_context);
+        m_fragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 

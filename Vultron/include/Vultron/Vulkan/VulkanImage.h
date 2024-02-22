@@ -1,11 +1,13 @@
 #pragma once
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Vulkan/VulkanContext.h"
 
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
 
 #include <string>
+#include <vector>
 
 namespace Vultron
 {
@@ -75,7 +77,7 @@ namespace Vultron
         void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, const std::vector<MipInfo> &mips);
         void TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
 
-        void Destroy(VkDevice device, VmaAllocator allocator);
+        void Destroy(const VulkanContext &context);
 
         VkImage GetImage() const { return m_image; }
         VkImageView GetImageView() const { return m_imageView; }

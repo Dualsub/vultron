@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Vulkan/VulkanContext.h"
 
 #include "vulkan/vulkan.h"
 
@@ -36,6 +37,6 @@ namespace Vultron
         };
         static VulkanShader CreateFromFile(const ShaderFromFileCreateInfo &createInfo);
         static Ptr<VulkanShader> CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo);
-        void Destroy(VkDevice device);
+        void Destroy(const VulkanContext &context);
     };
 }

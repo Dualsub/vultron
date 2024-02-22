@@ -1,6 +1,7 @@
 #include "Vultron/Vulkan/VulkanImage.h"
 
 #include "Vultron/Vulkan/VulkanBuffer.h"
+#include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -8,6 +9,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 namespace Vultron
 {
@@ -66,9 +68,6 @@ namespace Vultron
 
     VulkanImage VulkanImage::CreateFromFile(const ImageFromFileCreateInfo &createInfo)
     {
-        int texWidth, texHeight, texChannels;
-        uint8_t *pixels;
-
         std::fstream file(createInfo.filepath, std::ios::in | std::ios::binary);
         assert(file.is_open() && "Failed to open file");
 
@@ -138,7 +137,7 @@ namespace Vultron
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             mipLevels);
 
-        for (size_t i = 0; i < mips.size(); i++)
+        for (uint32_t i = 0; i < mips.size(); i++)
         {
             const MipInfo &mip = mips[i];
             const size_t imageSize = mip.width * mip.height * 4 * sizeof(uint8_t); // Doing it like this for now.
@@ -179,9 +178,9 @@ namespace Vultron
         return MakePtr<VulkanImage>(VulkanImage::CreateFromFile(createInfo));
     }
 
-    void VulkanImage::Destroy(VkDevice device, VmaAllocator allocator)
+    void VulkanImage::Destroy(const VulkanContext &context)
     {
-        vkDestroyImageView(device, m_imageView, nullptr);
-        vmaDestroyImage(allocator, m_image, m_allocation);
+        vkDestroyImageView(context.GetDevice(), m_imageView, nullptr);
+        vmaDestroyImage(context.GetAllocator(), m_image, m_allocation);
     }
 }

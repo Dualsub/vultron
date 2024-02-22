@@ -1,5 +1,5 @@
-#include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
+#include "Vultron/Vulkan/VulkanUtils.h"
 
 #include "vk_mem_alloc.h"
 
@@ -63,9 +63,9 @@ namespace Vultron
         return MakePtr<VulkanMesh>(CreateFromFile(createInfo));
     }
 
-    void VulkanMesh::Destroy(VmaAllocator allocator)
+    void VulkanMesh::Destroy(const VulkanContext &context)
     {
-        m_vertexBuffer.Destroy(allocator);
-        m_IndexBuffer.Destroy(allocator);
+        m_vertexBuffer.Destroy(context.GetAllocator());
+        m_IndexBuffer.Destroy(context.GetAllocator());
     }
 }

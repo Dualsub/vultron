@@ -5,12 +5,13 @@
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanContext.h"
-#include "Vultron/Vulkan/VulkanSwapchain.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
-#include "Vultron/Vulkan/VulkanShader.h"
+#include "Vultron/Vulkan/VulkanRenderPass.h"
 #include "Vultron/Vulkan/VulkanResourcePool.h"
+#include "Vultron/Vulkan/VulkanShader.h"
+#include "Vultron/Vulkan/VulkanSwapchain.h"
 
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
@@ -67,7 +68,7 @@ namespace Vultron
         VulkanSwapchain m_swapchain;
 
         // Render pass
-        VkRenderPass m_renderPass;
+        VulkanRenderPass m_renderPass;
 
         // Material pipeline
         VkPipelineLayout m_pipelineLayout;

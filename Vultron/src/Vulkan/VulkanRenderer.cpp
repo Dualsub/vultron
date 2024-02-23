@@ -129,61 +129,24 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeRenderPass()
     {
-        // Color attachment
-        VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = m_swapchain.GetImageFormat();
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-        VkAttachmentReference colorAttachmentRef{};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        // Depth attachment
-        VkAttachmentDescription depthAttachment{};
-        depthAttachment.format = VK_FORMAT_D32_SFLOAT;
-        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        VkAttachmentReference depthAttachmentRef{};
-        depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        VkSubpassDescription subpass{};
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorAttachmentRef;
-        subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-        VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcAccessMask = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-        std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
-        VkRenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-        renderPassInfo.pAttachments = attachments.data();
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-        renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies = &dependency;
-
-        VK_CHECK(vkCreateRenderPass(m_context.GetDevice(), &renderPassInfo, nullptr, &m_renderPass));
+        m_renderPass = VulkanRenderPass::Create(
+            m_context,
+            {.attachments = {
+                 // Color attachment
+                 {
+                     .format = m_swapchain.GetImageFormat(),
+                 },
+                 // Depth attachment
+                 {
+                     .type = VulkanRenderPass::AttachmentType::Depth,
+                     .format = VK_FORMAT_D32_SFLOAT,
+                     .samples = VK_SAMPLE_COUNT_1_BIT,
+                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
 
         return true;
     }
@@ -337,7 +300,7 @@ namespace Vultron
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = m_pipelineLayout;
-        pipelineInfo.renderPass = m_renderPass;
+        pipelineInfo.renderPass = m_renderPass.GetRenderPass();
         pipelineInfo.subpass = 0;
 
         VK_CHECK(vkCreateGraphicsPipelines(m_context.GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline));
@@ -359,7 +322,7 @@ namespace Vultron
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = m_renderPass;
+            framebufferInfo.renderPass = m_renderPass.GetRenderPass();
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = m_swapchain.GetExtent().width;
@@ -641,7 +604,7 @@ namespace Vultron
 
         // vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
         // vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        // vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
+        // vkDestroyRenderPass(m_context.GetDevice(), m_renderPass.GetRenderPass(), nullptr);
 
         // for (auto imageView : m_swapChainImageViews)
         // {
@@ -671,7 +634,7 @@ namespace Vultron
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = m_renderPass;
+        renderPassInfo.renderPass = m_renderPass.GetRenderPass();
         renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
 
         renderPassInfo.renderArea.offset = {0, 0};
@@ -818,8 +781,8 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
         vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        vkDestroyRenderPass(m_context.GetDevice(), m_renderPass, nullptr);
 
+        m_renderPass.Destroy(m_context);
         m_swapchain.Destroy(m_context);
 
         if (c_validationLayersEnabled)

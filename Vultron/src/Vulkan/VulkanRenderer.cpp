@@ -625,7 +625,7 @@ namespace Vultron
         return true;
     }
 
-    void VulkanRenderer::RecreateSwapChain(uint32_t width, uint32_t height)
+    void VulkanRenderer::RecreateSwapchain(uint32_t width, uint32_t height)
     {
         // vkDeviceWaitIdle(m_context.GetDevice());
 

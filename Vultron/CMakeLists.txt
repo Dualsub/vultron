@@ -15,6 +15,7 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanShader.cpp
     src/Vulkan/VulkanContext.cpp
     src/Vulkan/VulkanSwapchain.cpp
+    src/Vulkan/VulkanResourcePool.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

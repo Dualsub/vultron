@@ -28,6 +28,16 @@ int main()
 
     Vultron::RenderHandle mesh = renderer.LoadMesh(std::string(VLT_ASSETS_DIR) + "/meshes/DamagedHelmet.dat");
 
+    Vultron::RenderHandle helmetTexture = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat");
+    Vultron::RenderHandle helmetMaterial = renderer.CreateMaterial<Vultron::TexturedMaterial>({
+        .texture = helmetTexture,
+    });
+
+    Vultron::RenderHandle woordTexture = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/wood.dat");
+    Vultron::RenderHandle woodMaterial = renderer.CreateMaterial<Vultron::TexturedMaterial>({
+        .texture = woordTexture,
+    });
+
     const uint32_t numPerRow = 20;
     const float spacing = 2.5f;
     std::vector<glm::mat4> transforms;
@@ -59,7 +69,7 @@ int main()
 
         for (uint32_t i = 0; i < transforms.size(); i++)
         {
-            renderer.SubmitRenderJob({mesh, VLT_INVALID_HANDLE, glm::translate(transforms[i], glm::vec3(0.0f, 0.0f, glm::sin(time * 2.0f + i * 0.05f) * 0.5f))});
+            renderer.SubmitRenderJob({mesh, i % 2 == 0 ? helmetMaterial : woodMaterial, glm::translate(transforms[i], glm::vec3(0.0f, 0.0f, glm::sin(time * 2.0f + i * 0.05f) * 0.5f))});
         }
 
         renderer.EndFrame();

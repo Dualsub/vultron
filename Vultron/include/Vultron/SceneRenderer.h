@@ -88,6 +88,17 @@ namespace Vultron
         {
             return backend.LoadMesh(path);
         }
+
+        RenderHandle LoadImage(const std::string &path)
+        {
+            return backend.LoadImage(path);
+        }
+
+        template <typename T>
+        RenderHandle CreateMaterial(const T &materialCreateInfo)
+        {
+            return backend.CreateMaterial(materialCreateInfo);
+        }
     };
 
 }

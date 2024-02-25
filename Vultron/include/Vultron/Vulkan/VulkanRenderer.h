@@ -3,8 +3,10 @@
 #include "Vultron/Core/Core.h"
 #include "Vultron/Types.h"
 #include "Vultron/Window.h"
+#include "Vultron/Vulkan/VulkanTypes.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanContext.h"
+#include "Vultron/Vulkan/VulkanMaterial.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
@@ -21,6 +23,24 @@
 
 namespace Vultron
 {
+    struct TexturedMaterial
+    {
+        RenderHandle texture;
+
+        std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
+        {
+            const auto &image = pool.GetImage(texture);
+            return {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = image.GetImageView(),
+                    .sampler = sampler,
+                },
+            };
+        }
+    };
+
     struct FrameData
     {
         VkSemaphore imageAvailableSemaphore;
@@ -29,11 +49,9 @@ namespace Vultron
 
         VkCommandBuffer commandBuffer;
 
-        // Global resources
+        // Global scene data resources
         VulkanBuffer instanceBuffer;
         uint32_t instanceCount = 0;
-
-        // Material instance resources
         VulkanBuffer uniformBuffer;
         VkDescriptorSet descriptorSet;
     };
@@ -56,6 +74,10 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
+    constexpr uint32_t c_maxSets = 10;
+    constexpr uint32_t c_maxUniformBuffers = 10;
+    constexpr uint32_t c_maxStorageBuffers = 10;
+    constexpr uint32_t c_maxCombinedImageSamplers = 10;
     constexpr size_t c_maxInstances = 2000;
     constexpr uint32_t c_frameOverlap = 2;
 
@@ -71,8 +93,7 @@ namespace Vultron
         VulkanRenderPass m_renderPass;
 
         // Material pipeline
-        VkPipelineLayout m_pipelineLayout;
-        VkPipeline m_graphicsPipeline;
+        VulkanMaterialPipeline m_materialPipeline;
         VkDescriptorSetLayout m_descriptorSetLayout;
         VkDescriptorPool m_descriptorPool;
 
@@ -95,7 +116,6 @@ namespace Vultron
         // Assets, will be removed in the future
         VulkanShader m_vertexShader;
         VulkanShader m_fragmentShader;
-        VulkanImage m_texture;
 
         // Permanent resources
         ResourcePool m_resourcePool;
@@ -113,17 +133,19 @@ namespace Vultron
         bool InitializeCommandBuffer();
 
         bool InitializeSyncObjects();
-        bool InitializeTestResources();
 
         // Permanent resources
         bool InitializeSamplers();
         bool InitializeDepthBuffer();
+        bool InitializeDescriptorPool();
 
         // Material instance resources
-        bool InitializeDescriptorPool();
         bool InitializeUniformBuffers();
         bool InitializeInstanceBuffer();
         bool InitializeDescriptorSets();
+
+        // Assets, will be removed in the future
+        bool InitializeTestResources();
 
         // Swapchain
         void RecreateSwapchain(uint32_t width, uint32_t height);
@@ -143,6 +165,20 @@ namespace Vultron
         void Shutdown();
 
         RenderHandle LoadMesh(const std::string &filepath);
+        RenderHandle LoadImage(const std::string &filepath);
+
+        template <typename T>
+        RenderHandle CreateMaterial(const T &materialCreateInfo)
+        {
+            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            auto materialInstance = VulkanMaterialInstance::Create(
+                m_context, m_descriptorPool, m_materialPipeline,
+                {
+                    bindings,
+                });
+
+            return m_resourcePool.AddMaterialInstance(materialInstance);
+        }
     };
 
 }

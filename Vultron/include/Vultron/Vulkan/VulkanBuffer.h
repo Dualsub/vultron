@@ -12,6 +12,7 @@
 
 namespace Vultron
 {
+    // TODO: Update to use new abstractions
     class VulkanBuffer
     {
     private:

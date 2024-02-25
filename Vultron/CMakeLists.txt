@@ -15,6 +15,8 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanShader.cpp
     src/Vulkan/VulkanContext.cpp
     src/Vulkan/VulkanSwapchain.cpp
+    src/Vulkan/VulkanMaterial.cpp
+    src/Vulkan/VulkanRenderPass.cpp
     src/Vulkan/VulkanResourcePool.cpp
 )
 

@@ -1,5 +1,6 @@
 #include "Vultron/Vulkan/VulkanUtils.h"
 
+#include <iostream>
 #include <vector>
 
 namespace Vultron::VkUtil
@@ -229,4 +230,29 @@ namespace Vultron::VkUtil
 
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }
+
+    size_t GetAlignedSize(size_t offset, size_t alignment)
+    {
+        return (offset + alignment - 1) & ~(alignment - 1);
+    }
+
+    VkDescriptorType GetDescriptorType(DescriptorType type)
+    {
+        switch (type)
+        {
+        case DescriptorType::UniformBuffer:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case DescriptorType::CombinedImageSampler:
+            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        case DescriptorType::StorageBuffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        default:
+            std::cerr << "Unknown descriptor type" << std::endl;
+            abort();
+            break;
+        }
+
+        return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+    }
+
 }

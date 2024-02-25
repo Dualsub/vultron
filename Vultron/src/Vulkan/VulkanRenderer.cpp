@@ -1,5 +1,7 @@
 #include "Vultron/Vulkan/VulkanRenderer.h"
 
+#include "Vultron/Vulkan/VulkanUtils.h"
+#include "Vultron/Vulkan/VulkanInitializers.h"
 #include "Vultron/Vulkan/Debug.h"
 
 #define VMA_IMPLEMENTATION
@@ -88,12 +90,6 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeTestResources())
-        {
-            std::cerr << "Faild to initialize geometry." << std::endl;
-            return false;
-        }
-
         if (!InitializeSamplers())
         {
             std::cerr << "Faild to initialize sampler." << std::endl;
@@ -121,6 +117,12 @@ namespace Vultron
         if (!InitializeDescriptorSets())
         {
             std::cerr << "Faild to initialize descriptor sets." << std::endl;
+            return false;
+        }
+
+        if (!InitializeTestResources())
+        {
+            std::cerr << "Faild to initialize geometry." << std::endl;
             return false;
         }
 
@@ -153,32 +155,20 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorSetLayout()
     {
-        std::array<VkDescriptorSetLayoutBinding, 3> layoutBindings = {};
-
-        VkDescriptorSetLayoutBinding &uniformBinding = layoutBindings[0];
-        uniformBinding.binding = 0;
-        uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uniformBinding.descriptorCount = 1;
-        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutBinding &instanceBinding = layoutBindings[1];
-        instanceBinding.binding = 1;
-        instanceBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        instanceBinding.descriptorCount = 1;
-        instanceBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-        VkDescriptorSetLayoutBinding &samplerBinding = layoutBindings[2];
-        samplerBinding.binding = 2;
-        samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerBinding.descriptorCount = 1;
-        samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        createInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-        createInfo.pBindings = layoutBindings.data();
-
-        VK_CHECK(vkCreateDescriptorSetLayout(m_context.GetDevice(), &createInfo, nullptr, &m_descriptorSetLayout));
+        m_descriptorSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+            });
 
         return true;
     }
@@ -189,121 +179,20 @@ namespace Vultron
         m_vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
         m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
-        VkPipelineShaderStageCreateInfo shaderStages[] = {
+        m_materialPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_swapchain, m_renderPass,
             {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                .module = m_vertexShader.GetShaderModule(),
-                .pName = "main",
-            },
-            {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .module = m_fragmentShader.GetShaderModule(),
-                .pName = "main",
-            }};
-
-        auto vertexBindingDesc = StaticMeshVertex::GetBindingDescription();
-        auto vertexAttributeDescs = StaticMeshVertex::GetAttributeDescriptions();
-
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescs.size());
-        vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs.data();
-
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = (float)m_swapchain.GetExtent().width;
-        viewport.height = (float)m_swapchain.GetExtent().height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = m_swapchain.GetExtent();
-
-        const std::array<VkDynamicState, 2> dynamicStates = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR};
-
-        VkPipelineDynamicStateCreateInfo dynamicState{};
-        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-        dynamicState.pDynamicStates = dynamicStates.data();
-
-        VkPipelineViewportStateCreateInfo viewportState{};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount = 1;
-
-        VkPipelineRasterizationStateCreateInfo rasterizer{};
-        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizer.depthClampEnable = VK_FALSE;
-        rasterizer.rasterizerDiscardEnable = VK_FALSE;
-        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        rasterizer.depthBiasEnable = VK_FALSE;
-
-        VkPipelineMultisampleStateCreateInfo multisampling{};
-        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable = VK_FALSE;
-        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        colorBlendAttachment.blendEnable = VK_FALSE;
-
-        VkPipelineColorBlendStateCreateInfo colorBlending{};
-        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.logicOpEnable = VK_FALSE;
-        colorBlending.logicOp = VK_LOGIC_OP_COPY;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlendAttachment;
-
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
-        pipelineLayoutInfo.pushConstantRangeCount = 0;
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-        VkPipelineDepthStencilStateCreateInfo depthStencil{};
-        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE;
-        depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-        depthStencil.depthBoundsTestEnable = VK_FALSE;
-        depthStencil.stencilTestEnable = VK_FALSE;
-
-        VK_CHECK(vkCreatePipelineLayout(m_context.GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
-
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = shaderStages;
-        pipelineInfo.pVertexInputState = &vertexInputInfo;
-        pipelineInfo.pInputAssemblyState = &inputAssembly;
-        pipelineInfo.pViewportState = &viewportState;
-        pipelineInfo.pRasterizationState = &rasterizer;
-        pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.pDepthStencilState = &depthStencil;
-        pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = m_pipelineLayout;
-        pipelineInfo.renderPass = m_renderPass.GetRenderPass();
-        pipelineInfo.subpass = 0;
-
-        VK_CHECK(vkCreateGraphicsPipelines(m_context.GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline));
+                .vertexShader = m_vertexShader,
+                .fragmentShader = m_fragmentShader,
+                .sceneDescriptorSetLayout = m_descriptorSetLayout,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+            });
 
         return true;
     }
@@ -381,19 +270,6 @@ namespace Vultron
 
             VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].inFlightFence));
         }
-
-        return true;
-    }
-
-    bool VulkanRenderer::InitializeTestResources()
-    {
-        m_texture = VulkanImage::CreateFromFile(
-            {.device = m_context.GetDevice(),
-             .commandPool = m_commandPool,
-             .queue = m_context.GetGraphicsQueue(),
-             .allocator = m_context.GetAllocator(),
-             .format = VK_FORMAT_R8G8B8A8_SRGB,
-             .filepath = std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat"});
 
         return true;
     }
@@ -478,25 +354,18 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 3> poolSizes = {};
-
-        VkDescriptorPoolSize &uniformPoolSize = poolSizes[0];
-        uniformPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uniformPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
-
-        VkDescriptorPoolSize &instancePoolSize = poolSizes[1];
-        instancePoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        instancePoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
-
-        VkDescriptorPoolSize &samplerPoolSize = poolSizes[2];
-        samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerPoolSize.descriptorCount = static_cast<uint32_t>(c_frameOverlap);
+        std::array<VkDescriptorPoolSize, 3> poolSizes = {
+            {
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, c_maxUniformBuffers},
+                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, c_maxStorageBuffers},
+                {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, c_maxCombinedImageSamplers},
+            }};
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(c_frameOverlap);
+        poolInfo.maxSets = c_maxSets;
 
         VK_CHECK(vkCreateDescriptorPool(m_context.GetDevice(), &poolInfo, nullptr, &m_descriptorPool));
 
@@ -505,72 +374,24 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorSets()
     {
-        std::array<VkDescriptorSetLayout, c_frameOverlap> layouts = {};
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            layouts[i] = m_descriptorSetLayout;
-        }
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = m_descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(c_frameOverlap);
-        allocInfo.pSetLayouts = layouts.data();
+            std::vector<DescriptorSetBinding> bindings = {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_frames[i].uniformBuffer.GetBuffer(),
+                    .size = m_frames[i].uniformBuffer.GetSize(),
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_frames[i].instanceBuffer.GetBuffer(),
+                    .size = m_frames[i].instanceBuffer.GetSize(),
+                },
+            };
 
-        std::array<VkDescriptorSet, c_frameOverlap> descriptorSets;
-        VK_CHECK(vkAllocateDescriptorSets(m_context.GetDevice(), &allocInfo, descriptorSets.data()));
-
-        for (size_t i = 0; i < c_frameOverlap; i++)
-        {
-            m_frames[i].descriptorSet = descriptorSets[i];
-
-            VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
-            VkDescriptorBufferInfo uniformBufferInfo{};
-            uniformBufferInfo.buffer = uniformBuffer.GetBuffer();
-            uniformBufferInfo.range = uniformBuffer.GetSize();
-            uniformBufferInfo.offset = 0;
-
-            VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
-            VkDescriptorBufferInfo instanceBufferInfo{};
-            instanceBufferInfo.buffer = instanceBuffer.GetBuffer();
-            instanceBufferInfo.range = instanceBuffer.GetSize();
-            instanceBufferInfo.offset = 0;
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = m_texture.GetImageView();
-            imageInfo.sampler = m_textureSampler;
-
-            std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
-            VkDescriptorSet &descriptorSet = m_frames[i].descriptorSet;
-
-            VkWriteDescriptorSet &uniformBufferWrite = descriptorWrites[0];
-            uniformBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            uniformBufferWrite.dstSet = descriptorSet;
-            uniformBufferWrite.dstBinding = 0;
-            uniformBufferWrite.dstArrayElement = 0;
-            uniformBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            uniformBufferWrite.descriptorCount = 1;
-            uniformBufferWrite.pBufferInfo = &uniformBufferInfo;
-
-            VkWriteDescriptorSet &instanceBufferWrite = descriptorWrites[1];
-            instanceBufferWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            instanceBufferWrite.dstSet = descriptorSet;
-            instanceBufferWrite.dstBinding = 1;
-            instanceBufferWrite.dstArrayElement = 0;
-            instanceBufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            instanceBufferWrite.descriptorCount = 1;
-            instanceBufferWrite.pBufferInfo = &instanceBufferInfo;
-
-            VkWriteDescriptorSet &samplerWrite = descriptorWrites[2];
-            samplerWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            samplerWrite.dstSet = descriptorSet;
-            samplerWrite.dstBinding = 2;
-            samplerWrite.dstArrayElement = 0;
-            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            samplerWrite.descriptorCount = 1;
-            samplerWrite.pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(m_context.GetDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            m_frames[i].descriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_descriptorSetLayout, bindings);
         }
 
         return true;
@@ -585,6 +406,11 @@ namespace Vultron
         createInfo.pfnUserCallback = VulkanDebugCallback;
         VK_CHECK(CreateDebugUtilsMessengerEXT(m_context.GetInstance(), &createInfo, nullptr, &m_debugMessenger));
 
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeTestResources()
+    {
         return true;
     }
 
@@ -649,7 +475,7 @@ namespace Vultron
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipeline());
 
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -665,16 +491,21 @@ namespace Vultron
         scissor.extent = m_swapchain.GetExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+        VkDescriptorSet descriptorSets[] = {frame.descriptorSet};
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+
         for (const auto &batch : batches)
         {
-            const VulkanMesh mesh = m_resourcePool.GetMesh(batch.mesh);
+            const VulkanMesh &mesh = m_resourcePool.GetMesh(batch.mesh);
+            const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
             VkBuffer vertexBuffers[] = {mesh.GetVertexBuffer()};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffer, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+            VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.GetIndexCount()), batch.instanceCount, 0, 0, batch.firstInstance);
         }
@@ -770,7 +601,6 @@ namespace Vultron
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
 
         m_depthImage.Destroy(m_context);
-        m_texture.Destroy(m_context);
         m_resourcePool.Destroy(m_context);
         m_vertexShader.Destroy(m_context);
         m_fragmentShader.Destroy(m_context);
@@ -779,8 +609,7 @@ namespace Vultron
 
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
-        vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
+        m_materialPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_swapchain.Destroy(m_context);
@@ -803,5 +632,17 @@ namespace Vultron
              .filepath = filepath});
 
         return m_resourcePool.AddMesh(std::move(mesh));
+    }
+
+    RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
+    {
+        VulkanImage image = VulkanImage::CreateFromFile(
+            {.device = m_context.GetDevice(),
+             .commandPool = m_commandPool,
+             .queue = m_context.GetGraphicsQueue(),
+             .allocator = m_context.GetAllocator(),
+             .filepath = filepath});
+
+        return m_resourcePool.AddImage(std::move(image));
     }
 }

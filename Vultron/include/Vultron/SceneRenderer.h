@@ -87,26 +87,17 @@ namespace Vultron
 
         RenderHandle LoadMesh(const std::string &path)
         {
-            static size_t meshCount = 0;
-            meshCount++;
-            std::cout << "Mesh count: " << meshCount << std::endl;
             return backend.LoadMesh(path);
         }
 
         RenderHandle LoadImage(const std::string &path)
         {
-            static size_t imageCount = 0;
-            imageCount++;
-            std::cout << "Image count: " << imageCount << std::endl;
             return backend.LoadImage(path);
         }
 
         template <typename T>
         RenderHandle CreateMaterial(const T &materialCreateInfo)
         {
-            static size_t materialCount = 0;
-            materialCount++;
-            std::cout << "Material count: " << materialCount << std::endl;
             return backend.CreateMaterial(materialCreateInfo);
         }
     };

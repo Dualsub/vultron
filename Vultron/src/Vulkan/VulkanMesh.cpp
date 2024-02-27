@@ -53,8 +53,6 @@ namespace Vultron
 
         file.close();
 
-        std::cout << "Loaded mesh with " << vertexCount << " vertices and " << indexCount << " indices" << std::endl;
-
         return VulkanMesh::Create({.device = createInfo.device, .commandPool = createInfo.commandPool, .queue = createInfo.queue, .allocator = createInfo.allocator, .vertices = vertices, .indices = indices});
     }
 

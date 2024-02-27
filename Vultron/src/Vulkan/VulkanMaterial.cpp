@@ -12,8 +12,6 @@ namespace Vultron
     {
         VulkanMaterialPipeline material(createInfo.vertexShader, createInfo.fragmentShader);
 
-        std::cout << "Binding count: " << createInfo.bindings.size() << std::endl;
-
         if (!material.InitializeDescriptorSetLayout(context, createInfo.bindings))
         {
             std::cerr << "Failed to initialize descriptor set layout" << std::endl;

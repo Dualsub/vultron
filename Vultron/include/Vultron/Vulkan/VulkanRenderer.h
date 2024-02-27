@@ -112,12 +112,13 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr uint32_t c_maxSets = 100;
+    constexpr size_t c_maxInstances = 100;
+    constexpr uint32_t c_frameOverlap = 2;
+
+    constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
     constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
-    constexpr size_t c_maxInstances = 2000;
-    constexpr uint32_t c_frameOverlap = 2;
 
     class VulkanRenderer
     {
@@ -214,7 +215,7 @@ namespace Vultron
                 {
                     bindings,
                 });
-            std::cout << "Material instance created" << std::endl;
+
             return m_resourcePool.AddMaterialInstance(materialInstance);
         }
     };

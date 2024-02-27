@@ -1,5 +1,7 @@
 #pragma once
 
+#define GLM_FORCE_ALIGNED_GENTYPES
+
 #include "Vultron/Core/Core.h"
 #include "Vultron/Types.h"
 #include "Vultron/Window.h"
@@ -19,6 +21,7 @@
 #include "vulkan/vulkan.h"
 
 #include <array>
+#include <iostream>
 #include <optional>
 
 namespace Vultron
@@ -35,6 +38,40 @@ namespace Vultron
                     .binding = 0,
                     .type = DescriptorType::CombinedImageSampler,
                     .imageView = image.GetImageView(),
+                    .sampler = sampler,
+                },
+            };
+        }
+    };
+
+    struct PBRMaterial
+    {
+        RenderHandle albedo;
+        RenderHandle normal;
+        RenderHandle metallicRoughnessAO;
+
+        std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
+        {
+            const auto &albedoImage = pool.GetImage(albedo);
+            const auto &normalImage = pool.GetImage(normal);
+            const auto &metallicRoughnessAOImage = pool.GetImage(metallicRoughnessAO);
+            return {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = albedoImage.GetImageView(),
+                    .sampler = sampler,
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = normalImage.GetImageView(),
+                    .sampler = sampler,
+                },
+                {
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = metallicRoughnessAOImage.GetImageView(),
                     .sampler = sampler,
                 },
             };
@@ -63,21 +100,22 @@ namespace Vultron
 
     struct UniformBufferData
     {
-        glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
-        glm::vec3 lightDir;
-        float _padding1;
         glm::vec3 viewPos;
+        float _padding1;
+        glm::vec3 lightDir;
         float _padding2;
+        glm::vec3 lightColor;
+        float _padding3;
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr uint32_t c_maxSets = 10;
-    constexpr uint32_t c_maxUniformBuffers = 10;
-    constexpr uint32_t c_maxStorageBuffers = 10;
-    constexpr uint32_t c_maxCombinedImageSamplers = 10;
+    constexpr uint32_t c_maxSets = 100;
+    constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
+    constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
+    constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
     constexpr size_t c_maxInstances = 2000;
     constexpr uint32_t c_frameOverlap = 2;
 
@@ -93,7 +131,7 @@ namespace Vultron
         VulkanRenderPass m_renderPass;
 
         // Material pipeline
-        VulkanMaterialPipeline m_materialPipeline;
+        VulkanMaterialPipeline m_pbrPipeline;
         VkDescriptorSetLayout m_descriptorSetLayout;
         VkDescriptorPool m_descriptorPool;
 
@@ -172,11 +210,11 @@ namespace Vultron
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
-                m_context, m_descriptorPool, m_materialPipeline,
+                m_context, m_descriptorPool, m_pbrPipeline,
                 {
                     bindings,
                 });
-
+            std::cout << "Material instance created" << std::endl;
             return m_resourcePool.AddMaterialInstance(materialInstance);
         }
     };

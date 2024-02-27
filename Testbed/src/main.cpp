@@ -5,8 +5,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <iostream>
 #include <chrono>
+#include <future>
+#include <iostream>
 
 int main()
 {
@@ -27,15 +28,10 @@ int main()
     }
 
     Vultron::RenderHandle mesh = renderer.LoadMesh(std::string(VLT_ASSETS_DIR) + "/meshes/DamagedHelmet.dat");
-
-    Vultron::RenderHandle helmetTexture = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat");
-    Vultron::RenderHandle helmetMaterial = renderer.CreateMaterial<Vultron::TexturedMaterial>({
-        .texture = helmetTexture,
-    });
-
-    Vultron::RenderHandle woordTexture = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/wood.dat");
-    Vultron::RenderHandle woodMaterial = renderer.CreateMaterial<Vultron::TexturedMaterial>({
-        .texture = woordTexture,
+    Vultron::RenderHandle material = renderer.CreateMaterial<Vultron::PBRMaterial>({
+        .albedo = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_albedo.dat"),
+        .normal = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_normal.dat"),
+        .metallicRoughnessAO = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_metRoughness_AO.dat"),
     });
 
     const uint32_t numPerRow = 20;
@@ -67,10 +63,7 @@ int main()
 
         renderer.BeginFrame();
 
-        for (uint32_t i = 0; i < transforms.size(); i++)
-        {
-            renderer.SubmitRenderJob({mesh, i % 2 == 0 ? helmetMaterial : woodMaterial, glm::translate(transforms[i], glm::vec3(0.0f, 0.0f, glm::sin(time * 2.0f + i * 0.05f) * 0.5f))});
-        }
+        renderer.SubmitRenderJob({mesh, material, transforms});
 
         renderer.EndFrame();
 

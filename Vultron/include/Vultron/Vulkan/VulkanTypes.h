@@ -16,8 +16,8 @@ namespace Vultron
     {
         uint32_t binding;
         uint32_t descriptorCount = 1;
-        VkShaderStageFlags stageFlags = VK_SHADER_STAGE_ALL;
         DescriptorType type = DescriptorType::None;
+        VkShaderStageFlags stageFlags = VK_SHADER_STAGE_ALL;
     };
 
     struct DescriptorSetBinding

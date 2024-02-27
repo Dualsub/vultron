@@ -8,6 +8,7 @@
 
 #include <map>
 #include <vector>
+#include <iostream>
 
 namespace Vultron
 {
@@ -17,7 +18,7 @@ namespace Vultron
     {
         RenderHandle mesh = {};
         RenderHandle material = {};
-        glm::mat4 transform = {};
+        std::vector<glm::mat4> transforms = {};
 
         // Compute hash of mesh and texture
         uint64_t GetHash() const
@@ -62,7 +63,7 @@ namespace Vultron
                 renderJobs.insert({hash, InstancedRenderJob{job.mesh, job.material, {}}});
             }
 
-            renderJobs[hash].transforms.push_back(job.transform);
+            renderJobs[hash].transforms.insert(renderJobs[hash].transforms.end(), job.transforms.begin(), job.transforms.end());
         }
 
         void EndFrame()
@@ -86,17 +87,26 @@ namespace Vultron
 
         RenderHandle LoadMesh(const std::string &path)
         {
+            static size_t meshCount = 0;
+            meshCount++;
+            std::cout << "Mesh count: " << meshCount << std::endl;
             return backend.LoadMesh(path);
         }
 
         RenderHandle LoadImage(const std::string &path)
         {
+            static size_t imageCount = 0;
+            imageCount++;
+            std::cout << "Image count: " << imageCount << std::endl;
             return backend.LoadImage(path);
         }
 
         template <typename T>
         RenderHandle CreateMaterial(const T &materialCreateInfo)
         {
+            static size_t materialCount = 0;
+            materialCount++;
+            std::cout << "Material count: " << materialCount << std::endl;
             return backend.CreateMaterial(materialCreateInfo);
         }
     };

@@ -17,14 +17,27 @@ namespace Vultron::VkInit
 
         VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
         VkResult res = vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet);
-        std::cout << "Descriptor set allocation result: " << res << std::endl;
+        if (res == VK_ERROR_OUT_OF_POOL_MEMORY)
+        {
+            std::cerr << "Descriptor pool out of memory" << std::endl;
+        }
 
-        std::vector<VkWriteDescriptorSet> descriptorWrites = {};
-        descriptorWrites.resize(bindings.size());
+        VK_CHECK(res);
+        std::vector<VkDescriptorBufferInfo> bufferInfos;
+        std::vector<VkDescriptorImageInfo> imageInfos;
+        std::vector<VkWriteDescriptorSet> descriptorWrites;
+
+        // Reserve space to avoid reallocations that could invalidate pointers
+        bufferInfos.reserve(bindings.size());
+        imageInfos.reserve(bindings.size());
+        descriptorWrites.reserve(bindings.size());
+
         for (size_t i = 0; i < bindings.size(); i++)
         {
             const auto &binding = bindings[i];
-            VkWriteDescriptorSet &descriptorWrite = descriptorWrites[i];
+            descriptorWrites.emplace_back(VkWriteDescriptorSet{});
+            VkWriteDescriptorSet &descriptorWrite = descriptorWrites.back();
+
             descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrite.dstSet = descriptorSet;
             descriptorWrite.dstBinding = binding.binding;
@@ -34,39 +47,33 @@ namespace Vultron::VkInit
             switch (binding.type)
             {
             case DescriptorType::UniformBuffer:
-            {
-                VkDescriptorBufferInfo bufferInfo = {};
-                bufferInfo.buffer = binding.buffer;
-                bufferInfo.offset = 0;
-                bufferInfo.range = binding.size;
-
-                descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                descriptorWrite.pBufferInfo = &bufferInfo;
-                break;
-            }
             case DescriptorType::StorageBuffer:
             {
-                VkDescriptorBufferInfo bufferInfo = {};
+                bufferInfos.emplace_back(VkDescriptorBufferInfo{});
+                VkDescriptorBufferInfo &bufferInfo = bufferInfos.back();
                 bufferInfo.buffer = binding.buffer;
                 bufferInfo.offset = 0;
                 bufferInfo.range = binding.size;
 
-                descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                descriptorWrite.pBufferInfo = &bufferInfo;
-                break;
+                descriptorWrite.descriptorType = (binding.type == DescriptorType::UniformBuffer) ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                descriptorWrite.pBufferInfo = &bufferInfo; // Now points to an element in bufferInfos
             }
+            break;
             case DescriptorType::CombinedImageSampler:
             {
-                VkDescriptorImageInfo imageInfo = {};
+                imageInfos.emplace_back(VkDescriptorImageInfo{});
+                VkDescriptorImageInfo &imageInfo = imageInfos.back();
                 imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageInfo.imageView = binding.imageView;
                 imageInfo.sampler = binding.sampler;
 
                 descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                descriptorWrite.pImageInfo = &imageInfo;
-                break;
+                descriptorWrite.pImageInfo = &imageInfo; // Now points to an element in imageInfos
             }
+            break;
             default:
+                std::cerr << "Unknown descriptor type" << std::endl;
+                abort();
                 break;
             }
         }

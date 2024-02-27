@@ -12,10 +12,10 @@
 #define VK_CHECK(x)                                     \
     {                                                   \
         VkResult err = x;                               \
-        if (err)                                        \
+        if (err != VK_SUCCESS)                          \
         {                                               \
             printf("Detected Vulkan error: %d\n", err); \
-            assert(!err);                               \
+            abort();                                    \
         }                                               \
     }
 

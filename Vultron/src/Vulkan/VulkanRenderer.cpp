@@ -179,7 +179,7 @@ namespace Vultron
         m_vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
         m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
-        m_materialPipeline = VulkanMaterialPipeline::Create(
+        m_pbrPipeline = VulkanMaterialPipeline::Create(
             m_context, m_swapchain, m_renderPass,
             {
                 .vertexShader = m_vertexShader,
@@ -188,6 +188,16 @@ namespace Vultron
                 .bindings = {
                     {
                         .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    {
+                        .binding = 2,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
@@ -334,6 +344,7 @@ namespace Vultron
         }
 
         m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
+        m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
         m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
         return true;
@@ -475,7 +486,7 @@ namespace Vultron
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipeline());
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipeline());
 
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -492,7 +503,7 @@ namespace Vultron
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         VkDescriptorSet descriptorSets[] = {frame.descriptorSet};
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
         for (const auto &batch : batches)
         {
@@ -505,7 +516,7 @@ namespace Vultron
             vkCmdBindIndexBuffer(commandBuffer, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
             VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_materialPipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.GetIndexCount()), batch.instanceCount, 0, 0, batch.firstInstance);
         }
@@ -536,8 +547,9 @@ namespace Vultron
 
         // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
-        const glm::vec3 viewPos = glm::vec3(0.0f, 4.0f, 3.0f);
+        const glm::vec3 viewPos = glm::vec3(0.0f, 4.0f, 1.0f);
         const glm::vec3 viewDir = glm::normalize(glm::vec3(0.0f, -1.0f, -0.3f));
+        ubo.viewPos = viewPos;
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 0.0f, 1.0f));
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
@@ -609,7 +621,7 @@ namespace Vultron
 
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
-        m_materialPipeline.Destroy(m_context);
+        m_pbrPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_swapchain.Destroy(m_context);

@@ -21,7 +21,7 @@ namespace Vultron
         VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, VkDescriptorSetLayout sceneDescriptorSetLayout);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -38,6 +38,7 @@ namespace Vultron
             const VulkanShader &fragmentShader;
             VkDescriptorSetLayout sceneDescriptorSetLayout;
             const std::vector<DescriptorSetLayoutBinding> &bindings;
+            const VertexDescription &vertexDescription = StaticMeshVertex::GetVertexDescription();
         };
 
         static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);

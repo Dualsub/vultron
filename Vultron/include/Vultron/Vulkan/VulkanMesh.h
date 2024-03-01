@@ -14,6 +14,14 @@
 
 namespace Vultron
 {
+#pragma region StaticMesh
+
+    struct VertexDescription
+    {
+        VkVertexInputBindingDescription bindingDescription;
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+    };
+
     struct StaticMeshVertex
     {
         glm::vec3 position;
@@ -30,9 +38,9 @@ namespace Vultron
             return bindingDescription;
         }
 
-        static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions()
+        static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
         {
-            std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
+            std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
 
             attributeDescriptions[0].binding = 0;
             attributeDescriptions[0].location = 0;
@@ -50,6 +58,14 @@ namespace Vultron
             attributeDescriptions[2].offset = offsetof(StaticMeshVertex, texCoord);
 
             return attributeDescriptions;
+        }
+
+        static VertexDescription GetVertexDescription()
+        {
+            return {
+                .bindingDescription = GetBindingDescription(),
+                .attributeDescriptions = GetAttributeDescriptions(),
+            };
         }
     };
 
@@ -100,4 +116,118 @@ namespace Vultron
 
         size_t GetIndexCount() const { return m_IndexBuffer.GetSize() / sizeof(uint32_t); }
     };
+
+#pragma endregion
+
+#pragma region SkeletalMesh
+
+    struct SkeletalMeshVertex
+    {
+        glm::vec3 position;
+        glm::vec3 normal;
+        glm::vec2 texCoord;
+        int32_t boneIDs[4];
+        float boneWeights[4];
+
+        static VkVertexInputBindingDescription GetBindingDescription()
+        {
+            VkVertexInputBindingDescription bindingDescription = {};
+            bindingDescription.binding = 0;
+            bindingDescription.stride = sizeof(SkeletalMeshVertex);
+            bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+            return bindingDescription;
+        }
+
+        static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
+        {
+            std::vector<VkVertexInputAttributeDescription> attributeDescriptions(5);
+
+            attributeDescriptions[0].binding = 0;
+            attributeDescriptions[0].location = 0;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[0].offset = offsetof(StaticMeshVertex, position);
+
+            attributeDescriptions[1].binding = 0;
+            attributeDescriptions[1].location = 1;
+            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(StaticMeshVertex, normal);
+
+            attributeDescriptions[2].binding = 0;
+            attributeDescriptions[2].location = 2;
+            attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[2].offset = offsetof(StaticMeshVertex, texCoord);
+
+            attributeDescriptions[3].binding = 0;
+            attributeDescriptions[3].location = 3;
+            attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SINT;
+            attributeDescriptions[3].offset = offsetof(SkeletalMeshVertex, boneIDs);
+
+            attributeDescriptions[4].binding = 0;
+            attributeDescriptions[4].location = 4;
+            attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attributeDescriptions[4].offset = offsetof(SkeletalMeshVertex, boneWeights);
+
+            return attributeDescriptions;
+        }
+
+        static VertexDescription GetVertexDescription()
+        {
+            return {
+                .bindingDescription = GetBindingDescription(),
+                .attributeDescriptions = GetAttributeDescriptions(),
+            };
+        }
+    };
+
+    struct SkeletonBone
+    {
+        int32_t id;
+        int32_t parentID;
+        glm::mat4 offset;
+    };
+
+    class VulkanSkeletalMesh
+    {
+    private:
+        VulkanBuffer m_vertexBuffer;
+        VulkanBuffer m_IndexBuffer;
+
+        uint32_t m_boneOffset = 0;
+        uint32_t m_boneCount = 0;
+
+    public:
+        VulkanSkeletalMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer, uint32_t boneOffset, uint32_t boneCount)
+            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer), m_boneOffset(boneOffset), m_boneCount(boneCount)
+        {
+        }
+        VulkanSkeletalMesh() = default;
+        ~VulkanSkeletalMesh() = default;
+
+        struct MeshCreateInfo
+        {
+            const std::vector<SkeletalMeshVertex> &vertices;
+            const std::vector<uint32_t> &indices;
+            uint32_t boneOffset;
+            uint32_t boneCount;
+        };
+
+        static VulkanSkeletalMesh Create(const VulkanContext &context, VkCommandPool commandPool, const MeshCreateInfo &createInfo);
+
+        struct MeshFromFilesCreateInfo
+        {
+            const std::string &filepath;
+        };
+
+        static VulkanSkeletalMesh CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, std::vector<SkeletonBone> &boneBuffer, const MeshFromFilesCreateInfo &createInfo);
+        void Destroy(const VulkanContext &context);
+
+        inline VkBuffer GetVertexBuffer() const { return m_vertexBuffer.GetBuffer(); }
+        inline VkBuffer GetIndexBuffer() const { return m_IndexBuffer.GetBuffer(); }
+        inline size_t GetIndexCount() const { return m_IndexBuffer.GetSize() / sizeof(uint32_t); }
+        inline uint32_t GetBoneOffset() const { return m_boneOffset; }
+        inline uint32_t GetBoneCount() const { return m_boneCount; }
+    };
+
+#pragma endregion
 }

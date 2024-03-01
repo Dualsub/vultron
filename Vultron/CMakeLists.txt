@@ -7,6 +7,7 @@ add_library(Vultron STATIC
     src/Window.cpp
     src/Vulkan/Debug.cpp
     src/Vulkan/VulkanUtils.cpp
+    src/Vulkan/VulkanAnimation.cpp
     src/Vulkan/VulkanRenderer.cpp
     src/Vulkan/VulkanBuffer.cpp
     src/Vulkan/VulkanImage.cpp

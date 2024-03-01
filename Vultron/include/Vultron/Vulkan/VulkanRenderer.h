@@ -7,6 +7,7 @@
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanTypes.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
+#include "Vultron/Vulkan/VulkanAnimation.h"
 #include "Vultron/Vulkan/VulkanContext.h"
 #include "Vultron/Vulkan/VulkanMaterial.h"
 #include "Vultron/Vulkan/VulkanBuffer.h"
@@ -19,6 +20,8 @@
 
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <array>
 #include <iostream>
@@ -90,12 +93,36 @@ namespace Vultron
         VulkanBuffer instanceBuffer;
         uint32_t instanceCount = 0;
         VulkanBuffer uniformBuffer;
-        VkDescriptorSet descriptorSet;
+        VkDescriptorSet staticDescriptorSet;
+        VkDescriptorSet skeletalDescriptorSet;
     };
 
     struct InstanceData
     {
         glm::mat4 model;
+    };
+
+    struct SkeletalInstanceData
+    {
+        glm::mat4 model;
+        uint32_t boneOffset;
+        uint32_t boneCount;
+        uint32_t animationInstanceOffset;
+        uint32_t animationInstanceCount;
+    };
+
+    struct AnimationInstanceData
+    {
+        uint32_t frameOffset;
+        uint32_t frame1;
+        uint32_t frame2;
+        float blendFactor;
+    };
+
+    struct Camera
+    {
+        glm::vec3 position;
+        glm::quat rotation;
     };
 
     struct UniformBufferData
@@ -112,13 +139,17 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr size_t c_maxInstances = 100;
+    constexpr size_t c_maxInstances = 1000;
     constexpr uint32_t c_frameOverlap = 2;
 
     constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
     constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
+
+    constexpr uint32_t c_maxSkeletalInstances = 100;
+    constexpr uint32_t c_maxBones = 200;
+    constexpr uint32_t c_maxAnimationFrames = 1000;
 
     class VulkanRenderer
     {
@@ -131,19 +162,31 @@ namespace Vultron
         // Render pass
         VulkanRenderPass m_renderPass;
 
-        // Material pipeline
-        VulkanMaterialPipeline m_pbrPipeline;
-        VkDescriptorSetLayout m_descriptorSetLayout;
+        // Pools
+        VkCommandPool m_commandPool;
         VkDescriptorPool m_descriptorPool;
+
+        // Static pipeline
+        VulkanMaterialPipeline m_staticPipeline;
+        VkDescriptorSetLayout m_descriptorSetLayout;
+
+        // Skeletal pipeline
+        VulkanMaterialPipeline m_skeletalPipeline;
+        VkDescriptorSetLayout m_skeletalSetLayout;
+        // -- GPU only resources
+        std::vector<SkeletonBone> m_bones;
+        VulkanBuffer m_boneBuffer;
+        std::vector<AnimationFrame> m_animationFrames;
+        VulkanBuffer m_animationFrameBuffer;
+        // -- GPU to CPU resources
+        VulkanBuffer m_skeletalInstanceBuffer;
+        VulkanBuffer m_animationInstanceBuffer;
 
         // Material instance resources
         UniformBufferData m_uniformBufferData{};
         VulkanImage m_depthImage;
         VkSampler m_textureSampler;
         VkSampler m_depthSampler;
-
-        // Command pool
-        VkCommandPool m_commandPool;
 
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;
@@ -153,11 +196,14 @@ namespace Vultron
         uint32_t m_currentFrameIndex = 0;
 
         // Assets, will be removed in the future
-        VulkanShader m_vertexShader;
+        VulkanShader m_staticVertexShader;
+        VulkanShader m_skeletalVertexShader;
         VulkanShader m_fragmentShader;
 
         // Permanent resources
         ResourcePool m_resourcePool;
+
+        Camera m_camera;
 
         // Render pass
         bool InitializeRenderPass();
@@ -166,6 +212,9 @@ namespace Vultron
         // Material pipeline
         bool InitializeDescriptorSetLayout();
         bool InitializeGraphicsPipeline();
+
+        // Skeletal pipeline
+        bool InitializeSkeletalBuffers();
 
         // Command pool
         bool InitializeCommandPool();
@@ -193,17 +242,23 @@ namespace Vultron
         bool InitializeDebugMessenger();
 
         // Command buffer
-        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches);
+        void
+        WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches);
 
     public:
         VulkanRenderer() = default;
         ~VulkanRenderer() = default;
 
         bool Initialize(const Window &window);
+        void PostInitialize();
         void Draw(const std::vector<RenderBatch> &batches, const std::vector<glm::mat4> &instances);
         void Shutdown();
 
+        void SetCamera(const Camera &camera) { m_camera = camera; }
+
         RenderHandle LoadMesh(const std::string &filepath);
+        RenderHandle LoadSkeletalMesh(const std::string &filepath);
+        RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
 
         template <typename T>
@@ -211,7 +266,7 @@ namespace Vultron
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
-                m_context, m_descriptorPool, m_pbrPipeline,
+                m_context, m_descriptorPool, m_staticPipeline,
                 {
                     bindings,
                 });

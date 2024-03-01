@@ -17,6 +17,7 @@
 #include <vector>
 #include <utility>
 #include <stdio.h>
+#include <string>
 
 namespace Vultron
 {
@@ -31,7 +32,14 @@ namespace Vultron
         Window() = default;
         ~Window() = default;
 
-        bool Initialize();
+        struct WindowCreateInfo
+        {
+            const std::string &title;
+            uint32_t width = 1600;
+            uint32_t height = 900;
+        };
+
+        bool Initialize(const WindowCreateInfo &createInfo);
         void SwapBuffers();
         void PollEvents();
         void Shutdown();
@@ -42,10 +50,17 @@ namespace Vultron
         {
             return std::make_pair(m_width, m_height);
         }
+
         GLFWwindow *GetWindowHandle() const
         {
             return m_windowHandle;
         }
+
+        void SetTitle(const std::string &title)
+        {
+            glfwSetWindowTitle(m_windowHandle, title.c_str());
+        }
+
         static void CreateVulkanSurface(const Window &window, VkInstance instance, VkSurfaceKHR *surface);
     };
 }

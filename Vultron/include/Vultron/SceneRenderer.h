@@ -50,6 +50,11 @@ namespace Vultron
             return backend.Initialize(window);
         }
 
+        void PostInitialize()
+        {
+            backend.PostInitialize();
+        }
+
         void BeginFrame()
         {
             renderJobs.clear();
@@ -85,14 +90,29 @@ namespace Vultron
             backend.Shutdown();
         }
 
+        void SetCamera(const Camera &camera)
+        {
+            backend.SetCamera(camera);
+        }
+
         RenderHandle LoadMesh(const std::string &path)
         {
             return backend.LoadMesh(path);
         }
 
+        RenderHandle LoadSkeletalMesh(const std::string &path)
+        {
+            return backend.LoadSkeletalMesh(path);
+        }
+
         RenderHandle LoadImage(const std::string &path)
         {
             return backend.LoadImage(path);
+        }
+
+        RenderHandle LoadAnimation(const std::string &path)
+        {
+            return backend.LoadAnimation(path);
         }
 
         template <typename T>

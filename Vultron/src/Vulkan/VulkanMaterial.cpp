@@ -18,7 +18,7 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, swapchain, renderPass, createInfo.sceneDescriptorSetLayout))
+        if (!material.InitializeGraphicsPipeline(context, swapchain, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -40,7 +40,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, VkDescriptorSetLayout sceneDescriptorSetLayout)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -56,16 +56,12 @@ namespace Vultron
                 .pName = "main",
             }};
 
-        // TODO: This will be a input to the function in the future
-        auto vertexBindingDesc = StaticMeshVertex::GetBindingDescription();
-        auto vertexAttributeDescs = StaticMeshVertex::GetAttributeDescriptions();
-
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributeDescs.size());
-        vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs.data();
+        vertexInputInfo.pVertexBindingDescriptions = &vertexDescription.bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexDescription.attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributeDescriptions.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

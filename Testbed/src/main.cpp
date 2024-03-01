@@ -13,7 +13,7 @@ int main()
 {
     Vultron::Window window;
 
-    if (!window.Initialize())
+    if (!window.Initialize({.title = "Vultron"}))
     {
         std::cerr << "Window failed to initialize" << std::endl;
         return -1;

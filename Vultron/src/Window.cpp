@@ -3,12 +3,8 @@
 namespace Vultron
 {
 
-    bool Window::Initialize()
+    bool Window::Initialize(const WindowCreateInfo &createInfo)
     {
-        // FOr now we do this.
-        const uint32_t width = 1920;
-        const uint32_t height = 1080;
-
         if (!glfwInit())
         {
             return false;
@@ -17,16 +13,19 @@ namespace Vultron
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        m_width = width;
-        m_height = height;
+        m_width = createInfo.width;
+        m_height = createInfo.height;
 
-        m_windowHandle = glfwCreateWindow(width, height, "Vultron", NULL, NULL);
+        m_windowHandle = glfwCreateWindow(createInfo.width, createInfo.height, createInfo.title.c_str(), NULL, NULL);
 
         if (m_windowHandle == nullptr)
         {
             glfwTerminate();
             return false;
         }
+
+        // Disable cursor
+        glfwSetInputMode(m_windowHandle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
         return true;
     }
@@ -39,6 +38,10 @@ namespace Vultron
     void Window::PollEvents()
     {
         glfwPollEvents();
+        if (glfwGetKey(m_windowHandle, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        {
+            glfwSetWindowShouldClose(m_windowHandle, GLFW_TRUE);
+        }
     }
 
     void Window::Shutdown()

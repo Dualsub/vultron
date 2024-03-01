@@ -8,6 +8,7 @@
 #include "vk_mem_alloc.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -57,6 +58,12 @@ namespace Vultron
         if (!InitializeGraphicsPipeline())
         {
             std::cerr << "Faild to initialize graphics pipeline." << std::endl;
+            return false;
+        }
+
+        if (!InitializeSkeletalBuffers())
+        {
+            std::cerr << "Faild to initialize skeletal buffers." << std::endl;
             return false;
         }
 
@@ -129,6 +136,25 @@ namespace Vultron
         return true;
     }
 
+    void VulkanRenderer::PostInitialize()
+    {
+        struct BoneUploaded
+        {
+            glm::mat4 offset;
+            int32_t parentID;
+            float padding[3];
+        };
+
+        std::vector<BoneUploaded> bones;
+        bones.reserve(m_bones.size());
+        for (size_t i = 0; i < m_bones.size(); i++)
+        {
+            bones.push_back({.offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID});
+        }
+        m_boneBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
+        m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
+    }
+
     bool VulkanRenderer::InitializeRenderPass()
     {
         m_renderPass = VulkanRenderPass::Create(
@@ -170,39 +196,90 @@ namespace Vultron
                 },
             });
 
+        m_skeletalSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Scene data
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Instance data
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+                {
+                    // Bone data
+                    .binding = 2,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+                {
+                    // Animation data
+                    .binding = 3,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+            });
+
         return true;
     }
 
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_staticVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_skeletalVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
         m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
-        m_pbrPipeline = VulkanMaterialPipeline::Create(
+        auto materialBindings = std::vector<DescriptorSetLayoutBinding>{
+            {
+                .binding = 0,
+                .type = DescriptorType::CombinedImageSampler,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = 1,
+                .type = DescriptorType::CombinedImageSampler,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = 2,
+                .type = DescriptorType::CombinedImageSampler,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        m_staticPipeline = VulkanMaterialPipeline::Create(
             m_context, m_swapchain, m_renderPass,
             {
-                .vertexShader = m_vertexShader,
+                .vertexShader = m_staticVertexShader,
                 .fragmentShader = m_fragmentShader,
                 .sceneDescriptorSetLayout = m_descriptorSetLayout,
-                .bindings = {
-                    {
-                        .binding = 0,
-                        .type = DescriptorType::CombinedImageSampler,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    },
-                    {
-                        .binding = 1,
-                        .type = DescriptorType::CombinedImageSampler,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    },
-                    {
-                        .binding = 2,
-                        .type = DescriptorType::CombinedImageSampler,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    },
-                },
+                .bindings = materialBindings,
+                .vertexDescription = StaticMeshVertex::GetVertexDescription(),
             });
+
+        m_skeletalPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_swapchain, m_renderPass,
+            {
+                .vertexShader = m_skeletalVertexShader,
+                .fragmentShader = m_fragmentShader,
+                .sceneDescriptorSetLayout = m_skeletalSetLayout,
+                .bindings = materialBindings,
+                .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
+            });
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeSkeletalBuffers()
+    {
+        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
+        m_animationFrameBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(glm::mat4) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
 
         return true;
     }
@@ -343,7 +420,7 @@ namespace Vultron
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
-        m_uniformBufferData.lightDir = glm::vec3(0.0f, 0.0f, 1.0f);
+        m_uniformBufferData.lightDir = glm::vec3(0.0f, 1.0f, -1.0f);
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
         m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
@@ -402,7 +479,24 @@ namespace Vultron
                 },
             };
 
-            m_frames[i].descriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_descriptorSetLayout, bindings);
+            m_frames[i].staticDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_descriptorSetLayout, bindings);
+
+            bindings.push_back(
+                {
+                    .binding = 2,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_boneBuffer.GetBuffer(),
+                    .size = m_boneBuffer.GetSize(),
+                });
+            bindings.push_back(
+                {
+                    .binding = 3,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_animationFrameBuffer.GetBuffer(),
+                    .size = m_animationFrameBuffer.GetSize(),
+                });
+
+            m_frames[i].skeletalDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skeletalSetLayout, bindings);
         }
 
         return true;
@@ -478,7 +572,8 @@ namespace Vultron
         renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
 
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        // Nice light blue clear color
+        clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -486,7 +581,9 @@ namespace Vultron
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipeline());
+        VulkanMaterialPipeline &pipeline = m_skeletalPipeline;
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
 
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -502,12 +599,12 @@ namespace Vultron
         scissor.extent = m_swapchain.GetExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkDescriptorSet descriptorSets[] = {frame.descriptorSet};
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+        VkDescriptorSet descriptorSets[] = {frame.skeletalDescriptorSet};
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
         for (const auto &batch : batches)
         {
-            const VulkanMesh &mesh = m_resourcePool.GetMesh(batch.mesh);
+            const VulkanSkeletalMesh &mesh = m_resourcePool.GetSkeletalMesh(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
             VkBuffer vertexBuffers[] = {mesh.GetVertexBuffer()};
@@ -516,7 +613,7 @@ namespace Vultron
             vkCmdBindIndexBuffer(commandBuffer, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
             VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pbrPipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.GetIndexCount()), batch.instanceCount, 0, 0, batch.firstInstance);
         }
@@ -547,10 +644,11 @@ namespace Vultron
 
         // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
-        const glm::vec3 viewPos = glm::vec3(0.0f, 4.0f, 1.0f);
-        const glm::vec3 viewDir = glm::normalize(glm::vec3(0.0f, -1.0f, -0.3f));
-        ubo.viewPos = viewPos;
+        // Rortate forward vector to get view direction
+        const glm::vec3 viewPos = m_camera.position;
+        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 1.0f, 0.0f);
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.viewPos = viewPos;
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
         // Instance buffer
@@ -614,14 +712,21 @@ namespace Vultron
 
         m_depthImage.Destroy(m_context);
         m_resourcePool.Destroy(m_context);
-        m_vertexShader.Destroy(m_context);
+        m_staticVertexShader.Destroy(m_context);
+        m_skeletalVertexShader.Destroy(m_context);
         m_fragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
-        m_pbrPipeline.Destroy(m_context);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalSetLayout, nullptr);
+
+        m_boneBuffer.Destroy(m_context.GetAllocator());
+        m_animationFrameBuffer.Destroy(m_context.GetAllocator());
+
+        m_staticPipeline.Destroy(m_context);
+        m_skeletalPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_swapchain.Destroy(m_context);
@@ -644,6 +749,18 @@ namespace Vultron
              .filepath = filepath});
 
         return m_resourcePool.AddMesh(std::move(mesh));
+    }
+
+    RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
+    {
+        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});
+
+        return m_resourcePool.AddSkeletalMesh(std::move(mesh));
+    }
+
+    RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
+    {
+        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)

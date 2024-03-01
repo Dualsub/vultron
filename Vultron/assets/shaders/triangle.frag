@@ -126,7 +126,7 @@ void main() {
     // reflectance equation
     vec3 Lo = CalcDirLight(N, V, albedo, roughness, metallic, F0);
   
-    vec3 ambient = vec3(0.06) * albedo * ao;
+    vec3 ambient = vec3(0.6, 0.6, 0.9) * albedo * ao;
     vec3 color = ambient + Lo;
 	
     // color = color / (color + vec3(1.0));

@@ -28,31 +28,31 @@ namespace Vultron
 
         RenderHandle AddMesh(const VulkanMesh &mesh)
         {
-            m_meshes.insert({m_handleCounter, mesh});
+            m_meshes.insert({ m_handleCounter, mesh });
             return m_handleCounter++;
         }
 
         RenderHandle AddSkeletalMesh(const VulkanSkeletalMesh &skeletalMesh)
         {
-            m_skeletalMeshes.insert({m_handleCounter, skeletalMesh});
+            m_skeletalMeshes.insert({ m_handleCounter, skeletalMesh });
             return m_handleCounter++;
         }
 
         RenderHandle AddImage(const VulkanImage &image)
         {
-            m_images.insert({m_handleCounter, image});
+            m_images.insert({ m_handleCounter, image });
             return m_handleCounter++;
         }
 
         RenderHandle AddMaterialInstance(const VulkanMaterialInstance &materialInstance)
         {
-            m_materialInstances.insert({m_handleCounter, materialInstance});
+            m_materialInstances.insert({ m_handleCounter, materialInstance });
             return m_handleCounter++;
         }
 
         RenderHandle AddAnimation(const VulkanAnimation &animation)
         {
-            m_animations.insert({m_handleCounter, animation});
+            m_animations.insert({ m_handleCounter, animation });
             return m_handleCounter++;
         }
 
@@ -61,6 +61,25 @@ namespace Vultron
         const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
         const VulkanMaterialInstance &GetMaterialInstance(RenderHandle id) const { return m_materialInstances.at(id); }
         const VulkanAnimation &GetAnimation(RenderHandle id) const { return m_animations.at(id); }
+
+        template <typename T>
+        MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
+        {
+            assert(false && "Invalid type");
+            return {};
+        }
+
+        template<>
+        MeshDrawInfo GetMeshDrawInfo<VulkanMesh>(RenderHandle id) const
+        {
+            return m_meshes.at(id).GetDrawInfo();
+        }
+
+        template<>
+        MeshDrawInfo GetMeshDrawInfo<VulkanSkeletalMesh>(RenderHandle id) const
+        {
+            return m_skeletalMeshes.at(id).GetDrawInfo();
+        }
 
         void Destroy(const VulkanContext &context)
         {

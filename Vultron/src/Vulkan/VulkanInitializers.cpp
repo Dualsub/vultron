@@ -28,15 +28,14 @@ namespace Vultron::VkInit
         std::vector<VkWriteDescriptorSet> descriptorWrites;
 
         // Reserve space to avoid reallocations that could invalidate pointers
-        bufferInfos.reserve(bindings.size());
-        imageInfos.reserve(bindings.size());
-        descriptorWrites.reserve(bindings.size());
+        bufferInfos.resize(bindings.size());
+        imageInfos.resize(bindings.size());
+        descriptorWrites.resize(bindings.size());
 
         for (size_t i = 0; i < bindings.size(); i++)
         {
             const auto &binding = bindings[i];
-            descriptorWrites.emplace_back(VkWriteDescriptorSet{});
-            VkWriteDescriptorSet &descriptorWrite = descriptorWrites.back();
+            VkWriteDescriptorSet &descriptorWrite = descriptorWrites[i];
 
             descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrite.dstSet = descriptorSet;
@@ -49,8 +48,7 @@ namespace Vultron::VkInit
             case DescriptorType::UniformBuffer:
             case DescriptorType::StorageBuffer:
             {
-                bufferInfos.emplace_back(VkDescriptorBufferInfo{});
-                VkDescriptorBufferInfo &bufferInfo = bufferInfos.back();
+                VkDescriptorBufferInfo &bufferInfo = bufferInfos[i];
                 bufferInfo.buffer = binding.buffer;
                 bufferInfo.offset = 0;
                 bufferInfo.range = binding.size;
@@ -61,8 +59,7 @@ namespace Vultron::VkInit
             break;
             case DescriptorType::CombinedImageSampler:
             {
-                imageInfos.emplace_back(VkDescriptorImageInfo{});
-                VkDescriptorImageInfo &imageInfo = imageInfos.back();
+                VkDescriptorImageInfo &imageInfo = imageInfos[i];
                 imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageInfo.imageView = binding.imageView;
                 imageInfo.sampler = binding.sampler;

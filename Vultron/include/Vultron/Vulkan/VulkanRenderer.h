@@ -90,10 +90,13 @@ namespace Vultron
         VkCommandBuffer commandBuffer;
 
         // Global scene data resources
-        VulkanBuffer instanceBuffer;
-        uint32_t instanceCount = 0;
         VulkanBuffer uniformBuffer;
+
+        VulkanBuffer staticInstanceBuffer;
         VkDescriptorSet staticDescriptorSet;
+
+        VulkanBuffer skeletalInstanceBuffer;
+        VulkanBuffer animationInstanceBuffer;
         VkDescriptorSet skeletalDescriptorSet;
     };
 
@@ -105,18 +108,21 @@ namespace Vultron
     struct SkeletalInstanceData
     {
         glm::mat4 model;
-        uint32_t boneOffset;
-        uint32_t boneCount;
-        uint32_t animationInstanceOffset;
-        uint32_t animationInstanceCount;
+        int32_t boneOffset;
+        int32_t boneCount;
+        int32_t animationInstanceOffset;
+        int32_t animationInstanceCount;
     };
 
     struct AnimationInstanceData
     {
-        uint32_t frameOffset;
-        uint32_t frame1;
-        uint32_t frame2;
+        int32_t frameOffset;
+        int32_t frame1;
+        int32_t frame2;
+        float _padding;
+        float timeFactor;
         float blendFactor;
+        float _padding2[2];
     };
 
     struct Camera
@@ -139,7 +145,7 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
-    constexpr size_t c_maxInstances = 1000;
+    constexpr size_t c_maxInstances = 1024;
     constexpr uint32_t c_frameOverlap = 2;
 
     constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
@@ -147,9 +153,10 @@ namespace Vultron
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
 
-    constexpr uint32_t c_maxSkeletalInstances = 100;
-    constexpr uint32_t c_maxBones = 200;
-    constexpr uint32_t c_maxAnimationFrames = 1000;
+    constexpr uint32_t c_maxSkeletalInstances = 1024;
+    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
+    constexpr uint32_t c_maxBones = 256;
+    constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
 
     class VulkanRenderer
     {
@@ -229,7 +236,7 @@ namespace Vultron
 
         // Material instance resources
         bool InitializeUniformBuffers();
-        bool InitializeInstanceBuffer();
+        bool InitializeInstanceBuffers();
         bool InitializeDescriptorSets();
 
         // Assets, will be removed in the future
@@ -242,8 +249,9 @@ namespace Vultron
         bool InitializeDebugMessenger();
 
         // Command buffer
-        void
-        WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches);
+        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches);
+        template <typename MeshType>
+        void DrawPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches);
 
     public:
         VulkanRenderer() = default;
@@ -251,7 +259,7 @@ namespace Vultron
 
         bool Initialize(const Window &window);
         void PostInitialize();
-        void Draw(const std::vector<RenderBatch> &batches, const std::vector<glm::mat4> &instances);
+        void Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances);
         void Shutdown();
 
         void SetCamera(const Camera &camera) { m_camera = camera; }
@@ -260,6 +268,8 @@ namespace Vultron
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
+
+        const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 
         template <typename T>
         RenderHandle CreateMaterial(const T &materialCreateInfo)

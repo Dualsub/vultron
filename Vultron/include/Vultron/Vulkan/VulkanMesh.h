@@ -69,6 +69,14 @@ namespace Vultron
         }
     };
 
+    struct MeshDrawInfo
+    {
+        VkBuffer vertexBuffer = VK_NULL_HANDLE;
+        VkBuffer indexBuffer = VK_NULL_HANDLE;
+        uint32_t indexCount = 0;
+    };
+
+
     // TODO: Combine vertex and index buffer into a single buffer
     class VulkanMesh
     {
@@ -86,10 +94,10 @@ namespace Vultron
 
         struct MeshCreateInfo
         {
-            VkDevice device{VK_NULL_HANDLE};
-            VkCommandPool commandPool{VK_NULL_HANDLE};
-            VkQueue queue{VK_NULL_HANDLE};
-            VmaAllocator allocator{VK_NULL_HANDLE};
+            VkDevice device{ VK_NULL_HANDLE };
+            VkCommandPool commandPool{ VK_NULL_HANDLE };
+            VkQueue queue{ VK_NULL_HANDLE };
+            VmaAllocator allocator{ VK_NULL_HANDLE };
             const std::vector<StaticMeshVertex> &vertices;
             const std::vector<uint32_t> &indices;
         };
@@ -99,10 +107,10 @@ namespace Vultron
 
         struct MeshFromFilesCreateInfo
         {
-            VkDevice device{VK_NULL_HANDLE};
-            VkCommandPool commandPool{VK_NULL_HANDLE};
-            VkQueue queue{VK_NULL_HANDLE};
-            VmaAllocator allocator{VK_NULL_HANDLE};
+            VkDevice device{ VK_NULL_HANDLE };
+            VkCommandPool commandPool{ VK_NULL_HANDLE };
+            VkQueue queue{ VK_NULL_HANDLE };
+            VmaAllocator allocator{ VK_NULL_HANDLE };
             const std::string &filepath;
         };
 
@@ -115,6 +123,15 @@ namespace Vultron
         VkBuffer GetIndexBuffer() const { return m_IndexBuffer.GetBuffer(); }
 
         size_t GetIndexCount() const { return m_IndexBuffer.GetSize() / sizeof(uint32_t); }
+
+        MeshDrawInfo GetDrawInfo() const
+        {
+            return {
+                .vertexBuffer = m_vertexBuffer.GetBuffer(),
+                .indexBuffer = m_IndexBuffer.GetBuffer(),
+                .indexCount = static_cast<uint32_t>(GetIndexCount()),
+            };
+        }
     };
 
 #pragma endregion
@@ -227,6 +244,15 @@ namespace Vultron
         inline size_t GetIndexCount() const { return m_IndexBuffer.GetSize() / sizeof(uint32_t); }
         inline uint32_t GetBoneOffset() const { return m_boneOffset; }
         inline uint32_t GetBoneCount() const { return m_boneCount; }
+
+        MeshDrawInfo GetDrawInfo() const
+        {
+            return {
+                .vertexBuffer = m_vertexBuffer.GetBuffer(),
+                .indexBuffer = m_IndexBuffer.GetBuffer(),
+                .indexCount = static_cast<uint32_t>(GetIndexCount()),
+            };
+        }
     };
 
 #pragma endregion

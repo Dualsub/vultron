@@ -22,10 +22,11 @@ namespace Vultron
     private:
         uint32_t m_animationFrameOffset = 0;
         uint32_t m_animationFrameCount = 0;
+        std::vector<float> m_times;
 
     public:
-        VulkanAnimation(uint32_t frameOffset, uint32_t frameCount)
-            : m_animationFrameOffset(frameOffset), m_animationFrameCount(frameCount)
+        VulkanAnimation(uint32_t frameOffset, uint32_t frameCount, const std::vector<float> &times)
+            : m_animationFrameOffset(frameOffset), m_animationFrameCount(frameCount), m_times(times)
         {
         }
         VulkanAnimation() = default;
@@ -37,5 +38,9 @@ namespace Vultron
         };
 
         static VulkanAnimation CreateFromFile(std::vector<AnimationFrame> &frames, const AnimationFromFileCreateInfo &createInfo);
+
+        uint32_t GetFrameOffset() const { return m_animationFrameOffset; }
+        uint32_t GetFrameCount() const { return m_animationFrameCount; }
+        const std::vector<float> &GetTimes() const { return m_times; }
     };
 }

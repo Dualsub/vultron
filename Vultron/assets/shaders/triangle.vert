@@ -24,9 +24,12 @@ layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
     InstanceData instances[];
 };
 
+layout(location = 3) out ivec4 debug;
+
 void main()  {
     gl_Position = ubo.proj * ubo.view * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
     fragWorldPos = vec3(instances[gl_InstanceIndex].model * vec4(inPosition, 1.0));
     fragTexCoord = inTexCoord;
     fragNormal = inNormal;
+    debug.x = gl_InstanceIndex;
 }

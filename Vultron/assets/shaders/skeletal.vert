@@ -20,6 +20,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 struct InstanceData {
     mat4 model;
+    ivec4 boneAndInstanceOffsetAndCount;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
@@ -43,6 +44,15 @@ struct AnimationFrame {
 
 layout(std140, set = 0, binding = 3) readonly buffer AnimationBufferObject {
     AnimationFrame frames[];
+};
+
+struct AnimationInstance {
+    ivec3 frameOffsetAnd1And2;
+    vec2 timeAndBlendFactor;
+};
+
+layout(set = 0, binding = 4) uniform AnimationInstanceObject {
+    AnimationInstance animationInstances[100];
 };
 
 vec3 QMulV(vec4 q, vec3 v) {
@@ -88,19 +98,29 @@ void main()  {
 
     mat4 boneMatrix = mat4(0.0);
 
-    int frameOffset = 0;
-    int skeletonOffset = 0;
+    int boneOffset = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.x;
+    int boneCount = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.y;
+    int animationInstanceOffset = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.z;
+    int animationInstanceCount = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.w;
 
-    for (int i = 0; i < 4; i++) {
-        if (inBoneIDs[i] == -1) {
-            break;
+
+    for (int i = 0; i < animationInstanceCount; i++) {
+        int frameOffset = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.x;
+        int frame1 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.y;
+        int frame2 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.z;
+        float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
+
+        for (int i = 0; i < 4; i++) {
+            if (inBoneIDs[i] == -1) {
+                break;
+            }
+
+            int frameIndex = frameOffset + frame1 * boneCount;
+
+            mat4 offset = bones[inBoneIDs[i] + boneOffset].offset;
+            mat4 boneTransform = GetPose(frameIndex, inBoneIDs[i]);
+            boneMatrix += (boneTransform * offset) * inWeights[i] * blendFactor;
         }
-
-        int frameIndex = inBoneIDs[i] + frameOffset;
-
-        mat4 offset = bones[inBoneIDs[i] + skeletonOffset].offset;
-        mat4 boneTransform = GetPose(frameOffset, inBoneIDs[i]);
-        boneMatrix += (boneTransform * offset) * inWeights[i];
     }
 
     vec4 fragPos = instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);

@@ -31,6 +31,6 @@ namespace Vultron
         uint32_t frameOffset = static_cast<uint32_t>(frames.size());
         frames.insert(frames.end(), animationFrames.begin(), animationFrames.end());
 
-        return VulkanAnimation(frameOffset, frameCount);
+        return VulkanAnimation(frameOffset, frameCount, times);
     }
 }

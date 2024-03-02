@@ -109,7 +109,7 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeInstanceBuffer())
+        if (!InitializeInstanceBuffers())
         {
             std::cerr << "Faild to initialize instance buffer." << std::endl;
             return false;
@@ -149,32 +149,40 @@ namespace Vultron
         bones.reserve(m_bones.size());
         for (size_t i = 0; i < m_bones.size(); i++)
         {
-            bones.push_back({.offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID});
+            bones.push_back({ .offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID });
         }
-        m_boneBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
-        m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
+
+        if (bones.size() > 0)
+        {
+            m_boneBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
+        }
+
+        if (m_animationFrames.size() > 0)
+        {
+            m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
+        }
     }
 
     bool VulkanRenderer::InitializeRenderPass()
     {
         m_renderPass = VulkanRenderPass::Create(
             m_context,
-            {.attachments = {
-                 // Color attachment
-                 {
-                     .format = m_swapchain.GetImageFormat(),
-                 },
-                 // Depth attachment
-                 {
-                     .type = VulkanRenderPass::AttachmentType::Depth,
-                     .format = VK_FORMAT_D32_SFLOAT,
-                     .samples = VK_SAMPLE_COUNT_1_BIT,
-                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
+            { .attachments = {
+                // Color attachment
+                {
+                    .format = m_swapchain.GetImageFormat(),
+                },
+                // Depth attachment
+                {
+                    .type = VulkanRenderPass::AttachmentType::Depth,
+                    .format = VK_FORMAT_D32_SFLOAT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}} });
 
         return true;
     }
@@ -223,6 +231,12 @@ namespace Vultron
                     .type = DescriptorType::StorageBuffer,
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
                 },
+                {
+                    // Animation instance data
+                    .binding = 4,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
             });
 
         return true;
@@ -231,9 +245,9 @@ namespace Vultron
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_staticVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
-        m_skeletalVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
-        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
+        m_staticVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv" });
+        m_skeletalVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv" });
+        m_fragmentShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv" });
 
         auto materialBindings = std::vector<DescriptorSetLayoutBinding>{
             {
@@ -278,8 +292,8 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeSkeletalBuffers()
     {
-        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
-        m_animationFrameBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(glm::mat4) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
+        m_boneBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
+        m_animationFrameBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
 
         return true;
     }
@@ -294,7 +308,7 @@ namespace Vultron
         {
             std::array<VkImageView, 2> attachments = {
                 imageViews[i],
-                m_depthImage.GetImageView()};
+                m_depthImage.GetImageView() };
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -391,7 +405,7 @@ namespace Vultron
         VkFormat depthFormat = VkUtil::FindDepthFormat(m_context.GetPhysicalDevice());
 
         m_depthImage = VulkanImage::Create(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
@@ -402,7 +416,7 @@ namespace Vultron
                  .format = depthFormat,
              },
              .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
+             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT });
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
@@ -416,7 +430,7 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
-            uniformBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            uniformBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
@@ -427,14 +441,24 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanRenderer::InitializeInstanceBuffer()
+    bool VulkanRenderer::InitializeInstanceBuffers()
     {
-        constexpr size_t size = sizeof(InstanceData) * c_maxInstances;
+        constexpr size_t instancesSize = sizeof(InstanceData) * c_maxInstances;
+        constexpr size_t skeletalInstancesSize = sizeof(SkeletalInstanceData) * c_maxSkeletalInstances;
+        constexpr size_t animationInstancesSize = sizeof(AnimationInstanceData) * c_maxAnimationInstances;
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            VulkanBuffer &instanceBuffer = m_frames[i].instanceBuffer;
-            instanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            VulkanBuffer &instanceBuffer = m_frames[i].staticInstanceBuffer;
+            instanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = instancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             instanceBuffer.Map(m_context.GetAllocator());
+
+            VulkanBuffer &skeletalInstanceBuffer = m_frames[i].skeletalInstanceBuffer;
+            skeletalInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = skeletalInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            skeletalInstanceBuffer.Map(m_context.GetAllocator());
+
+            VulkanBuffer &animationInstanceBuffer = m_frames[i].animationInstanceBuffer;
+            animationInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            animationInstanceBuffer.Map(m_context.GetAllocator());
         }
 
         return true;
@@ -447,7 +471,7 @@ namespace Vultron
                 {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, c_maxUniformBuffers},
                 {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, c_maxStorageBuffers},
                 {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, c_maxCombinedImageSamplers},
-            }};
+            } };
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -474,27 +498,45 @@ namespace Vultron
                 {
                     .binding = 1,
                     .type = DescriptorType::StorageBuffer,
-                    .buffer = m_frames[i].instanceBuffer.GetBuffer(),
-                    .size = m_frames[i].instanceBuffer.GetSize(),
+                    .buffer = m_frames[i].staticInstanceBuffer.GetBuffer(),
+                    .size = m_frames[i].staticInstanceBuffer.GetSize(),
                 },
             };
 
             m_frames[i].staticDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_descriptorSetLayout, bindings);
 
-            bindings.push_back(
+            bindings = {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_frames[i].uniformBuffer.GetBuffer(),
+                    .size = m_frames[i].uniformBuffer.GetSize(),
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_frames[i].skeletalInstanceBuffer.GetBuffer(),
+                    .size = m_frames[i].skeletalInstanceBuffer.GetSize(),
+                },
                 {
                     .binding = 2,
                     .type = DescriptorType::UniformBuffer,
                     .buffer = m_boneBuffer.GetBuffer(),
                     .size = m_boneBuffer.GetSize(),
-                });
-            bindings.push_back(
+                },
                 {
                     .binding = 3,
                     .type = DescriptorType::StorageBuffer,
                     .buffer = m_animationFrameBuffer.GetBuffer(),
                     .size = m_animationFrameBuffer.GetSize(),
-                });
+                },
+                {
+                    .binding = 4,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_frames[i].animationInstanceBuffer.GetBuffer(),
+                    .size = m_frames[i].animationInstanceBuffer.GetSize(),
+                },
+            };
 
             m_frames[i].skeletalDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skeletalSetLayout, bindings);
         }
@@ -552,10 +594,8 @@ namespace Vultron
         // InitializeCommandBuffer();
     }
 
-    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &batches)
+    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches)
     {
-        const FrameData &frame = m_frames[m_currentFrameIndex];
-
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0;                  // Optional
@@ -568,21 +608,32 @@ namespace Vultron
         renderPassInfo.renderPass = m_renderPass.GetRenderPass();
         renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
 
-        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         // Nice light blue clear color
-        clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
-        clearValues[1].depthStencil = {1.0f, 0};
+        clearValues[0].color = { {0.07f, 0.07f, 0.07f, 1.0f} };
+        clearValues[1].depthStencil = { 1.0f, 0 };
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        VulkanMaterialPipeline &pipeline = m_skeletalPipeline;
+        const FrameData &frame = m_frames[m_currentFrameIndex];
 
+        DrawPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches);
+        DrawPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        VK_CHECK(vkEndCommandBuffer(commandBuffer));
+    }
+
+    template <typename MeshType>
+    void VulkanRenderer::DrawPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches)
+    {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
 
         VkViewport viewport{};
@@ -595,35 +646,31 @@ namespace Vultron
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
-        scissor.offset = {0, 0};
+        scissor.offset = { 0, 0 };
         scissor.extent = m_swapchain.GetExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkDescriptorSet descriptorSets[] = {frame.skeletalDescriptorSet};
+        VkDescriptorSet descriptorSets[] = { descriptorSet };
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
         for (const auto &batch : batches)
         {
-            const VulkanSkeletalMesh &mesh = m_resourcePool.GetSkeletalMesh(batch.mesh);
+            MeshDrawInfo mesh = m_resourcePool.GetMeshDrawInfo<MeshType>(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
-            VkBuffer vertexBuffers[] = {mesh.GetVertexBuffer()};
-            VkDeviceSize offsets[] = {0};
+            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
+            VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-            VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
+            VkDescriptorSet descriptorSets[] = { material.GetDescriptorSet() };
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
 
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.GetIndexCount()), batch.instanceCount, 0, 0, batch.firstInstance);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, batch.firstInstance);
         }
-
-        vkCmdEndRenderPass(commandBuffer);
-
-        VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
-    void VulkanRenderer::Draw(const std::vector<RenderBatch> &batches, const std::vector<glm::mat4> &instances)
+    void VulkanRenderer::Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances)
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
         const uint32_t currentFrame = m_currentFrameIndex;
@@ -635,7 +682,7 @@ namespace Vultron
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
-        WriteCommandBuffer(frame.commandBuffer, imageIndex, batches);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex, staticBatches, skeletalBatches);
 
         static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
         const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -652,14 +699,22 @@ namespace Vultron
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
         // Instance buffer
-        const size_t size = sizeof(InstanceData) * instances.size();
-        frame.instanceBuffer.CopyData(instances.data(), size);
+        const size_t size = sizeof(InstanceData) * staticInstances.size();
+        frame.staticInstanceBuffer.CopyData(staticInstances.data(), size);
+
+        // Skeletal instance buffer
+        const size_t skeletalSize = sizeof(SkeletalInstanceData) * skeletalInstances.size();
+        frame.skeletalInstanceBuffer.CopyData(skeletalInstances.data(), skeletalSize);
+
+        // Animation instance buffer
+        const size_t animationSize = sizeof(AnimationInstanceData) * animationInstances.size();
+        frame.animationInstanceBuffer.CopyData(animationInstances.data(), animationSize);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        VkSemaphore waitSemaphores[] = { frame.imageAvailableSemaphore };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
@@ -667,7 +722,7 @@ namespace Vultron
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-        VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = { frame.renderFinishedSemaphore };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -679,7 +734,7 @@ namespace Vultron
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {m_swapchain.GetSwapchain()};
+        VkSwapchainKHR swapChains[] = { m_swapchain.GetSwapchain() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
@@ -704,8 +759,14 @@ namespace Vultron
             m_frames[i].uniformBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].uniformBuffer.Destroy(m_context.GetAllocator());
 
-            m_frames[i].instanceBuffer.Unmap(m_context.GetAllocator());
-            m_frames[i].instanceBuffer.Destroy(m_context.GetAllocator());
+            m_frames[i].staticInstanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].staticInstanceBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].skeletalInstanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].skeletalInstanceBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].animationInstanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].animationInstanceBuffer.Destroy(m_context.GetAllocator());
         }
 
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
@@ -724,6 +785,8 @@ namespace Vultron
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
+        m_animationInstanceBuffer.Destroy(m_context.GetAllocator());
+        m_skeletalInstanceBuffer.Destroy(m_context.GetAllocator());
 
         m_staticPipeline.Destroy(m_context);
         m_skeletalPipeline.Destroy(m_context);
@@ -742,35 +805,35 @@ namespace Vultron
     RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
     {
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+             .filepath = filepath });
 
         return m_resourcePool.AddMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
-        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});
+        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, { .filepath = filepath });
 
         return m_resourcePool.AddSkeletalMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
     {
-        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
+        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, { .filepath = filepath }));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+             .filepath = filepath });
 
         return m_resourcePool.AddImage(std::move(image));
     }

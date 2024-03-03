@@ -24,6 +24,8 @@ namespace Vultron
 
         animationFrames.resize(frameCount * boneCount);
         file.read(reinterpret_cast<char *>(animationFrames.data()), animationFrames.size() * sizeof(AnimationFrame));
+
+        times.resize(frameCount);
         file.read(reinterpret_cast<char *>(times.data()), times.size() * sizeof(float));
 
         file.close();

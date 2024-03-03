@@ -263,6 +263,7 @@ namespace Vultron
         void Shutdown();
 
         void SetCamera(const Camera &camera) { m_camera = camera; }
+        void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
 
         RenderHandle LoadMesh(const std::string &filepath);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);

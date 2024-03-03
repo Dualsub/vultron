@@ -94,6 +94,8 @@ mat4 GetPose(int frameOffset, int boneIndex)
     return boneMatrix;
 }
 
+layout(location = 3) out ivec4 debug;
+
 void main()  {
 
     mat4 boneMatrix = mat4(0.0);
@@ -122,6 +124,8 @@ void main()  {
             boneMatrix += (boneTransform * offset) * inWeights[i] * blendFactor;
         }
     }
+
+    debug.x = gl_InstanceIndex;
 
     vec4 fragPos = instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * fragPos;

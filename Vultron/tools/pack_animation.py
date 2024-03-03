@@ -6,6 +6,12 @@ from impasse import load
 import numpy as np
 
 NUM_COMPONENTS = 12
+DEFAULT_COMPONENTS = [
+    0.0, 0.0, 0.0, 0.0,  # Position, padded
+    0.0, 0.0, 0.0, 1.0,  # Quaternion
+    1.0, 1.0, 1.0, 0.0  # Scale, padded
+]
+
 
 def quaternion_to_matrix(quaternion):
     """Convert quaternion to rotation matrix."""
@@ -15,6 +21,7 @@ def quaternion_to_matrix(quaternion):
         [2*x*y + 2*z*w,           1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
         [2*x*z - 2*y*w,           2*y*z + 2*x*w,       1 - 2*x**2 - 2*y**2]
     ])
+
 
 def compose_matrix(position, quaternion, scale):
     """Compose a transformation matrix from position, quaternion, and scale."""
@@ -26,6 +33,7 @@ def compose_matrix(position, quaternion, scale):
     T[:3, 3] = position
     return T
 
+
 def multiply_quaternions(q1, q2):
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
@@ -35,6 +43,7 @@ def multiply_quaternions(q1, q2):
     z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
     return w, x, y, z
 
+
 def decompose_matrix(matrix):
     """Decompose a transformation matrix into position, quaternion, and scale."""
     position = matrix[:3, 3]
@@ -43,11 +52,12 @@ def decompose_matrix(matrix):
     quaternion = matrix_to_quaternion(norm_matrix)
     return position, quaternion, scale
 
+
 def matrix_to_quaternion(matrix):
     """Convert a rotation matrix to a quaternion."""
     m = matrix
     trace = np.trace(m)
-    
+
     if trace > 0:
         s = np.sqrt(trace + 1.0) * 2
         qw = 0.25 * s
@@ -72,16 +82,21 @@ def matrix_to_quaternion(matrix):
         qx = (m[0, 2] + m[2, 0]) / s
         qy = (m[1, 2] + m[2, 1]) / s
         qz = 0.25 * s
-    
+
     return np.array([qw, qx, qy, qz])
 
 # Take a gltf or glb file and pack it into a vultron animation file
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Pack a gltf or glb file into a vultron animation file")
+    parser = argparse.ArgumentParser(
+        description="Pack a gltf or glb file into a vultron animation file")
     # pack_animation.py inputanimation.gltf -o outputanimation.bin
     parser.add_argument("input", help="The input gltf or glb file")
-    parser.add_argument("-o", "--output", help="The output vultron animation file", default="animation.bin")
-    parser.add_argument("-s", "--skeleton", help="The output vultron skeleton file", default="skeleton.bin")
+    parser.add_argument(
+        "-o", "--output", help="The output vultron animation file", default="animation.bin")
+    parser.add_argument(
+        "-s", "--skeleton", help="The output vultron skeleton file", default="skeleton.bin")
     args = parser.parse_args()
 
     skeleton_data = {}
@@ -89,7 +104,7 @@ def main():
         skeleton_data = json.load(file)
 
     id_to_name = {bone["id"]: name for name, bone in skeleton_data.items()}
-        
+
     scene = load(args.input)
     animation = scene.animations[0]
     duration = animation.duration
@@ -101,39 +116,47 @@ def main():
         node_name = channel.node_name
 
         for i in range(len(channel.position_keys)):
-            assert channel.position_keys[i].time == channel.rotation_keys[i].time, "Position and rotation keys must have the same time"
-            assert channel.position_keys[i].time == channel.scaling_keys[i].time, "Position and scaling keys must have the same time"
+            assert channel.position_keys[i].time == channel.rotation_keys[
+                i].time, "Position and rotation keys must have the same time"
+            assert channel.position_keys[i].time == channel.scaling_keys[
+                i].time, "Position and scaling keys must have the same time"
 
         # Get channel position keys
         times = []
         for position_key in channel.position_keys:
-            times.append(position_key.time)
+            times.append(position_key.time / ticks_per_second)
 
         position_keys = []
         for position_key in channel.position_keys:
-            position_keys.append((position_key.value[0], position_key.value[1], position_key.value[2], 0.0))
-    
+            position_keys.append(
+                (position_key.value[0], position_key.value[1], position_key.value[2], 0.0))
+
         # Get channel rotation keys
         rotation_keys = []
         for rotation_key in channel.rotation_keys:
-            rotation_keys.append((rotation_key.value[0], rotation_key.value[1], rotation_key.value[2], rotation_key.value[3]))
+            rotation_keys.append(
+                (rotation_key.value[0], rotation_key.value[1], rotation_key.value[2], rotation_key.value[3]))
 
         # Get channel scaling keys
         scaling_keys = []
         for scaling_key in channel.scaling_keys:
-            scaling_keys.append((scaling_key.value[0], scaling_key.value[1], scaling_key.value[2], 0.0))
+            scaling_keys.append(
+                (scaling_key.value[0], scaling_key.value[1], scaling_key.value[2], 0.0))
 
         # Create vector for each key
         for i in range(len(times)):
             if frames[i] is None:
-                frames[i] = {"time": times[i], "bones": [[0.0] * NUM_COMPONENTS] * len(skeleton_data)}
+                frames[i] = {"time": times[i], "bones": [
+                    DEFAULT_COMPONENTS] * len(skeleton_data)}
 
             if node_name not in skeleton_data:
                 continue
 
             bone_id = skeleton_data[node_name]["id"]
-            frames[i]["bones"][bone_id] = [*position_keys[i], *rotation_keys[i], *scaling_keys[i]]
-            assert len(frames[i]["bones"][bone_id]) == NUM_COMPONENTS, "Bone vector must have 12 components"
+            frames[i]["bones"][bone_id] = [
+                *position_keys[i], *rotation_keys[i], *scaling_keys[i]]
+            assert len(frames[i]["bones"][bone_id]
+                       ) == NUM_COMPONENTS, "Bone vector must have 12 components"
 
     # for frame in frames:
     #     for bone_id, bone in enumerate(frame["bones"]):
@@ -144,7 +167,7 @@ def main():
     #         acc_scale = np.array(bone[8:11])
     #         while parent_id is not None:
     #             parent_bone = frame["bones"][parent_id]
-                
+
     #             # Position
     #             parent_pos = np.array(parent_bone[0:3])
     #             parent_rot = np.array(parent_bone[4:8])
@@ -167,10 +190,11 @@ def main():
 
     #         frames[i]["bones"][bone_id] = bone
 
-            
     with open(args.output, "wb") as file:
         file.write(struct.pack("I", len(frames)))
         file.write(struct.pack("I", len(skeleton_data)))
+        print("Packing", len(frames), "frames")
+        print("Packing", len(skeleton_data), "bones")
         for frame in frames:
             for i in range(len(skeleton_data)):
                 for j in range(NUM_COMPONENTS):
@@ -180,8 +204,6 @@ def main():
             file.write(struct.pack("f", frame["time"]))
 
     print("Animation packed into", args.output)
-            
-
 
 
 if __name__ == "__main__":

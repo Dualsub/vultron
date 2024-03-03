@@ -140,12 +140,12 @@ namespace Vultron
     {
         struct BoneUploaded
         {
-            glm::mat4 offset;
-            int32_t parentID;
+            glm::mat4 offset = glm::mat4(1.0f);
+            int32_t parentID = -1;
             float padding[3];
         };
 
-        std::vector<BoneUploaded> bones;
+        std::vector<BoneUploaded> bones{};
         bones.reserve(m_bones.size());
         for (size_t i = 0; i < m_bones.size(); i++)
         {
@@ -436,7 +436,7 @@ namespace Vultron
 
         m_uniformBufferData.lightDir = glm::vec3(0.0f, 1.0f, -1.0f);
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
-        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(35.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
         return true;
     }
@@ -693,8 +693,8 @@ namespace Vultron
         UniformBufferData ubo = m_uniformBufferData;
         // Rortate forward vector to get view direction
         const glm::vec3 viewPos = m_camera.position;
-        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 1.0f, 0.0f);
-        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 0.0f, 1.0f));
+        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.viewPos = viewPos;
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 

@@ -99,6 +99,8 @@ def main():
         "-s", "--skeleton", help="The output vultron skeleton file", default="skeleton.bin")
     args = parser.parse_args()
 
+    assert args.input != args.output, "Input and output file cannot be the same"
+
     skeleton_data = {}
     with open(args.skeleton) as file:
         skeleton_data = json.load(file)

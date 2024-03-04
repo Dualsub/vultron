@@ -29,6 +29,8 @@ def main():
     if image.mode == "RGB":
         image = image.convert("RGBA")
 
+    assert args.input != args.output, "Input and output file cannot be the same"
+
     mipmapLevels = args.levels
     if mipmapLevels == -1:
         mipmapLevels = int(

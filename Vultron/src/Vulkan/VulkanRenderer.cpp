@@ -149,7 +149,7 @@ namespace Vultron
         bones.reserve(m_bones.size());
         for (size_t i = 0; i < m_bones.size(); i++)
         {
-            bones.push_back({ .offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID });
+            bones.push_back({.offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID});
         }
 
         if (bones.size() > 0)
@@ -167,22 +167,22 @@ namespace Vultron
     {
         m_renderPass = VulkanRenderPass::Create(
             m_context,
-            { .attachments = {
-                // Color attachment
-                {
-                    .format = m_swapchain.GetImageFormat(),
-                },
-                // Depth attachment
-                {
-                    .type = VulkanRenderPass::AttachmentType::Depth,
-                    .format = VK_FORMAT_D32_SFLOAT,
-                    .samples = VK_SAMPLE_COUNT_1_BIT,
-                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                    .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}} });
+            {.attachments = {
+                 // Color attachment
+                 {
+                     .format = m_swapchain.GetImageFormat(),
+                 },
+                 // Depth attachment
+                 {
+                     .type = VulkanRenderPass::AttachmentType::Depth,
+                     .format = VK_FORMAT_D32_SFLOAT,
+                     .samples = VK_SAMPLE_COUNT_1_BIT,
+                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
 
         return true;
     }
@@ -245,9 +245,9 @@ namespace Vultron
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_staticVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv" });
-        m_skeletalVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv" });
-        m_fragmentShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv" });
+        m_staticVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
+        m_skeletalVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
+        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
 
         auto materialBindings = std::vector<DescriptorSetLayoutBinding>{
             {
@@ -292,8 +292,8 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeSkeletalBuffers()
     {
-        m_boneBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
-        m_animationFrameBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
+        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
+        m_animationFrameBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
 
         return true;
     }
@@ -308,7 +308,7 @@ namespace Vultron
         {
             std::array<VkImageView, 2> attachments = {
                 imageViews[i],
-                m_depthImage.GetImageView() };
+                m_depthImage.GetImageView()};
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -405,7 +405,7 @@ namespace Vultron
         VkFormat depthFormat = VkUtil::FindDepthFormat(m_context.GetPhysicalDevice());
 
         m_depthImage = VulkanImage::Create(
-            { .device = m_context.GetDevice(),
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
@@ -416,7 +416,7 @@ namespace Vultron
                  .format = depthFormat,
              },
              .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT });
+             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
@@ -430,7 +430,7 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
-            uniformBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            uniformBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
@@ -449,15 +449,15 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &instanceBuffer = m_frames[i].staticInstanceBuffer;
-            instanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = instancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            instanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = instancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             instanceBuffer.Map(m_context.GetAllocator());
 
             VulkanBuffer &skeletalInstanceBuffer = m_frames[i].skeletalInstanceBuffer;
-            skeletalInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = skeletalInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            skeletalInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = skeletalInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             skeletalInstanceBuffer.Map(m_context.GetAllocator());
 
             VulkanBuffer &animationInstanceBuffer = m_frames[i].animationInstanceBuffer;
-            animationInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+            animationInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             animationInstanceBuffer.Map(m_context.GetAllocator());
         }
 
@@ -471,7 +471,7 @@ namespace Vultron
                 {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, c_maxUniformBuffers},
                 {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, c_maxStorageBuffers},
                 {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, c_maxCombinedImageSamplers},
-            } };
+            }};
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -608,13 +608,13 @@ namespace Vultron
         renderPassInfo.renderPass = m_renderPass.GetRenderPass();
         renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
 
-        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         // Nice light blue clear color
-        clearValues[0].color = { {0.07f, 0.07f, 0.07f, 1.0f} };
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
+        clearValues[1].depthStencil = {1.0f, 0};
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
@@ -646,11 +646,11 @@ namespace Vultron
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
-        scissor.offset = { 0, 0 };
+        scissor.offset = {0, 0};
         scissor.extent = m_swapchain.GetExtent();
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkDescriptorSet descriptorSets[] = { descriptorSet };
+        VkDescriptorSet descriptorSets[] = {descriptorSet};
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
         for (const auto &batch : batches)
@@ -658,12 +658,12 @@ namespace Vultron
             MeshDrawInfo mesh = m_resourcePool.GetMeshDrawInfo<MeshType>(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
-            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
-            VkDeviceSize offsets[] = { 0 };
+            VkBuffer vertexBuffers[] = {mesh.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-            VkDescriptorSet descriptorSets[] = { material.GetDescriptorSet() };
+            VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, batch.firstInstance);
@@ -713,8 +713,8 @@ namespace Vultron
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { frame.imageAvailableSemaphore };
-        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
@@ -722,7 +722,7 @@ namespace Vultron
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-        VkSemaphore signalSemaphores[] = { frame.renderFinishedSemaphore };
+        VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -734,7 +734,7 @@ namespace Vultron
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = { m_swapchain.GetSwapchain() };
+        VkSwapchainKHR swapChains[] = {m_swapchain.GetSwapchain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
@@ -805,35 +805,35 @@ namespace Vultron
     RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
     {
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
-            { .device = m_context.GetDevice(),
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath });
+             .filepath = filepath});
 
         return m_resourcePool.AddMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
-        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, { .filepath = filepath });
+        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});
 
         return m_resourcePool.AddSkeletalMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
     {
-        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, { .filepath = filepath }));
+        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
-            { .device = m_context.GetDevice(),
+            {.device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath });
+             .filepath = filepath});
 
         return m_resourcePool.AddImage(std::move(image));
     }

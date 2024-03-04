@@ -98,7 +98,7 @@ namespace Vultron
             uint64_t hash = job.GetHash();
             if (m_staticJobs.find(hash) == m_staticJobs.end())
             {
-                m_staticJobs.insert({ hash, InstancedStaticRenderJob{job.mesh, job.material, {}} });
+                m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
             }
 
             m_staticJobs[hash].transforms.push_back(job.transform);
@@ -109,7 +109,7 @@ namespace Vultron
             uint64_t hash = job.GetHash();
             if (m_skeletalJobs.find(hash) == m_skeletalJobs.end())
             {
-                m_skeletalJobs.insert({ hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}, {}} });
+                m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}, {}}});
             }
 
             auto &instancedJob = m_skeletalJobs[hash];
@@ -135,14 +135,15 @@ namespace Vultron
 
             for (const auto &animation : job.animations)
             {
-                const int32_t frameOffset = static_cast<int32_t>(rp.GetAnimation(animation.animation).GetFrameOffset());
+                const auto &a = rp.GetAnimation(animation.animation);
+                const int32_t frameOffset = static_cast<int32_t>(a.GetFrameOffset());
                 instancedJob.animations.push_back({
                     .frameOffset = frameOffset,
                     .frame1 = static_cast<int32_t>(animation.frame1),
                     .frame2 = static_cast<int32_t>(animation.frame2),
                     .timeFactor = animation.frameBlendFactor,
                     .blendFactor = animation.blendFactor,
-                    });
+                });
             }
         }
 
@@ -158,7 +159,7 @@ namespace Vultron
                     .material = job.second.material,
                     .firstInstance = static_cast<uint32_t>(staticInstances.size()),
                     .instanceCount = static_cast<uint32_t>(job.second.transforms.size()),
-                    });
+                });
                 staticInstances.insert(staticInstances.end(), job.second.transforms.begin(), job.second.transforms.end());
             }
 
@@ -173,7 +174,7 @@ namespace Vultron
                     .material = job.second.material,
                     .firstInstance = static_cast<uint32_t>(skeletalInstances.size()),
                     .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-                    });
+                });
                 skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
                 animationInstances.insert(animationInstances.end(), job.second.animations.begin(), job.second.animations.end());
             }
@@ -181,7 +182,7 @@ namespace Vultron
             m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, animationInstances);
         }
 
-        // This should be 
+        // This should be
         struct AnimationTiming
         {
             uint32_t frame1 = 0;
@@ -190,26 +191,29 @@ namespace Vultron
             float time = 0.0f;
         };
 
-        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time)
+        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time) const
         {
             const auto &rp = m_backend.GetResourcePool();
             const auto &anim = rp.GetAnimation(animation);
 
+            const float newTime = glm::mod(time, anim.GetDuration());
+
             const std::vector<float> &times = anim.GetTimes();
 
+            uint32_t numFrames = static_cast<uint32_t>(times.size());
             uint32_t frame1 = 0;
             float frame1Time = 0.0f;
-            for (uint32_t i = 0; i < times.size(); i++)
+            for (uint32_t i = 0; i < numFrames; i++)
             {
                 if (time < times[i])
                 {
-                    frame1 = i;
-                    frame1Time = times[i];
+                    frame1 = i == 0 ? numFrames - 1 : i - 1;
+                    frame1Time = times[frame1];
                     break;
                 }
             }
 
-            uint32_t frame2 = (frame1 + 1) % times.size();
+            uint32_t frame2 = (frame1 + 1) % numFrames;
             float frame2Time = times[frame2];
 
             if (frame2Time < frame1Time)
@@ -217,9 +221,9 @@ namespace Vultron
                 frame2Time += anim.GetDuration();
             }
 
-            float frameBlendFactor = (time - frame1Time) / (frame2Time - frame1Time);
+            float frameBlendFactor = glm::clamp((newTime - frame1Time) / (frame2Time - frame1Time), 0.0f, 1.0f);
 
-            return { frame1, frame2, frameBlendFactor, glm::mod(time, anim.GetDuration()) };
+            return {frame1, frame2, frameBlendFactor, newTime};
         }
 
         void Shutdown()

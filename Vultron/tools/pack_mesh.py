@@ -11,6 +11,8 @@ def main():
     parser.add_argument("-o", "--output", help="The output vultron mesh file", default="mesh.bin")
     args = parser.parse_args()
 
+    assert args.input != args.output, "Input and output file cannot be the same"
+
     with load(args.input) as scene:
         mesh = scene.meshes[0]
         # Flipping the y and z axis

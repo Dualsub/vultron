@@ -4,6 +4,7 @@ import json
 from impasse import load
 # from pyassimp import load, postprocess
 import numpy as np
+import glm
 
 NUM_COMPONENTS = 12
 DEFAULT_COMPONENTS = [
@@ -11,79 +12,6 @@ DEFAULT_COMPONENTS = [
     0.0, 0.0, 0.0, 1.0,  # Quaternion
     1.0, 1.0, 1.0, 0.0  # Scale, padded
 ]
-
-
-def quaternion_to_matrix(quaternion):
-    """Convert quaternion to rotation matrix."""
-    w, x, y, z = quaternion
-    return np.array([
-        [1 - 2*y**2 - 2*z**2,     2*x*y - 2*z*w,       2*x*z + 2*y*w],
-        [2*x*y + 2*z*w,           1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
-        [2*x*z - 2*y*w,           2*y*z + 2*x*w,       1 - 2*x**2 - 2*y**2]
-    ])
-
-
-def compose_matrix(position, quaternion, scale):
-    """Compose a transformation matrix from position, quaternion, and scale."""
-    T = np.eye(4)
-    R = quaternion_to_matrix(quaternion)
-    S = np.diag(np.append(scale, 1))
-    T[:3, :3] = R
-    T[:3, :3] = T[:3, :3] @ np.diag(scale)
-    T[:3, 3] = position
-    return T
-
-
-def multiply_quaternions(q1, q2):
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
-    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
-    return w, x, y, z
-
-
-def decompose_matrix(matrix):
-    """Decompose a transformation matrix into position, quaternion, and scale."""
-    position = matrix[:3, 3]
-    scale = np.linalg.norm(matrix[:3, :3], axis=0)
-    norm_matrix = matrix[:3, :3] / scale
-    quaternion = matrix_to_quaternion(norm_matrix)
-    return position, quaternion, scale
-
-
-def matrix_to_quaternion(matrix):
-    """Convert a rotation matrix to a quaternion."""
-    m = matrix
-    trace = np.trace(m)
-
-    if trace > 0:
-        s = np.sqrt(trace + 1.0) * 2
-        qw = 0.25 * s
-        qx = (m[2, 1] - m[1, 2]) / s
-        qy = (m[0, 2] - m[2, 0]) / s
-        qz = (m[1, 0] - m[0, 1]) / s
-    elif (m[0, 0] > m[1, 1]) and (m[0, 0] > m[2, 2]):
-        s = np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2
-        qw = (m[2, 1] - m[1, 2]) / s
-        qx = 0.25 * s
-        qy = (m[0, 1] + m[1, 0]) / s
-        qz = (m[0, 2] + m[2, 0]) / s
-    elif m[1, 1] > m[2, 2]:
-        s = np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2
-        qw = (m[0, 2] - m[2, 0]) / s
-        qx = (m[0, 1] + m[1, 0]) / s
-        qy = 0.25 * s
-        qz = (m[1, 2] + m[2, 1]) / s
-    else:
-        s = np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2
-        qw = (m[1, 0] - m[0, 1]) / s
-        qx = (m[0, 2] + m[2, 0]) / s
-        qy = (m[1, 2] + m[2, 1]) / s
-        qz = 0.25 * s
-
-    return np.array([qw, qx, qy, qz])
 
 # Take a gltf or glb file and pack it into a vultron animation file
 
@@ -136,8 +64,9 @@ def main():
         # Get channel rotation keys
         rotation_keys = []
         for rotation_key in channel.rotation_keys:
+            # Save in correct order to fit GLSL
             rotation_keys.append(
-                (rotation_key.value[0], rotation_key.value[1], rotation_key.value[2], rotation_key.value[3]))
+                (rotation_key.value[3], rotation_key.value[0], rotation_key.value[1], rotation_key.value[2]))
 
         # Get channel scaling keys
         scaling_keys = []
@@ -160,37 +89,46 @@ def main():
             assert len(frames[i]["bones"][bone_id]
                        ) == NUM_COMPONENTS, "Bone vector must have 12 components"
 
-    # for frame in frames:
-    #     for bone_id, bone in enumerate(frame["bones"]):
-    #         bone_name = id_to_name[bone_id]
-    #         parent_id = skeleton_data[bone_name]["parentId"]
-    #         acc_pos = np.array(bone[0:3])
-    #         acc_rot = np.array(bone[4:8])
-    #         acc_scale = np.array(bone[8:11])
-    #         while parent_id is not None:
-    #             parent_bone = frame["bones"][parent_id]
+    new_frames = [*frames]
+    for i, frame in enumerate(frames):
+        for bone_id in range(len(frame["bones"])):
+            bone_matrix = glm.mat4(1.0)
+            curr_bone_id = bone_id
 
-    #             # Position
-    #             parent_pos = np.array(parent_bone[0:3])
-    #             parent_rot = np.array(parent_bone[4:8])
-    #             parent_scale = np.array(parent_bone[8:11])
+            while True:
+                try:
+                    curr_bone = frame["bones"][curr_bone_id]
+                    
+                    local_bone_matrix = glm.mat4(1.0)
+                    
+                    local_bone_matrix = glm.translate(
+                        local_bone_matrix, glm.vec3(*curr_bone[0:3]))             
+                    
+                    local_bone_matrix = local_bone_matrix * glm.mat4_cast(
+                        glm.quat(*curr_bone[4:8]))
 
-    #             parent_matrix = compose_matrix(parent_pos, parent_rot, parent_scale)
-    #             bone_matrix = compose_matrix(acc_pos, acc_rot, acc_scale)
-    #             bone_matrix = parent_matrix @ bone_matrix
-    #             acc_pos, acc_rot, acc_scale = decompose_matrix(bone_matrix)
+                    local_bone_matrix = glm.scale(
+                        local_bone_matrix, glm.vec3(*curr_bone[8:11]))
+                    
+                    bone_matrix = local_bone_matrix * bone_matrix
 
-    #             new_parent_id = skeleton_data[id_to_name[parent_id]]["parentId"]
-    #             if new_parent_id is None:
-    #                 break
-    #             else:
-    #                 parent_id = new_parent_id
+                    curr_bone_id = skeleton_data[id_to_name[curr_bone_id]]["parentId"]
 
-    #         bone[0:3] = acc_pos
-    #         bone[4:8] = acc_rot
-    #         bone[8:11] = acc_scale
+                    if curr_bone_id is None or curr_bone_id == -1:
+                        break
+                except Exception as e:
+                    print("Error while processing bone", curr_bone_id, skeleton_data[id_to_name[curr_bone_id]]["parentId"])
+                    raise e
 
-    #         frames[i]["bones"][bone_id] = bone
+            new_pos = glm.vec3()
+            new_rot = glm.quat()
+            new_scale = glm.vec3()
+
+            glm.decompose(bone_matrix, new_scale, new_rot, new_pos, glm.vec3(), glm.vec4())
+
+            new_frames[i]["bones"][bone_id] = [*new_pos.to_list(), 0.0, *new_rot.to_list(), *new_scale.to_list(), 0.0]
+
+    frames = new_frames
 
     with open(args.output, "wb") as file:
         file.write(struct.pack("I", len(frames)))

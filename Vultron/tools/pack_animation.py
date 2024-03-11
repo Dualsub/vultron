@@ -59,20 +59,20 @@ def main():
         position_keys = []
         for position_key in channel.position_keys:
             position_keys.append(
-                (position_key.value[0], position_key.value[1], position_key.value[2], 0.0))
+                (position_key.value[0], position_key.value[1], position_key.value[2]))
 
         # Get channel rotation keys
         rotation_keys = []
         for rotation_key in channel.rotation_keys:
             # Save in correct order to fit GLSL
             rotation_keys.append(
-                (rotation_key.value[3], rotation_key.value[0], rotation_key.value[1], rotation_key.value[2]))
+                (rotation_key.value[1], rotation_key.value[2], rotation_key.value[3], rotation_key.value[0]))
 
         # Get channel scaling keys
         scaling_keys = []
         for scaling_key in channel.scaling_keys:
             scaling_keys.append(
-                (scaling_key.value[0], scaling_key.value[1], scaling_key.value[2], 0.0))
+                (scaling_key.value[0], scaling_key.value[1], scaling_key.value[2]))
 
         # Create vector for each key
         for i in range(len(times)):
@@ -85,7 +85,7 @@ def main():
 
             bone_id = skeleton_data[node_name]["id"]
             frames[i]["bones"][bone_id] = [
-                *position_keys[i], *rotation_keys[i], *scaling_keys[i]]
+                *position_keys[i], 0.0, *rotation_keys[i], *scaling_keys[i], 0.0]
             assert len(frames[i]["bones"][bone_id]
                        ) == NUM_COMPONENTS, "Bone vector must have 12 components"
 
@@ -105,14 +105,14 @@ def main():
                         local_bone_matrix, glm.vec3(*curr_bone[0:3]))             
                     
                     local_bone_matrix = local_bone_matrix * glm.mat4_cast(
-                        glm.quat(*curr_bone[4:8]))
+                        glm.normalize(glm.quat(*curr_bone[4:8])))
 
                     local_bone_matrix = glm.scale(
                         local_bone_matrix, glm.vec3(*curr_bone[8:11]))
                     
                     bone_matrix = local_bone_matrix * bone_matrix
 
-                    curr_bone_id = skeleton_data[id_to_name[curr_bone_id]]["parentId"]
+                    curr_bone_id = skeleton_data[id_to_name[curr_bone_id]]["parentId"] 
 
                     if curr_bone_id is None or curr_bone_id == -1:
                         break
@@ -125,6 +125,8 @@ def main():
             new_scale = glm.vec3()
 
             glm.decompose(bone_matrix, new_scale, new_rot, new_pos, glm.vec3(), glm.vec4())
+
+            new_rot = glm.normalize(new_rot)
 
             new_frames[i]["bones"][bone_id] = [*new_pos.to_list(), 0.0, *new_rot.to_list(), *new_scale.to_list(), 0.0]
 

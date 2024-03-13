@@ -79,7 +79,7 @@ mat4 GetPose(int frame1, int frame2, float frameBlend, int boneIndex, int boneCo
     mat4 boneMatrix = mat4(1.0);
     int currBoneIndex = boneIndex;
 
-    // for (int i = 0; i < boneCount; i++)
+    for (int i = 0; i < boneCount; i++)
     {
         int frame1Index = currBoneIndex + frame1;
         int frame2Index = currBoneIndex + frame2;
@@ -97,10 +97,10 @@ mat4 GetPose(int frame1, int frame2, float frameBlend, int boneIndex, int boneCo
         
         currBoneIndex = bones[currBoneIndex].parent;
 
-        // if (currBoneIndex == -1)
-        // {
-        //     break;
-        // }
+        if (currBoneIndex == -1)
+        {
+            break;
+        }
     }
 
     return boneMatrix;

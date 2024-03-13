@@ -5,6 +5,8 @@ from impasse import load
 # from pyassimp import load, postprocess
 import numpy as np
 import glm
+import re
+import glob
 
 NUM_COMPONENTS = 12
 DEFAULT_COMPONENTS = [
@@ -13,29 +15,8 @@ DEFAULT_COMPONENTS = [
     1.0, 1.0, 1.0, 0.0  # Scale, padded
 ]
 
-# Take a gltf or glb file and pack it into a vultron animation file
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Pack a gltf or glb file into a vultron animation file")
-    # pack_animation.py inputanimation.gltf -o outputanimation.bin
-    parser.add_argument("input", help="The input gltf or glb file")
-    parser.add_argument(
-        "-o", "--output", help="The output vultron animation file", default="animation.bin")
-    parser.add_argument(
-        "-s", "--skeleton", help="The output vultron skeleton file", default="skeleton.bin")
-    args = parser.parse_args()
-
-    assert args.input != args.output, "Input and output file cannot be the same"
-
-    skeleton_data = {}
-    with open(args.skeleton) as file:
-        skeleton_data = json.load(file)
-
-    id_to_name = {bone["id"]: name for name, bone in skeleton_data.items()}
-
-    scene = load(args.input)
+def pack_animation(input_file, output_file, skeleton_data, id_to_name):
+    scene = load(input_file)
     animation = scene.animations[0]
     duration = animation.duration
     ticks_per_second = animation.ticks_per_second
@@ -114,8 +95,8 @@ def main():
 
                     curr_bone_id = skeleton_data[id_to_name[curr_bone_id]]["parentId"] 
 
-                    if curr_bone_id is None or curr_bone_id == -1:
-                        break
+                    # if curr_bone_id is None or curr_bone_id == -1:
+                    break
                 except Exception as e:
                     print("Error while processing bone", curr_bone_id, skeleton_data[id_to_name[curr_bone_id]]["parentId"])
                     raise e
@@ -132,7 +113,12 @@ def main():
 
     frames = new_frames
 
-    with open(args.output, "wb") as file:
+    # If no ouput is specified, use the input file name with .dat extension
+    output = output_file
+    if output is None:
+        output = input_file.split(".")[0] + ".dat"
+        
+    with open(output, "wb") as file:
         file.write(struct.pack("I", len(frames)))
         file.write(struct.pack("I", len(skeleton_data)))
         print("Packing", len(frames), "frames")
@@ -145,7 +131,48 @@ def main():
         for frame in frames:
             file.write(struct.pack("f", frame["time"]))
 
-    print("Animation packed into", args.output)
+    print("Animation packed into", output)
+
+# Take a gltf or glb file and pack it into a vultron animation file
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Pack a gltf or glb file into a vultron animation file")
+    # pack_animation.py inputanimation.gltf -o outputanimation.bin
+    parser.add_argument("input", help="The input gltf or glb file")
+    parser.add_argument(
+        "-o", "--output", help="The output vultron animation file", default=None)
+    parser.add_argument(
+        "-s", "--skeleton", help="The output vultron skeleton file")
+    args = parser.parse_args()
+
+    assert args.input != args.output, "Input and output file cannot be the same"
+
+    skeleton_data = {}
+    with open(args.skeleton) as file:
+        skeleton_data = json.load(file)
+
+    id_to_name = {bone["id"]: name for name, bone in skeleton_data.items()}
+
+    # Perform regex to get all files that match the input, like C:/path/to/file/*.gltf
+    if re.match(r".*[*].*", args.input):
+        files = glob.glob(args.input)
+
+        # Print all matching files
+        print("Matching files:")
+        for file in files:
+            print(file)
+
+        if input(f"Do you want to pack {len(files)} files? (y/n) ").lower() != "yaaaad":
+            print("Aborting")
+            return
+
+        for file in files:
+            pack_animation(file, file.split(".")[0] + ".dat", skeleton_data, id_to_name)
+    else:
+        pack_animation(args.input, args.output, skeleton_data, id_to_name)
+aaaaaaaaaaaa
 
 
 if __name__ == "__main__":

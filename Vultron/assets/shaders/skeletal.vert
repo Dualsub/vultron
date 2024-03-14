@@ -16,6 +16,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
+    mat4 lightSpaceMatrix;
 } ubo;
 
 struct InstanceData {
@@ -32,8 +33,8 @@ struct SkeletonBone {
     int parent;
 };
 
-layout(set = 0, binding = 2) uniform SkeletonBoneObject {
-    SkeletonBone bones[1000];
+layout(set = 0, binding = 3) uniform SkeletonBoneObject {
+    SkeletonBone bones[128];
 };
 
 struct AnimationFrame {
@@ -42,7 +43,7 @@ struct AnimationFrame {
     vec3 scale;
 };
 
-layout(std140, set = 0, binding = 3) readonly buffer AnimationBufferObject {
+layout(std140, set = 0, binding = 4) readonly buffer AnimationBufferObject {
     AnimationFrame frames[];
 };
 
@@ -51,8 +52,8 @@ struct AnimationInstance {
     vec2 timeAndBlendFactor;
 };
 
-layout(set = 0, binding = 4) uniform AnimationInstanceObject {
-    AnimationInstance animationInstances[100];
+layout(set = 0, binding = 5) uniform AnimationInstanceObject {
+    AnimationInstance animationInstances[128];
 };
 
 vec3 QMulV(vec4 q, vec3 v) {

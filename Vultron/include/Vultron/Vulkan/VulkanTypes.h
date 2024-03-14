@@ -27,6 +27,7 @@ namespace Vultron
         // Image
         VkImageView imageView = VK_NULL_HANDLE;
         VkSampler sampler = VK_NULL_HANDLE;
+        VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         // Buffer
         VkBuffer buffer = VK_NULL_HANDLE;
         size_t size = 0;

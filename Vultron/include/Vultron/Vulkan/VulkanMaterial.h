@@ -20,13 +20,14 @@ namespace Vultron
         VkPipeline m_pipeline{VK_NULL_HANDLE};
         VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
+        bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
-        VulkanMaterialPipeline(const VulkanShader &vertexShader, const VulkanShader &fragmentShader)
-            : m_vertexShader(vertexShader), m_fragmentShader(fragmentShader)
+        VulkanMaterialPipeline(const VulkanShader &vertexShader, const VulkanShader &fragmentShader, bool shouldBindMaterial)
+            : m_vertexShader(vertexShader), m_fragmentShader(fragmentShader), m_shouldBindMaterial(shouldBindMaterial)
         {
         }
         VulkanMaterialPipeline() = default;
@@ -41,7 +42,7 @@ namespace Vultron
             const VertexDescription &vertexDescription = StaticMeshVertex::GetVertexDescription();
         };
 
-        static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);
+        static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);
         void Destroy(const VulkanContext &context);
 
         VulkanShader GetVertexShader() const { return m_vertexShader; }
@@ -49,6 +50,8 @@ namespace Vultron
         VkPipeline GetPipeline() const { return m_pipeline; }
         VkPipelineLayout GetPipelineLayout() const { return m_pipelineLayout; }
         VkDescriptorSetLayout GetDescriptorSetLayout() const { return m_descriptorSetLayout; }
+
+        bool ShouldBindMaterial() const { return m_shouldBindMaterial; }
     };
 
     class VulkanMaterialInstance

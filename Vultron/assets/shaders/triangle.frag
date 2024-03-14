@@ -3,6 +3,7 @@
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
+layout(location = 3) in vec4 fragLightSpacePos;
 
 layout(location = 0) out vec4 outColor;
 
@@ -12,13 +13,53 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
+    mat4 lightSpaceMatrix;
 } ubo;
+
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
 layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessAoMap;
 
 const float PI = 3.14159265359;
+
+float textureProj(vec4 shadowCoord, vec2 off)
+{
+	float shadow = 1.0;
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
+	{
+		float dist = texture( shadowMap, shadowCoord.st + off ).r;
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
+		{
+			shadow = 0.2;
+		}
+	}
+	return shadow;
+}
+
+float getShadow(vec4 sc)
+{
+	ivec2 texDim = textureSize(shadowMap, 0);
+	float scale = 1.5;
+	float dx = scale * 1.0 / float(texDim.x);
+	float dy = scale * 1.0 / float(texDim.y);
+
+	float shadowFactor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++)
+	{
+		for (int y = -range; y <= range; y++)
+		{
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
+			count++;
+		}
+	
+	}
+	return shadowFactor / count;
+}
 
 vec3 getNormalFromMap()
 {
@@ -116,6 +157,8 @@ void main() {
     float roughness = texture(metallicRoughnessAoMap, fragTexCoord).g;
     float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;
 
+    float shadow = getShadow(fragLightSpacePos / fragLightSpacePos.w);
+
     vec3 N = getNormalFromMap();
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
     vec3 R = reflect(-V, N); 
@@ -127,7 +170,7 @@ void main() {
     vec3 Lo = CalcDirLight(N, V, albedo, roughness, metallic, F0);
   
     vec3 ambient = vec3(0.6, 0.6, 0.9) * albedo * ao;
-    vec3 color = ambient + Lo;
+    vec3 color = ambient + Lo * shadow;
 	
     // color = color / (color + vec3(1.0));
     // color = pow(color, vec3(1.0/2.2));  

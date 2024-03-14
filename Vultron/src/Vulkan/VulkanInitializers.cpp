@@ -60,12 +60,12 @@ namespace Vultron::VkInit
             case DescriptorType::CombinedImageSampler:
             {
                 VkDescriptorImageInfo &imageInfo = imageInfos[i];
-                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfo.imageLayout = binding.imageLayout;
                 imageInfo.imageView = binding.imageView;
                 imageInfo.sampler = binding.sampler;
 
                 descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                descriptorWrite.pImageInfo = &imageInfo; // Now points to an element in imageInfos
+                descriptorWrite.pImageInfo = &imageInfo;
             }
             break;
             default:

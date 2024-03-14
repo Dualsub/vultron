@@ -79,7 +79,9 @@ namespace Vultron
 
         void Destroy(const VulkanContext &context);
 
-        VkImage GetImage() const { return m_image; }
-        VkImageView GetImageView() const { return m_imageView; }
+        const VkImage &GetImage() const { return m_image; }
+        const VkImageView &GetImageView() const { return m_imageView; }
+
+        const ImageInfo &GetInfo() const { return m_info; }
     };
 }

@@ -141,6 +141,7 @@ namespace Vultron
         float _padding2;
         glm::vec3 lightColor;
         float _padding3;
+        glm::mat4 lightViewProjection;
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
@@ -153,9 +154,9 @@ namespace Vultron
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
 
-    constexpr uint32_t c_maxSkeletalInstances = 1024;
-    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
-    constexpr uint32_t c_maxBones = 256;
+    constexpr uint32_t c_maxSkeletalInstances = 128;
+    constexpr uint32_t c_maxAnimationInstances = 128;
+    constexpr uint32_t c_maxBones = 128;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
 
     class VulkanRenderer
@@ -166,7 +167,13 @@ namespace Vultron
         // Swap chain
         VulkanSwapchain m_swapchain;
 
-        // Render pass
+        // Shadow map
+        VulkanImage m_shadowMap;
+        VkSampler m_shadowSampler;
+        VkFramebuffer m_shadowFramebuffer;
+
+        // Render passes
+        VulkanRenderPass m_shadowPass;
         VulkanRenderPass m_renderPass;
 
         // Pools
@@ -175,7 +182,11 @@ namespace Vultron
 
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
+        VulkanMaterialPipeline m_staticShadowPipeline;
         VkDescriptorSetLayout m_descriptorSetLayout;
+
+        VulkanShader m_staticShadowVertexShader;
+        VulkanShader m_shadowFragmentShader;
 
         // Skeletal pipeline
         VulkanMaterialPipeline m_skeletalPipeline;
@@ -193,7 +204,6 @@ namespace Vultron
         UniformBufferData m_uniformBufferData{};
         VulkanImage m_depthImage;
         VkSampler m_textureSampler;
-        VkSampler m_depthSampler;
 
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;
@@ -215,6 +225,9 @@ namespace Vultron
         // Render pass
         bool InitializeRenderPass();
         bool InitializeFramebuffers();
+
+        // Shadow map
+        bool InitializeShadowMap();
 
         // Material pipeline
         bool InitializeDescriptorSetLayout();

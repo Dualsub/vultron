@@ -139,9 +139,5 @@ void main()  {
     }
 
     vec4 fragPos = instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
-    gl_Position = ubo.proj * ubo.view * fragPos;
-    fragWorldPos = vec3(fragPos);
-    fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
-    fragLightSpacePos = ubo.lightSpaceMatrix * fragPos;
+    gl_Position = ubo.lightSpaceMatrix * fragPos;
 }

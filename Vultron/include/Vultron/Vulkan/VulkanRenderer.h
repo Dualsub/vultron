@@ -1,6 +1,8 @@
 #pragma once
 
 #define GLM_FORCE_ALIGNED_GENTYPES
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
 #include "Vultron/Core/Core.h"
 #include "Vultron/Types.h"
@@ -29,6 +31,11 @@
 
 namespace Vultron
 {
+    struct FrustumCorners
+    {
+        glm::vec3 ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr;
+    };
+
     struct TexturedMaterial
     {
         RenderHandle texture;
@@ -186,10 +193,12 @@ namespace Vultron
         VkDescriptorSetLayout m_descriptorSetLayout;
 
         VulkanShader m_staticShadowVertexShader;
+        VulkanShader m_skeletalShadowVertexShader;
         VulkanShader m_shadowFragmentShader;
 
         // Skeletal pipeline
         VulkanMaterialPipeline m_skeletalPipeline;
+        VulkanMaterialPipeline m_skeletalShadowPipeline;
         VkDescriptorSetLayout m_skeletalSetLayout;
         // -- GPU only resources
         std::vector<SkeletonBone> m_bones;
@@ -264,7 +273,7 @@ namespace Vultron
         // Command buffer
         void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches);
         template <typename MeshType>
-        void DrawPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches);
+        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches);
 
     public:
         VulkanRenderer() = default;

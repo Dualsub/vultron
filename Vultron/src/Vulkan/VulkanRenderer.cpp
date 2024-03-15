@@ -22,6 +22,69 @@
 
 namespace Vultron
 {
+
+    FrustumCorners GetFrustumCornersWorldSpace(const glm::mat4 &proj, const glm::mat4 &view)
+    {
+        glm::mat4 invCam = glm::inverse(proj * view);
+        FrustumCorners corners;
+
+        glm::vec4 ndcCorners[8] = {
+            // Near plane
+            glm::vec4(-1.0, 1.0, -1.0, 1.0),
+            glm::vec4(1.0, 1.0, -1.0, 1.0),
+            glm::vec4(-1.0, -1.0, -1.0, 1.0),
+            glm::vec4(1.0, -1.0, -1.0, 1.0),
+            // Far plane
+            glm::vec4(-1.0, 1.0, 1.0, 1.0),
+            glm::vec4(1.0, 1.0, 1.0, 1.0),
+            glm::vec4(-1.0, -1.0, 1.0, 1.0),
+            glm::vec4(1.0, -1.0, 1.0, 1.0),
+        };
+
+        for (int i = 0; i < 8; ++i)
+        {
+            glm::vec4 worldSpaceCorner = invCam * ndcCorners[i];
+            ndcCorners[i] = worldSpaceCorner / worldSpaceCorner.w;
+        }
+
+        corners.ntl = glm::vec3(ndcCorners[0]);
+        corners.ntr = glm::vec3(ndcCorners[1]);
+        corners.nbl = glm::vec3(ndcCorners[2]);
+        corners.nbr = glm::vec3(ndcCorners[3]);
+        corners.ftl = glm::vec3(ndcCorners[4]);
+        corners.ftr = glm::vec3(ndcCorners[5]);
+        corners.fbl = glm::vec3(ndcCorners[6]);
+        corners.fbr = glm::vec3(ndcCorners[7]);
+
+        return corners;
+    }
+
+    glm::mat4 ComputeLightProjectionMatrix(const glm::mat4 &camProj, const glm::mat4 &camView, const glm::vec3 &lightDir)
+    {
+        FrustumCorners corners = GetFrustumCornersWorldSpace(camProj, camView);
+
+        glm::vec3 frustumCenter = glm::vec3(0.0);
+        frustumCenter += corners.ntl;
+        frustumCenter += corners.ntr;
+        frustumCenter += corners.nbl;
+        frustumCenter += corners.nbr;
+        frustumCenter += corners.ftl;
+        frustumCenter += corners.ftr;
+        frustumCenter += corners.fbl;
+        frustumCenter += corners.fbr;
+        frustumCenter /= 8.0f;
+
+        float radius = glm::distance(corners.ntl, corners.fbr) / 2.0f;
+        glm::vec3 maxExtents = glm::vec3(radius);
+        glm::vec3 minExtents = -maxExtents;
+
+        glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter + lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0, 1.0, 0.0));
+        glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
+        lightOrthoMatrix[1][1] *= -1;
+
+        return lightOrthoMatrix * lightViewMatrix;
+    }
+
     bool VulkanRenderer::Initialize(const Window &window)
     {
         if (!m_context.Initialize(window))
@@ -204,7 +267,9 @@ namespace Vultron
                         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}},
+                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                    },
+                },
                 .dependencies = {
                     {
                         .srcSubpass = VK_SUBPASS_EXTERNAL,
@@ -348,6 +413,7 @@ namespace Vultron
         // Shadow
 
         m_staticShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.vert.spv"});
+        m_skeletalShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow_skeletal.vert.spv"});
         m_shadowFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.frag.spv"});
 
         m_staticShadowPipeline = VulkanMaterialPipeline::Create(
@@ -358,6 +424,16 @@ namespace Vultron
                 .sceneDescriptorSetLayout = m_descriptorSetLayout,
                 .bindings = {},
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+            });
+
+        m_skeletalShadowPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_shadowPass,
+            {
+                .vertexShader = m_skeletalVertexShader,
+                .fragmentShader = m_shadowFragmentShader,
+                .sceneDescriptorSetLayout = m_skeletalSetLayout,
+                .bindings = {},
+                .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
             });
 
         return true;
@@ -562,11 +638,11 @@ namespace Vultron
         // m_uniformBufferData.proj = glm::ortho(-1000.0f, 1000.0f, -1000.0f, 1000.0f, 0.1f, 1000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
 
-        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.0f, -1.0f, 1.0f));
+        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.0f, -1.0f, 0.1f));
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
-        glm::vec3 lightPos = glm::vec3(0.0f, 500.0f, -500.0f);
+        glm::vec3 lightPos = glm::vec3(0.0f, 300.0f, 0.0f);
         glm::mat4 lightView = glm::lookAt(lightPos, lightPos + m_uniformBufferData.lightDir, glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 lightProjection = glm::ortho(-1000.0f, 1000.0f, -1000.0f, 1000.0f, 0.1f, 1000.0f);
+        glm::mat4 lightProjection = glm::ortho(-1024.0f, 1024.0f, -1024.0f, 1024.0f, -100.0f, 2000.0f);
         lightProjection[1][1] *= -1;
         m_uniformBufferData.lightViewProjection = lightProjection * lightView;
 
@@ -758,7 +834,8 @@ namespace Vultron
             renderPassInfo.framebuffer = m_shadowFramebuffer;
 
             renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = {2048, 2048};
+            const ImageInfo &shadowMapInfo = m_shadowMap.GetInfo();
+            renderPassInfo.renderArea.extent = {shadowMapInfo.width, shadowMapInfo.height};
 
             std::array<VkClearValue, 1> clearValues{};
             clearValues[0].depthStencil = {1.0f, 0};
@@ -768,7 +845,8 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, staticBatches);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalShadowPipeline, skeletalBatches);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, staticBatches);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -783,7 +861,6 @@ namespace Vultron
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
 
             std::array<VkClearValue, 2> clearValues{};
-            // Nice light blue clear color
             clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
             clearValues[1].depthStencil = {1.0f, 0};
 
@@ -792,8 +869,8 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches);
-            DrawPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -801,7 +878,7 @@ namespace Vultron
     }
 
     template <typename MeshType>
-    void VulkanRenderer::DrawPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches)
+    void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
 
@@ -868,11 +945,7 @@ namespace Vultron
         const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.viewPos = viewPos;
-
-        // glm::vec3 lightPos = glm::vec3(0.0f, 500.0f, -500.0f);
-        // glm::mat4 lightView = glm::lookAt(lightPos, lightPos + m_uniformBufferData.lightDir, glm::vec3(0.0f, 1.0f, 0.0f));
-        // ubo.view = lightView;
-        // ubo.viewPos = lightPos;
+        // ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
 
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
@@ -957,6 +1030,7 @@ namespace Vultron
         m_skeletalVertexShader.Destroy(m_context);
         m_fragmentShader.Destroy(m_context);
         m_staticShadowVertexShader.Destroy(m_context);
+        m_skeletalShadowVertexShader.Destroy(m_context);
         m_shadowFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
@@ -973,6 +1047,7 @@ namespace Vultron
         m_staticPipeline.Destroy(m_context);
         m_skeletalPipeline.Destroy(m_context);
         m_staticShadowPipeline.Destroy(m_context);
+        m_skeletalShadowPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

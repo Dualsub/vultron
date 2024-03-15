@@ -29,7 +29,7 @@ float textureProj(vec4 shadowCoord, vec2 off)
 	float shadow = 1.0;
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
 	{
-		float dist = texture( shadowMap, shadowCoord.st + off ).r;
+		float dist = texture( shadowMap, shadowCoord.xy + off ).r;
 		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
 		{
 			shadow = 0.2;
@@ -38,10 +38,10 @@ float textureProj(vec4 shadowCoord, vec2 off)
 	return shadow;
 }
 
-float getShadow(vec4 sc)
+float GetShadow(vec4 sc)
 {
 	ivec2 texDim = textureSize(shadowMap, 0);
-	float scale = 1.5;
+	float scale = 1.0;
 	float dx = scale * 1.0 / float(texDim.x);
 	float dy = scale * 1.0 / float(texDim.y);
 
@@ -61,7 +61,7 @@ float getShadow(vec4 sc)
 	return shadowFactor / count;
 }
 
-vec3 getNormalFromMap()
+vec3 GetNormalFromMap()
 {
     vec3 tangentNormal = texture(normalMap, fragTexCoord).rgb * 2.0 - 1.0;
 
@@ -157,9 +157,14 @@ void main() {
     float roughness = texture(metallicRoughnessAoMap, fragTexCoord).g;
     float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;
 
-    float shadow = getShadow(fragLightSpacePos / fragLightSpacePos.w);
+    float shadow = 1.0;
+    vec4 shadowCoord = fragLightSpacePos / fragLightSpacePos.w;
+    if (texture(shadowMap, shadowCoord.xy).r < shadowCoord.z - 0.005)
+    {
+        shadow = 0.2;
+    }
 
-    vec3 N = getNormalFromMap();
+    vec3 N = GetNormalFromMap();
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
     vec3 R = reflect(-V, N); 
 
@@ -169,11 +174,11 @@ void main() {
     // reflectance equation
     vec3 Lo = CalcDirLight(N, V, albedo, roughness, metallic, F0);
   
-    vec3 ambient = vec3(0.6, 0.6, 0.9) * albedo * ao;
-    vec3 color = ambient + Lo * shadow;
+    vec3 ambient = vec3(0.1) * albedo * ao;
+    vec3 color = Lo * shadow + ((1 - shadow) * vec3(1.0, 0.0, 0.0));
 	
     // color = color / (color + vec3(1.0));
     // color = pow(color, vec3(1.0/2.2));  
-   
+
     outColor = vec4(color, 1.0);
 }

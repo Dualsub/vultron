@@ -32,7 +32,8 @@ const mat4 biasMat = mat4(
 	0.0, 0.0, 1.0, 0.0,
 	0.5, 0.5, 0.0, 1.0 );
 
-void main()  {
+void main()  
+{
     gl_Position = ubo.proj * ubo.view * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
     fragWorldPos = vec3(instances[gl_InstanceIndex].model * vec4(inPosition, 1.0));
     fragTexCoord = inTexCoord;

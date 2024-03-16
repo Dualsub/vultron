@@ -622,7 +622,7 @@ namespace Vultron
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
-        m_uniformBufferData.proj = glm::perspective(glm::radians(35.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 2500.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(35.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 3200.0f);
         m_uniformBufferData.proj[1][1] *= -1;
 
         m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.2f, -1.0f, 0.2f));

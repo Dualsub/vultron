@@ -13,10 +13,22 @@ namespace Vultron
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        m_width = createInfo.width;
-        m_height = createInfo.height;
+        if (createInfo.mode == WindowMode::Windowed)
+        {
+            m_width = createInfo.width;
+            m_height = createInfo.height;
 
-        m_windowHandle = glfwCreateWindow(createInfo.width, createInfo.height, createInfo.title.c_str(), NULL, NULL);
+            m_windowHandle = glfwCreateWindow(createInfo.width, createInfo.height, createInfo.title.c_str(), NULL, NULL);
+        }
+        else if (createInfo.mode == WindowMode::Fullscreen)
+        {
+            const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+            m_width = mode->width;
+            m_height = mode->height;
+
+            m_windowHandle = glfwCreateWindow(m_width, m_height, createInfo.title.c_str(), glfwGetPrimaryMonitor(), NULL);
+        }
+
 
         if (m_windowHandle == nullptr)
         {

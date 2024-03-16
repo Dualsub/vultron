@@ -156,8 +156,8 @@ namespace Vultron
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
 
-    constexpr uint32_t c_maxSkeletalInstances = 128;
-    constexpr uint32_t c_maxAnimationInstances = 128;
+    constexpr uint32_t c_maxSkeletalInstances = 512;
+    constexpr uint32_t c_maxAnimationInstances = 512;
     constexpr uint32_t c_maxBones = 128;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
 

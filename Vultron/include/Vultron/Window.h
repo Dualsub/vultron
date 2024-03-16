@@ -32,11 +32,18 @@ namespace Vultron
         Window() = default;
         ~Window() = default;
 
+        enum class WindowMode
+        {
+            Windowed,
+            Fullscreen
+        };
+
         struct WindowCreateInfo
         {
             const std::string &title;
             uint32_t width = 1600;
             uint32_t height = 900;
+            WindowMode mode = WindowMode::Windowed;
         };
 
         bool Initialize(const WindowCreateInfo &createInfo);

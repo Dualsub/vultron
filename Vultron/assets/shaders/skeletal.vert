@@ -108,6 +108,13 @@ mat4 GetPose(int frame1, int frame2, float frameBlend, int boneIndex, int boneCo
     return boneMatrix;
 }
 
+const mat4 biasMat = mat4( 
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.5, 0.5, 0.0, 1.0 );
+
+
 void main()  {
 
     mat4 boneMatrix = mat4(0.0);
@@ -143,5 +150,5 @@ void main()  {
     fragWorldPos = vec3(fragPos);
     fragTexCoord = inTexCoord;
     fragNormal = inNormal;
-    fragLightSpacePos = ubo.lightSpaceMatrix * fragPos;
+    fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * fragPos;
 }

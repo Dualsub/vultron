@@ -23,66 +23,51 @@
 namespace Vultron
 {
 
-    FrustumCorners GetFrustumCornersWorldSpace(const glm::mat4 &proj, const glm::mat4 &view)
-    {
-        glm::mat4 invCam = glm::inverse(proj * view);
-        FrustumCorners corners;
-
-        glm::vec4 ndcCorners[8] = {
-            // Near plane
-            glm::vec4(-1.0, 1.0, -1.0, 1.0),
-            glm::vec4(1.0, 1.0, -1.0, 1.0),
-            glm::vec4(-1.0, -1.0, -1.0, 1.0),
-            glm::vec4(1.0, -1.0, -1.0, 1.0),
-            // Far plane
-            glm::vec4(-1.0, 1.0, 1.0, 1.0),
-            glm::vec4(1.0, 1.0, 1.0, 1.0),
-            glm::vec4(-1.0, -1.0, 1.0, 1.0),
-            glm::vec4(1.0, -1.0, 1.0, 1.0),
-        };
-
-        for (int i = 0; i < 8; ++i)
-        {
-            glm::vec4 worldSpaceCorner = invCam * ndcCorners[i];
-            ndcCorners[i] = worldSpaceCorner / worldSpaceCorner.w;
-        }
-
-        corners.ntl = glm::vec3(ndcCorners[0]);
-        corners.ntr = glm::vec3(ndcCorners[1]);
-        corners.nbl = glm::vec3(ndcCorners[2]);
-        corners.nbr = glm::vec3(ndcCorners[3]);
-        corners.ftl = glm::vec3(ndcCorners[4]);
-        corners.ftr = glm::vec3(ndcCorners[5]);
-        corners.fbl = glm::vec3(ndcCorners[6]);
-        corners.fbr = glm::vec3(ndcCorners[7]);
-
-        return corners;
-    }
-
     glm::mat4 ComputeLightProjectionMatrix(const glm::mat4 &camProj, const glm::mat4 &camView, const glm::vec3 &lightDir)
     {
-        FrustumCorners corners = GetFrustumCornersWorldSpace(camProj, camView);
+        glm::vec3 frustumCorners[8] = {
+            glm::vec3(-1.0f,  1.0f, 0.0f),
+            glm::vec3(1.0f,  1.0f, 0.0f),
+            glm::vec3(1.0f, -1.0f, 0.0f),
+            glm::vec3(-1.0f, -1.0f, 0.0f),
+            glm::vec3(-1.0f,  1.0f,  1.0f),
+            glm::vec3(1.0f,  1.0f,  1.0f),
+            glm::vec3(1.0f, -1.0f,  1.0f),
+            glm::vec3(-1.0f, -1.0f,  1.0f),
+        };
 
-        glm::vec3 frustumCenter = glm::vec3(0.0);
-        frustumCenter += corners.ntl;
-        frustumCenter += corners.ntr;
-        frustumCenter += corners.nbl;
-        frustumCenter += corners.nbr;
-        frustumCenter += corners.ftl;
-        frustumCenter += corners.ftr;
-        frustumCenter += corners.fbl;
-        frustumCenter += corners.fbr;
+        glm::mat4 invCam = glm::inverse(camProj * camView);
+        for (uint32_t i = 0; i < 8; i++) {
+            glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[i], 1.0f);
+            frustumCorners[i] = invCorner / invCorner.w;
+        }
+
+        // Get frustum center
+        glm::vec3 frustumCenter = glm::vec3(0.0f);
+        for (uint32_t i = 0; i < 8; i++) {
+            frustumCenter += frustumCorners[i];
+        }
         frustumCenter /= 8.0f;
 
-        float radius = glm::distance(corners.ntl, corners.fbr) / 2.0f;
+        float radius = 0.0f;
+        for (uint32_t i = 0; i < 8; i++) {
+            float distance = glm::length(frustumCorners[i] - frustumCenter);
+            radius = glm::max(radius, distance);
+        }
+        radius = std::ceil(radius * 16.0f) / 16.0f;
+
         glm::vec3 maxExtents = glm::vec3(radius);
         glm::vec3 minExtents = -maxExtents;
 
-        glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter + lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0, 1.0, 0.0));
-        glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
-        lightOrthoMatrix[1][1] *= -1;
+        const float zMultiplier = 1.0f; // To make sure things even outside the frustum are included
+        minExtents.z = -radius * zMultiplier;
+        maxExtents.z = radius * zMultiplier;
 
-        return lightOrthoMatrix * lightViewMatrix;
+        glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter - lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
+        glm::mat4 lightProjMatrix = lightOrthoMatrix * lightViewMatrix;
+
+        return lightProjMatrix;
     }
 
     bool VulkanRenderer::Initialize(const Window &window)
@@ -218,7 +203,7 @@ namespace Vultron
         bones.reserve(m_bones.size());
         for (size_t i = 0; i < m_bones.size(); i++)
         {
-            bones.push_back({.offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID});
+            bones.push_back({ .offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID });
         }
 
         if (bones.size() > 0)
@@ -236,60 +221,60 @@ namespace Vultron
     {
         m_renderPass = VulkanRenderPass::Create(
             m_context,
-            {.attachments = {
-                 // Color attachment
-                 {
-                     .format = m_swapchain.GetImageFormat(),
-                 },
-                 // Depth attachment
-                 {
-                     .type = VulkanRenderPass::AttachmentType::Depth,
-                     .format = VK_FORMAT_D32_SFLOAT,
-                     .samples = VK_SAMPLE_COUNT_1_BIT,
-                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
+            { .attachments = {
+                // Color attachment
+                {
+                    .format = m_swapchain.GetImageFormat(),
+                },
+                // Depth attachment
+                {
+                    .type = VulkanRenderPass::AttachmentType::Depth,
+                    .format = VK_FORMAT_D32_SFLOAT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}} });
 
         m_shadowPass = VulkanRenderPass::Create(
             m_context,
             {
                 .attachments = {
-                    // Depth attachment
-                    {
-                        .type = VulkanRenderPass::AttachmentType::Depth,
-                        .format = VK_FORMAT_D32_SFLOAT,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
-                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                    },
+                // Depth attachment
+                {
+                    .type = VulkanRenderPass::AttachmentType::Depth,
+                    .format = VK_FORMAT_D32_SFLOAT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                 },
-                .dependencies = {
-                    {
-                        .srcSubpass = VK_SUBPASS_EXTERNAL,
-                        .dstSubpass = 0,
-                        .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-                        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                    },
-                    {
-                        .srcSubpass = 0,
-                        .dstSubpass = VK_SUBPASS_EXTERNAL,
-                        .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                    },
+            },
+            .dependencies = {
+                {
+                    .srcSubpass = VK_SUBPASS_EXTERNAL,
+                    .dstSubpass = 0,
+                    .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+                    .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
                 },
+                {
+                    .srcSubpass = 0,
+                    .dstSubpass = VK_SUBPASS_EXTERNAL,
+                    .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                },
+            },
             });
 
         return true;
@@ -299,24 +284,24 @@ namespace Vultron
     {
         m_descriptorSetLayout = VkInit::CreateDescriptorSetLayout(
             m_context.GetDevice(),
-            {{
-                 // Scene data
-                 .binding = 0,
-                 .type = DescriptorType::UniformBuffer,
-                 .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-             },
-             {
-                 // Instance data
-                 .binding = 1,
-                 .type = DescriptorType::StorageBuffer,
-                 .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-             },
-             {
-                 // Shadow map
-                 .binding = 2,
-                 .type = DescriptorType::CombinedImageSampler,
-                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-             }});
+            { {
+                    // Scene data
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Instance data
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+                {
+                    // Shadow map
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                } });
 
         m_skeletalSetLayout = VkInit::CreateDescriptorSetLayout(
             m_context.GetDevice(),
@@ -365,9 +350,9 @@ namespace Vultron
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_staticVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.vert.spv"});
-        m_skeletalVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
-        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/triangle.frag.spv"});
+        m_staticVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.vert.spv" });
+        m_skeletalVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv" });
+        m_fragmentShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.frag.spv" });
 
         auto materialBindings = std::vector<DescriptorSetLayoutBinding>{
             // Albedo
@@ -412,9 +397,9 @@ namespace Vultron
 
         // Shadow
 
-        m_staticShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.vert.spv"});
-        m_skeletalShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow_skeletal.vert.spv"});
-        m_shadowFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.frag.spv"});
+        m_staticShadowVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.vert.spv" });
+        m_skeletalShadowVertexShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow_skeletal.vert.spv" });
+        m_shadowFragmentShader = VulkanShader::CreateFromFile({ .device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.frag.spv" });
 
         m_staticShadowPipeline = VulkanMaterialPipeline::Create(
             m_context, m_shadowPass,
@@ -424,16 +409,18 @@ namespace Vultron
                 .sceneDescriptorSetLayout = m_descriptorSetLayout,
                 .bindings = {},
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+                .cullMode = CullMode::Front,
             });
 
         m_skeletalShadowPipeline = VulkanMaterialPipeline::Create(
             m_context, m_shadowPass,
             {
-                .vertexShader = m_skeletalVertexShader,
+                .vertexShader = m_skeletalShadowVertexShader,
                 .fragmentShader = m_shadowFragmentShader,
                 .sceneDescriptorSetLayout = m_skeletalSetLayout,
                 .bindings = {},
                 .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
+                .cullMode = CullMode::Front,
             });
 
         return true;
@@ -441,8 +428,8 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeSkeletalBuffers()
     {
-        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
-        m_animationFrameBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
+        m_boneBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
+        m_animationFrameBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY });
 
         return true;
     }
@@ -457,7 +444,7 @@ namespace Vultron
         {
             std::array<VkImageView, 2> attachments = {
                 imageViews[i],
-                m_depthImage.GetImageView()};
+                m_depthImage.GetImageView() };
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -477,7 +464,7 @@ namespace Vultron
     bool VulkanRenderer::InitializeShadowMap()
     {
         m_shadowMap = VulkanImage::Create(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
@@ -489,7 +476,8 @@ namespace Vultron
                  .format = VK_FORMAT_D32_SFLOAT,
              },
              .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
+             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            });
 
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -605,7 +593,7 @@ namespace Vultron
         VkFormat depthFormat = VkUtil::FindDepthFormat(m_context.GetPhysicalDevice());
 
         m_depthImage = VulkanImage::Create(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
@@ -616,7 +604,7 @@ namespace Vultron
                  .format = depthFormat,
              },
              .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
+             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT });
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
@@ -630,21 +618,16 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &uniformBuffer = m_frames[i].uniformBuffer;
-            uniformBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            uniformBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = size, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
-        m_uniformBufferData.proj = glm::perspective(glm::radians(35.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 10000.0f);
-        // m_uniformBufferData.proj = glm::ortho(-1000.0f, 1000.0f, -1000.0f, 1000.0f, 0.1f, 1000.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(35.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 2500.0f);
         m_uniformBufferData.proj[1][1] *= -1;
 
-        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.0f, -1.0f, 0.1f));
+        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.2f, -1.0f, 0.2f));
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
-        glm::vec3 lightPos = glm::vec3(0.0f, 300.0f, 0.0f);
-        glm::mat4 lightView = glm::lookAt(lightPos, lightPos + m_uniformBufferData.lightDir, glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 lightProjection = glm::ortho(-1024.0f, 1024.0f, -1024.0f, 1024.0f, -100.0f, 2000.0f);
-        lightProjection[1][1] *= -1;
-        m_uniformBufferData.lightViewProjection = lightProjection * lightView;
+        m_uniformBufferData.lightViewProjection = ComputeLightProjectionMatrix(m_uniformBufferData.proj, m_uniformBufferData.view, m_uniformBufferData.lightDir);
 
         return true;
     }
@@ -657,15 +640,15 @@ namespace Vultron
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &instanceBuffer = m_frames[i].staticInstanceBuffer;
-            instanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = instancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            instanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = instancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             instanceBuffer.Map(m_context.GetAllocator());
 
             VulkanBuffer &skeletalInstanceBuffer = m_frames[i].skeletalInstanceBuffer;
-            skeletalInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = skeletalInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            skeletalInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = skeletalInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             skeletalInstanceBuffer.Map(m_context.GetAllocator());
 
             VulkanBuffer &animationInstanceBuffer = m_frames[i].animationInstanceBuffer;
-            animationInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            animationInstanceBuffer = VulkanBuffer::Create({ .allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
             animationInstanceBuffer.Map(m_context.GetAllocator());
         }
 
@@ -679,7 +662,7 @@ namespace Vultron
                 {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, c_maxUniformBuffers},
                 {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, c_maxStorageBuffers},
                 {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, c_maxCombinedImageSamplers},
-            }};
+            } };
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -833,20 +816,21 @@ namespace Vultron
             renderPassInfo.renderPass = m_shadowPass.GetRenderPass();
             renderPassInfo.framebuffer = m_shadowFramebuffer;
 
-            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.offset = { 0, 0 };
             const ImageInfo &shadowMapInfo = m_shadowMap.GetInfo();
-            renderPassInfo.renderArea.extent = {shadowMapInfo.width, shadowMapInfo.height};
+            renderPassInfo.renderArea.extent = { shadowMapInfo.width, shadowMapInfo.height };
+            glm::uvec2 viewportSize = { shadowMapInfo.width, shadowMapInfo.height };
 
             std::array<VkClearValue, 1> clearValues{};
-            clearValues[0].depthStencil = {1.0f, 0};
+            clearValues[0].depthStencil = { 1.0f, 0 };
 
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalShadowPipeline, skeletalBatches);
-            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, staticBatches);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, staticBatches, viewportSize);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalShadowPipeline, skeletalBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -857,20 +841,21 @@ namespace Vultron
             renderPassInfo.renderPass = m_renderPass.GetRenderPass();
             renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
 
-            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.offset = { 0, 0 };
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
+            glm::uvec2 viewportSize = { m_swapchain.GetExtent().width, m_swapchain.GetExtent().height };
 
             std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
-            clearValues[1].depthStencil = {1.0f, 0};
+            clearValues[0].color = { {0.07f, 0.07f, 0.07f, 1.0f} };
+            clearValues[1].depthStencil = { 1.0f, 0 };
 
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches);
-            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches, viewportSize);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -878,25 +863,25 @@ namespace Vultron
     }
 
     template <typename MeshType>
-    void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches)
+    void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
 
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)m_swapchain.GetExtent().width;
-        viewport.height = (float)m_swapchain.GetExtent().height;
+        viewport.width = (float)viewportSize.x;
+        viewport.height = (float)viewportSize.y;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = m_swapchain.GetExtent();
+        scissor.offset = { 0, 0 };
+        scissor.extent = { viewportSize.x, viewportSize.y };
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        VkDescriptorSet descriptorSets[] = {descriptorSet};
+        VkDescriptorSet descriptorSets[] = { descriptorSet };
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
         for (const auto &batch : batches)
@@ -904,14 +889,14 @@ namespace Vultron
             MeshDrawInfo mesh = m_resourcePool.GetMeshDrawInfo<MeshType>(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
-            VkBuffer vertexBuffers[] = {mesh.vertexBuffer};
-            VkDeviceSize offsets[] = {0};
+            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
+            VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             if (pipeline.ShouldBindMaterial())
             {
-                VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
+                VkDescriptorSet descriptorSets[] = { material.GetDescriptorSet() };
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
             }
 
@@ -945,7 +930,7 @@ namespace Vultron
         const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.viewPos = viewPos;
-        // ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
+        ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
 
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
@@ -964,8 +949,8 @@ namespace Vultron
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        VkSemaphore waitSemaphores[] = { frame.imageAvailableSemaphore };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
@@ -973,7 +958,7 @@ namespace Vultron
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-        VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = { frame.renderFinishedSemaphore };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -985,7 +970,7 @@ namespace Vultron
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {m_swapchain.GetSwapchain()};
+        VkSwapchainKHR swapChains[] = { m_swapchain.GetSwapchain() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
@@ -1067,35 +1052,35 @@ namespace Vultron
     RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
     {
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+             .filepath = filepath });
 
         return m_resourcePool.AddMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
-        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});
+        VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, { .filepath = filepath });
 
         return m_resourcePool.AddSkeletalMesh(std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
     {
-        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
+        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, { .filepath = filepath }));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
-            {.device = m_context.GetDevice(),
+            { .device = m_context.GetDevice(),
              .commandPool = m_commandPool,
              .queue = m_context.GetGraphicsQueue(),
              .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+             .filepath = filepath });
 
         return m_resourcePool.AddImage(std::move(image));
     }

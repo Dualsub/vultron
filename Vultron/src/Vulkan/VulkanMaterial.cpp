@@ -19,7 +19,7 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout))
+        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -48,7 +48,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -62,7 +62,7 @@ namespace Vultron
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                 .module = m_fragmentShader.GetShaderModule(),
                 .pName = "main",
-            }};
+            } };
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -78,7 +78,7 @@ namespace Vultron
 
         const std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR};
+            VK_DYNAMIC_STATE_SCISSOR };
 
         VkPipelineDynamicStateCreateInfo dynamicState{};
         dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -96,7 +96,7 @@ namespace Vultron
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.cullMode = static_cast<VkCullModeFlags>(cullMode);
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -119,7 +119,7 @@ namespace Vultron
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-        std::vector<VkDescriptorSetLayout> layouts = {sceneDescriptorSetLayout};
+        std::vector<VkDescriptorSetLayout> layouts = { sceneDescriptorSetLayout };
         if (m_descriptorSetLayout != VK_NULL_HANDLE)
             layouts.push_back(m_descriptorSetLayout);
 

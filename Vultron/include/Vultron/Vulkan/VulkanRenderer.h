@@ -31,11 +31,6 @@
 
 namespace Vultron
 {
-    struct FrustumCorners
-    {
-        glm::vec3 ntl, ntr, nbl, nbr, ftl, ftr, fbl, fbr;
-    };
-
     struct TexturedMaterial
     {
         RenderHandle texture;
@@ -273,7 +268,7 @@ namespace Vultron
         // Command buffer
         void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches);
         template <typename MeshType>
-        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches);
+        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize);
 
     public:
         VulkanRenderer() = default;

@@ -155,12 +155,12 @@ namespace Vultron
         };
 
         // TODO: This should be somewhere else
-        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time) const
+        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const
         {
             const auto &rp = m_backend.GetResourcePool();
             const auto &anim = rp.GetAnimation(animation);
 
-            const float newTime = glm::mod(time, anim.GetDuration());
+            const float newTime = loop ? glm::mod(time, anim.GetDuration()) : glm::min(time, anim.GetDuration());
 
             const std::vector<float> &times = anim.GetTimes();
 
@@ -169,7 +169,7 @@ namespace Vultron
             float frame1Time = 0.0f;
             for (uint32_t i = 0; i < numFrames; i++)
             {
-                if (time < times[i])
+                if (time < times[i] || i == numFrames - 1)
                 {
                     frame1 = i == 0 ? numFrames - 1 : i - 1;
                     frame1Time = times[frame1];
@@ -177,7 +177,15 @@ namespace Vultron
                 }
             }
 
-            uint32_t frame2 = (frame1 + 1) % numFrames;
+            uint32_t frame2 = frame1 + 1;
+            if (loop)
+            {
+                frame2 = frame2 % numFrames;
+            }
+            else
+            {
+                frame2 = glm::min(frame2, numFrames - 1);
+            }
             float frame2Time = times[frame2];
 
             if (frame2Time < frame1Time)

@@ -152,7 +152,6 @@ vec3 CalcDirLight(vec3 N, vec3 V, vec3 albedo, float roughness, float metallic, 
 
 void main() {
     vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
-    // vec3 albedo = texture(albedoMap, fragTexCoord).rgb;
     float metallic = texture(metallicRoughnessAoMap, fragTexCoord).b;
     float roughness = texture(metallicRoughnessAoMap, fragTexCoord).g;
     float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;

@@ -39,6 +39,7 @@ namespace Vultron
         struct RenderPassCreateInfo
         {
             const std::vector<AttachmentCreateInfo> &attachments;
+            const std::vector<VkSubpassDependency> &dependencies = {};
         };
 
         static VulkanRenderPass Create(const VulkanContext &context, const RenderPassCreateInfo &createInfo);

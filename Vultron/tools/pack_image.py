@@ -23,11 +23,17 @@ def main():
         "-o", "--output", help="The output vultron image file", default="image.bin")
     parser.add_argument(
         "-l", "--levels", help="The number of mipmap levels to generate", default=-1, type=int)
+    parser.add_argument(
+        "-f", "--flip", help="Flip the image vertically", action="store_true")
+
     args = parser.parse_args()
 
     image = Image.open(args.input)
     if image.mode == "RGB":
         image = image.convert("RGBA")
+
+    if args.flip:
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
     assert args.input != args.output, "Input and output file cannot be the same"
 

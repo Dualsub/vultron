@@ -3,6 +3,7 @@
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
+layout(location = 3) in vec4 fragLightSpacePos;
 
 layout(location = 0) out vec4 outColor;
 
@@ -12,7 +13,10 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
+    mat4 lightSpaceMatrix;
 } ubo;
+
+layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
@@ -20,7 +24,44 @@ layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessAoMap;
 
 const float PI = 3.14159265359;
 
-vec3 getNormalFromMap()
+float textureProj(vec4 shadowCoord, vec2 off)
+{
+	float shadow = 1.0;
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
+	{
+		float dist = texture( shadowMap, shadowCoord.xy + off ).r + 0.005;
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
+		{
+			shadow = 0.1;
+		}
+	}
+	return shadow;
+}
+
+float GetShadow(vec4 sc)
+{
+	ivec2 texDim = textureSize(shadowMap, 0);
+	float scale = 1.0;
+	float dx = scale * 1.0 / float(texDim.x);
+	float dy = scale * 1.0 / float(texDim.y);
+
+	float shadowFactor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++)
+	{
+		for (int y = -range; y <= range; y++)
+		{
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
+			count++;
+		}
+	
+	}
+	return shadowFactor / count;
+}
+
+vec3 GetNormalFromMap()
 {
     vec3 tangentNormal = texture(normalMap, fragTexCoord).rgb * 2.0 - 1.0;
 
@@ -110,13 +151,14 @@ vec3 CalcDirLight(vec3 N, vec3 V, vec3 albedo, float roughness, float metallic, 
 }  
 
 void main() {
-    // vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
-    vec3 albedo = texture(albedoMap, fragTexCoord).rgb;
+    vec3 albedo = pow(texture(albedoMap, fragTexCoord).rgb, vec3(2.2));
     float metallic = texture(metallicRoughnessAoMap, fragTexCoord).b;
     float roughness = texture(metallicRoughnessAoMap, fragTexCoord).g;
     float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;
 
-    vec3 N = getNormalFromMap();
+    float shadow = GetShadow(fragLightSpacePos / fragLightSpacePos.w);
+
+    vec3 N = GetNormalFromMap();
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
     vec3 R = reflect(-V, N); 
 
@@ -126,11 +168,11 @@ void main() {
     // reflectance equation
     vec3 Lo = CalcDirLight(N, V, albedo, roughness, metallic, F0);
   
-    vec3 ambient = vec3(0.6, 0.6, 0.9) * albedo * ao;
-    vec3 color = ambient + Lo;
+    vec3 ambient = vec3(0.05) * albedo * ao;
+    vec3 color = ambient + Lo * shadow;
 	
-    // color = color / (color + vec3(1.0));
-    // color = pow(color, vec3(1.0/2.2));  
-   
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));
+
     outColor = vec4(color, 1.0);
 }

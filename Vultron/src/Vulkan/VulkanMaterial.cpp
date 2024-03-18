@@ -8,9 +8,10 @@
 
 namespace Vultron
 {
-    VulkanMaterialPipeline VulkanMaterialPipeline::Create(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo)
+    VulkanMaterialPipeline VulkanMaterialPipeline::Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo)
     {
-        VulkanMaterialPipeline material(createInfo.vertexShader, createInfo.fragmentShader);
+        bool shouldBindMaterial = createInfo.bindings.size() > 0;
+        VulkanMaterialPipeline material(createInfo.vertexShader, createInfo.fragmentShader, shouldBindMaterial);
 
         if (!material.InitializeDescriptorSetLayout(context, createInfo.bindings))
         {
@@ -18,7 +19,7 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, swapchain, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout))
+        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -29,18 +30,25 @@ namespace Vultron
 
     void VulkanMaterialPipeline::Destroy(const VulkanContext &context)
     {
-        vkDestroyDescriptorSetLayout(context.GetDevice(), m_descriptorSetLayout, nullptr);
+        if (m_descriptorSetLayout != VK_NULL_HANDLE)
+            vkDestroyDescriptorSetLayout(context.GetDevice(), m_descriptorSetLayout, nullptr);
         vkDestroyPipelineLayout(context.GetDevice(), m_pipelineLayout, nullptr);
         vkDestroyPipeline(context.GetDevice(), m_pipeline, nullptr);
     }
 
     bool VulkanMaterialPipeline::InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &bindings)
     {
+        if (bindings.size() == 0)
+        {
+            m_descriptorSetLayout = VK_NULL_HANDLE;
+            return true;
+        }
+
         m_descriptorSetLayout = VkInit::CreateDescriptorSetLayout(context.GetDevice(), bindings);
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanSwapchain &swapchain, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -54,7 +62,7 @@ namespace Vultron
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                 .module = m_fragmentShader.GetShaderModule(),
                 .pName = "main",
-            }};
+            } };
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -68,23 +76,9 @@ namespace Vultron
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-        VkExtent2D extent = swapchain.GetExtent();
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = (float)extent.width;
-        viewport.height = (float)extent.height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = extent;
-
         const std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR};
+            VK_DYNAMIC_STATE_SCISSOR };
 
         VkPipelineDynamicStateCreateInfo dynamicState{};
         dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -102,7 +96,7 @@ namespace Vultron
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.cullMode = static_cast<VkCullModeFlags>(cullMode);
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -124,9 +118,13 @@ namespace Vultron
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 2;
-        VkDescriptorSetLayout layouts[] = {sceneDescriptorSetLayout, m_descriptorSetLayout};
-        pipelineLayoutInfo.pSetLayouts = layouts;
+
+        std::vector<VkDescriptorSetLayout> layouts = { sceneDescriptorSetLayout };
+        if (m_descriptorSetLayout != VK_NULL_HANDLE)
+            layouts.push_back(m_descriptorSetLayout);
+
+        pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
+        pipelineLayoutInfo.pSetLayouts = layouts.data();
         pipelineLayoutInfo.pushConstantRangeCount = 0;
         pipelineLayoutInfo.pPushConstantRanges = nullptr;
 

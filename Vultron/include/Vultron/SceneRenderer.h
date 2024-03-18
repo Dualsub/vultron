@@ -12,44 +12,6 @@
 
 namespace Vultron
 {
-    /* Idea: Frontend renderer idea: Take in render jobs */
-
-    struct StaticRenderJob
-    {
-        RenderHandle mesh = {};
-        RenderHandle material = {};
-        glm::mat4 transform = {};
-
-        // Compute hash of mesh and texture
-        uint64_t GetHash() const
-        {
-            return static_cast<uint64_t>(mesh) ^ static_cast<uint64_t>(material);
-        }
-    };
-
-    struct AnimationInstance
-    {
-        RenderHandle animation = {};
-        uint32_t frame1 = 0;
-        uint32_t frame2 = 0;
-        float frameBlendFactor = 0.0f;
-        float blendFactor = 0.0f;
-    };
-
-    struct SkeletalRenderJob
-    {
-        RenderHandle mesh = {};
-        RenderHandle material = {};
-        glm::mat4 transform = {};
-        std::vector<AnimationInstance> animations = {};
-
-        // Compute hash of mesh and texture
-        uint64_t GetHash() const
-        {
-            return static_cast<uint64_t>(mesh) ^ static_cast<uint64_t>(material);
-        }
-    };
-
     // What is sent to the backend renderer
     struct InstancedStaticRenderJob
     {
@@ -62,10 +24,11 @@ namespace Vultron
     {
         RenderHandle mesh = {};
         RenderHandle material = {};
-        std::vector<SkeletalInstanceData> instances = {};
-        std::vector<AnimationInstanceData> animations = {};
+        std::vector<struct SkeletalInstanceData> instances = {};
+        std::vector<struct AnimationInstanceData> animations = {};
     };
 
+    /* Idea: Frontend renderer idea: Take in render jobs */
     class SceneRenderer
     {
     private:
@@ -98,7 +61,7 @@ namespace Vultron
             uint64_t hash = job.GetHash();
             if (m_staticJobs.find(hash) == m_staticJobs.end())
             {
-                m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
+                m_staticJobs.insert({ hash, InstancedStaticRenderJob{job.mesh, job.material, {}} });
             }
 
             m_staticJobs[hash].transforms.push_back(job.transform);
@@ -109,7 +72,7 @@ namespace Vultron
             uint64_t hash = job.GetHash();
             if (m_skeletalJobs.find(hash) == m_skeletalJobs.end())
             {
-                m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}, {}}});
+                m_skeletalJobs.insert({ hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}, {}} });
             }
 
             auto &instancedJob = m_skeletalJobs[hash];
@@ -143,7 +106,7 @@ namespace Vultron
                     .frame2 = static_cast<int32_t>(animation.frame2),
                     .timeFactor = animation.frameBlendFactor,
                     .blendFactor = animation.blendFactor,
-                });
+                    });
             }
         }
 
@@ -159,7 +122,7 @@ namespace Vultron
                     .material = job.second.material,
                     .firstInstance = static_cast<uint32_t>(staticInstances.size()),
                     .instanceCount = static_cast<uint32_t>(job.second.transforms.size()),
-                });
+                    });
                 staticInstances.insert(staticInstances.end(), job.second.transforms.begin(), job.second.transforms.end());
             }
 
@@ -174,7 +137,7 @@ namespace Vultron
                     .material = job.second.material,
                     .firstInstance = static_cast<uint32_t>(skeletalInstances.size()),
                     .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-                });
+                    });
                 skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
                 animationInstances.insert(animationInstances.end(), job.second.animations.begin(), job.second.animations.end());
             }
@@ -191,12 +154,13 @@ namespace Vultron
             float time = 0.0f;
         };
 
-        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time) const
+        // TODO: This should be somewhere else
+        AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const
         {
             const auto &rp = m_backend.GetResourcePool();
             const auto &anim = rp.GetAnimation(animation);
 
-            const float newTime = glm::mod(time, anim.GetDuration());
+            const float newTime = loop ? glm::mod(time, anim.GetDuration()) : glm::min(time, anim.GetDuration());
 
             const std::vector<float> &times = anim.GetTimes();
 
@@ -205,7 +169,7 @@ namespace Vultron
             float frame1Time = 0.0f;
             for (uint32_t i = 0; i < numFrames; i++)
             {
-                if (time < times[i])
+                if (time < times[i] || i == numFrames - 1)
                 {
                     frame1 = i == 0 ? numFrames - 1 : i - 1;
                     frame1Time = times[frame1];
@@ -213,7 +177,15 @@ namespace Vultron
                 }
             }
 
-            uint32_t frame2 = (frame1 + 1) % numFrames;
+            uint32_t frame2 = frame1 + 1;
+            if (loop)
+            {
+                frame2 = frame2 % numFrames;
+            }
+            else
+            {
+                frame2 = glm::min(frame2, numFrames - 1);
+            }
             float frame2Time = times[frame2];
 
             if (frame2Time < frame1Time)
@@ -223,7 +195,7 @@ namespace Vultron
 
             float frameBlendFactor = glm::clamp((newTime - frame1Time) / (frame2Time - frame1Time), 0.0f, 1.0f);
 
-            return {frame1, frame2, frameBlendFactor, newTime};
+            return { frame1, frame2, frameBlendFactor, newTime };
         }
 
         void Shutdown()

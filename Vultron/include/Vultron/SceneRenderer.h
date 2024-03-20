@@ -198,6 +198,64 @@ namespace Vultron
             return {frame1, frame2, frameBlendFactor, newTime};
         }
 
+        // NOTE: Expensive
+        glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex)
+        {
+            const auto &rp = m_backend.GetResourcePool();
+            const auto &mesh = rp.GetSkeletalMesh(skeletalMesh);
+
+            const auto &bones = m_backend.GetBones();
+            const auto &frames = m_backend.GetAnimationFrames();
+
+            glm::mat4 boneTransform = glm::mat4(1.0f);
+
+            uint32_t currBoneIndex = boneIndex;
+            for (uint32_t b = 0; b < mesh.GetBoneCount(); b++)
+            {
+                float totalBlendFactor = 0.0f;
+                glm::vec3 accPosition = glm::vec3(0.0f);
+                glm::quat accRotation = glm::identity<glm::quat>();
+                glm::vec3 accScale = glm::vec3(1.0f);
+
+                for (uint32_t i = 0; i < animationInstances.size(); i++)
+                {
+                    const auto &instance = animationInstances[i];
+                    const auto &anim = rp.GetAnimation(instance.animation);
+                    const uint32_t frameOffset = anim.GetFrameOffset();
+                    const uint32_t frame1 = instance.frame1;
+                    const uint32_t frame2 = instance.frame2;
+                    const float frameBlendFactor = instance.frameBlendFactor;
+                    const float blendFactor = instance.blendFactor;
+
+                    uint32_t frame1Index = frameOffset + frame1 * mesh.GetBoneCount() + currBoneIndex;
+                    uint32_t frame2Index = frameOffset + frame2 * mesh.GetBoneCount() + currBoneIndex;
+
+                    glm::vec3 position = glm::mix(frames[frame1Index].position, frames[frame2Index].position, frameBlendFactor);
+                    glm::quat rotation = glm::slerp(frames[frame1Index].rotation, frames[frame2Index].rotation, frameBlendFactor);
+                    glm::vec3 scale = glm::mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlendFactor);
+
+                    totalBlendFactor += blendFactor;
+                    float blend = blendFactor / totalBlendFactor;
+
+                    accPosition = mix(accPosition, position, blend);
+                    accRotation = glm::slerp(accRotation, rotation, blend);
+                    accScale = mix(accScale, scale, blend);
+                }
+
+                glm::mat4 localBoneTransform = glm::translate(glm::mat4(1.0f), accPosition) * glm::mat4_cast(accRotation) * glm::scale(glm::mat4(1.0f), accScale);
+                boneTransform = localBoneTransform * boneTransform;
+
+                currBoneIndex = bones[currBoneIndex].parentID;
+
+                if (currBoneIndex == -1)
+                {
+                    break;
+                }
+            }
+
+            return boneTransform;
+        }
+
         void Shutdown()
         {
             m_backend.Shutdown();

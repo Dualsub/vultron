@@ -36,7 +36,12 @@ namespace Vultron
         // Compute hash of mesh and texture
         uint64_t GetHash() const
         {
-            return static_cast<uint64_t>(mesh) ^ static_cast<uint64_t>(material);
+            const uint64_t prime = 0x100000001b3;
+
+            uint64_t hash = 1;
+            hash = hash * prime + static_cast<uint64_t>(mesh);
+            hash = hash * prime + static_cast<uint64_t>(material);
+            return hash;
         }
     };
 

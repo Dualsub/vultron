@@ -122,11 +122,6 @@ namespace Vultron
         uint32_t boneOffset = static_cast<uint32_t>(boneBuffer.size());
         boneBuffer.insert(boneBuffer.end(), bones.begin(), bones.end());
 
-        std::cout << "Vertex count: " << vertices.size() << std::endl;
-        std::cout << "Index count: " << indices.size() << std::endl;
-        std::cout << "Bone offset: " << boneOffset << std::endl;
-        std::cout << "Bone count: " << boneCount << std::endl;
-
         return VulkanSkeletalMesh::Create(context, commandPool, {.vertices = vertices, .indices = indices, .boneOffset = boneOffset, .boneCount = boneCount});
     }
 

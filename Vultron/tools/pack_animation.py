@@ -164,7 +164,7 @@ def main():
         for file in files:
             print(file)
 
-        if input(f"Do you want to pack {len(files)} files? (y/n) ").lower() != "yaaaad":
+        if input(f"Do you want to pack {len(files)} files? (y/n) ").lower() != "y":
             print("Aborting")
             return
 
@@ -172,7 +172,7 @@ def main():
             pack_animation(file, file.split(".")[0] + ".dat", skeleton_data, id_to_name)
     else:
         pack_animation(args.input, args.output, skeleton_data, id_to_name)
-aaaaaaaaaaaa
+
 
 
 if __name__ == "__main__":

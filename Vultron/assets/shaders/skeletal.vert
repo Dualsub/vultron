@@ -35,7 +35,7 @@ struct SkeletonBone {
 };
 
 layout(set = 0, binding = 3) uniform SkeletonBoneObject {
-    SkeletonBone bones[128];
+    SkeletonBone bones[256];
 };
 
 struct AnimationFrame {
@@ -113,49 +113,7 @@ struct BonePose {
     vec3 scale;
 };
 
-// BonePose GetPose(int frame1, int frame2, float frameBlend, int boneIndex, int boneCount)
-// {
-//     mat4 boneMatrix = mat4(1.0);
-//     int currBoneIndex = boneIndex;
-
-//     // Accumulate the position, rotation, and scale of the bone
-//     vec3 accPosition = vec3(0.0); // Initial position
-//     vec4 accRotation = vec4(0.0, 0.0, 0.0, 1.0); // Initial rotation
-//     vec3 accScale = vec3(1.0); // Initial scale
-
-//     for (int i = 0; i < boneCount; i++)
-//     {
-//         int frame1Index = currBoneIndex + frame1;
-//         int frame2Index = currBoneIndex + frame2;
-
-//         vec4 rotation1 = normalize(frames[frame1Index].rotation);
-//         vec4 rotation2 = normalize(frames[frame2Index].rotation);
-
-//         if (dot(rotation1, rotation2) < 0.0) { rotation1 *= -1.0; }
-
-//         vec3 position = mix(frames[frame1Index].position, frames[frame2Index].position, frameBlend);
-//         vec4 rotation = normalize(slerp(rotation1, rotation2, frameBlend));
-//         vec3 scale = mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlend);
-
-//         // boneMatrix = ToMatrix(position, rotation, scale) * boneMatrix;
-        
-//         accRotation = normalize(QMul(rotation, accRotation));
-//         accPosition = QMulV(rotation, accScale * accPosition) + position;
-//         accScale = scale * accScale;
-
-//         currBoneIndex = bones[currBoneIndex].parent;
-
-//         if (currBoneIndex == -1)
-//         {
-//             break;
-//         }
-//     }
-
-//     // return boneMatrix;
-//     return BonePose(accPosition, accRotation, accScale);
-// }
-
-mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneCount)
+mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount)
 {
     mat4 boneMatrix = mat4(1.0);
     int currBoneIndex = boneIndex;
@@ -196,7 +154,7 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
 
         boneMatrix = ToMatrix(accPose.position, accPose.rotation, accPose.scale) * boneMatrix;
 
-        currBoneIndex = bones[currBoneIndex].parent;
+        currBoneIndex = bones[boneOffset + currBoneIndex].parent;
 
         if (currBoneIndex == -1)
         {
@@ -230,7 +188,7 @@ void main()  {
         }
 
         mat4 offset = bones[boneOffset + inBoneIDs[j]].offset;
-        mat4 boneTransform = GetPose(animationInstanceOffset, animationInstanceCount, inBoneIDs[j], boneCount);
+        mat4 boneTransform = GetPose(animationInstanceOffset, animationInstanceCount, inBoneIDs[j], boneOffset, boneCount);
         boneMatrix += (boneTransform * offset) * inWeights[j];
     }
 

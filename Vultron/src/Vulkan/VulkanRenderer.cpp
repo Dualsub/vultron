@@ -195,14 +195,7 @@ namespace Vultron
 
     void VulkanRenderer::PostInitialize()
     {
-        struct BoneUploaded
-        {
-            glm::mat4 offset = glm::mat4(1.0f);
-            int32_t parentID = -1;
-            float padding[3];
-        };
-
-        std::vector<BoneUploaded> bones{};
+        std::vector<SkeletalBoneData> bones{};
         bones.reserve(m_bones.size());
         for (size_t i = 0; i < m_bones.size(); i++)
         {
@@ -431,7 +424,7 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeSkeletalBuffers()
     {
-        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletonBone) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
+        m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletalBoneData) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
         m_animationFrameBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(AnimationFrame) * c_maxAnimationFrames, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
 
         return true;

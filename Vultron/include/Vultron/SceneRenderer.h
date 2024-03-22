@@ -25,7 +25,6 @@ namespace Vultron
         RenderHandle mesh = {};
         RenderHandle material = {};
         std::vector<struct SkeletalInstanceData> instances = {};
-        std::vector<struct AnimationInstanceData> animations = {};
     };
 
     /* Idea: Frontend renderer idea: Take in render jobs */
@@ -35,6 +34,7 @@ namespace Vultron
         VulkanRenderer m_backend;
         std::map<uint64_t, InstancedStaticRenderJob> m_staticJobs;
         std::map<uint64_t, InstancedSkeletalRenderJob> m_skeletalJobs;
+        std::vector<AnimationInstanceData> m_animationInstances;
 
     public:
         SceneRenderer() = default;
@@ -54,6 +54,7 @@ namespace Vultron
         {
             m_staticJobs.clear();
             m_skeletalJobs.clear();
+            m_animationInstances.clear();
         }
 
         void SubmitRenderJob(const StaticRenderJob &job)
@@ -72,12 +73,12 @@ namespace Vultron
             uint64_t hash = job.GetHash();
             if (m_skeletalJobs.find(hash) == m_skeletalJobs.end())
             {
-                m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}, {}}});
+                m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}}});
             }
 
             auto &instancedJob = m_skeletalJobs[hash];
 
-            int32_t animationOffset = static_cast<int32_t>(instancedJob.animations.size());
+            int32_t animationOffset = static_cast<int32_t>(m_animationInstances.size());
             int32_t animationCount = static_cast<int32_t>(job.animations.size());
 
             const auto &rp = m_backend.GetResourcePool();
@@ -100,7 +101,7 @@ namespace Vultron
             {
                 const auto &a = rp.GetAnimation(animation.animation);
                 const int32_t frameOffset = static_cast<int32_t>(a.GetFrameOffset());
-                instancedJob.animations.push_back({
+                m_animationInstances.push_back({
                     .frameOffset = frameOffset,
                     .frame1 = static_cast<int32_t>(animation.frame1),
                     .frame2 = static_cast<int32_t>(animation.frame2),
@@ -127,7 +128,6 @@ namespace Vultron
             }
 
             std::vector<SkeletalInstanceData> skeletalInstances;
-            std::vector<AnimationInstanceData> animationInstances;
             std::vector<RenderBatch> skeletalBatches;
 
             for (auto &job : m_skeletalJobs)
@@ -139,10 +139,9 @@ namespace Vultron
                     .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
                 });
                 skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
-                animationInstances.insert(animationInstances.end(), job.second.animations.begin(), job.second.animations.end());
             }
 
-            m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, animationInstances);
+            m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances);
         }
 
         // This should be

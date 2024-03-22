@@ -131,4 +131,4 @@ def export_selected(file_path):
 
 
 # Example usage - replace 'path/to/your/output.json' with your desired path
-export_selected('C:/dev/repos/project-shibuya/assets/manny/manny.*')
+export_selected('C:/dev/repos/arcane-siege/assets/buff/buff.*')

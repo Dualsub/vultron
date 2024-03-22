@@ -158,7 +158,7 @@ namespace Vultron
 
     constexpr uint32_t c_maxSkeletalInstances = 512;
     constexpr uint32_t c_maxAnimationInstances = 512;
-    constexpr uint32_t c_maxBones = 128;
+    constexpr uint32_t c_maxBones = 256;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
 
     class VulkanRenderer

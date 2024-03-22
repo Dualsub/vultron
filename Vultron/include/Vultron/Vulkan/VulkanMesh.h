@@ -76,7 +76,6 @@ namespace Vultron
         uint32_t indexCount = 0;
     };
 
-
     // TODO: Combine vertex and index buffer into a single buffer
     class VulkanMesh
     {
@@ -94,10 +93,10 @@ namespace Vultron
 
         struct MeshCreateInfo
         {
-            VkDevice device{ VK_NULL_HANDLE };
-            VkCommandPool commandPool{ VK_NULL_HANDLE };
-            VkQueue queue{ VK_NULL_HANDLE };
-            VmaAllocator allocator{ VK_NULL_HANDLE };
+            VkDevice device{VK_NULL_HANDLE};
+            VkCommandPool commandPool{VK_NULL_HANDLE};
+            VkQueue queue{VK_NULL_HANDLE};
+            VmaAllocator allocator{VK_NULL_HANDLE};
             const std::vector<StaticMeshVertex> &vertices;
             const std::vector<uint32_t> &indices;
         };
@@ -107,10 +106,10 @@ namespace Vultron
 
         struct MeshFromFilesCreateInfo
         {
-            VkDevice device{ VK_NULL_HANDLE };
-            VkCommandPool commandPool{ VK_NULL_HANDLE };
-            VkQueue queue{ VK_NULL_HANDLE };
-            VmaAllocator allocator{ VK_NULL_HANDLE };
+            VkDevice device{VK_NULL_HANDLE};
+            VkCommandPool commandPool{VK_NULL_HANDLE};
+            VkQueue queue{VK_NULL_HANDLE};
+            VmaAllocator allocator{VK_NULL_HANDLE};
             const std::string &filepath;
         };
 
@@ -202,6 +201,13 @@ namespace Vultron
         int32_t id;
         int32_t parentID;
         glm::mat4 offset;
+    };
+
+    struct SkeletalBoneData
+    {
+        glm::mat4 offset = glm::mat4(1.0f);
+        int32_t parentID = -1;
+        float padding[3];
     };
 
     class VulkanSkeletalMesh

@@ -147,7 +147,7 @@ namespace Vultron
 
         float frameBlendFactor = glm::clamp((newTime - frame1Time) / (frame2Time - frame1Time), 0.0f, 1.0f);
 
-        return {frame1, frame2, frameBlendFactor, newTime};
+        return {frame1, frame2, frameBlendFactor, newTime, anim.GetDuration()};
     }
 
     // NOTE: Expensive

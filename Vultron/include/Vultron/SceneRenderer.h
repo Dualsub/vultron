@@ -55,6 +55,7 @@ namespace Vultron
             uint32_t frame2 = 0;
             float frameBlendFactor = 0.0f;
             float time = 0.0f;
+            float duration = 0.0f;
         };
 
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;

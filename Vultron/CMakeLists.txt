@@ -19,6 +19,7 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanMaterial.cpp
     src/Vulkan/VulkanRenderPass.cpp
     src/Vulkan/VulkanResourcePool.cpp
+    src/Vulkan/VulkanSprite.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

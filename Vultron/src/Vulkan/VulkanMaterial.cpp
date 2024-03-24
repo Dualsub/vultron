@@ -19,7 +19,7 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode))
+        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode, createInfo.depthTestEnable))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -48,7 +48,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, bool depthTestEnable)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -62,7 +62,7 @@ namespace Vultron
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                 .module = m_fragmentShader.GetShaderModule(),
                 .pName = "main",
-            } };
+            }};
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -78,7 +78,7 @@ namespace Vultron
 
         const std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR };
+            VK_DYNAMIC_STATE_SCISSOR};
 
         VkPipelineDynamicStateCreateInfo dynamicState{};
         dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -119,7 +119,7 @@ namespace Vultron
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-        std::vector<VkDescriptorSetLayout> layouts = { sceneDescriptorSetLayout };
+        std::vector<VkDescriptorSetLayout> layouts = {sceneDescriptorSetLayout};
         if (m_descriptorSetLayout != VK_NULL_HANDLE)
             layouts.push_back(m_descriptorSetLayout);
 
@@ -130,11 +130,22 @@ namespace Vultron
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE;
-        depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-        depthStencil.depthBoundsTestEnable = VK_FALSE;
-        depthStencil.stencilTestEnable = VK_FALSE;
+        if (depthTestEnable)
+        {
+            depthStencil.depthTestEnable = VK_TRUE;
+            depthStencil.depthWriteEnable = VK_TRUE;
+            depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+            depthStencil.depthBoundsTestEnable = VK_FALSE;
+            depthStencil.stencilTestEnable = VK_FALSE;
+        }
+        else
+        {
+            depthStencil.depthTestEnable = VK_FALSE;
+            depthStencil.depthWriteEnable = VK_FALSE;
+            depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+            depthStencil.depthBoundsTestEnable = VK_FALSE;
+            depthStencil.stencilTestEnable = VK_FALSE;
+        }
 
         VK_CHECK(vkCreatePipelineLayout(context.GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
 

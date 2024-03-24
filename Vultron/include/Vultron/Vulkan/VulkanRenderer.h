@@ -18,6 +18,7 @@
 #include "Vultron/Vulkan/VulkanRenderPass.h"
 #include "Vultron/Vulkan/VulkanResourcePool.h"
 #include "Vultron/Vulkan/VulkanShader.h"
+#include "Vultron/Vulkan/VulkanSprite.h"
 #include "Vultron/Vulkan/VulkanSwapchain.h"
 
 #include "vk_mem_alloc.h"
@@ -31,7 +32,7 @@
 
 namespace Vultron
 {
-    struct TexturedMaterial
+    struct SpriteMaterial
     {
         RenderHandle texture;
 
@@ -100,6 +101,9 @@ namespace Vultron
         VulkanBuffer skeletalInstanceBuffer;
         VulkanBuffer animationInstanceBuffer;
         VkDescriptorSet skeletalDescriptorSet;
+
+        VulkanBuffer spriteInstanceBuffer;
+        VkDescriptorSet spriteDescriptorSet;
     };
 
     struct InstanceData
@@ -125,6 +129,14 @@ namespace Vultron
         float timeFactor;
         float blendFactor;
         float _padding2[2];
+    };
+
+    struct SpriteInstanceData
+    {
+        glm::vec2 position;
+        glm::vec2 size;
+        glm::vec2 texCoord;
+        glm::vec2 texSize;
     };
 
     struct Camera
@@ -161,6 +173,8 @@ namespace Vultron
     constexpr uint32_t c_maxBones = 256;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
 
+    constexpr uint32_t c_maxSpriteInstances = 1024;
+
     class VulkanRenderer
     {
     private:
@@ -185,11 +199,12 @@ namespace Vultron
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
         VulkanMaterialPipeline m_staticShadowPipeline;
-        VkDescriptorSetLayout m_descriptorSetLayout;
+        VkDescriptorSetLayout m_staticSetLayout;
 
         VulkanShader m_staticShadowVertexShader;
         VulkanShader m_skeletalShadowVertexShader;
         VulkanShader m_shadowFragmentShader;
+        VkDescriptorSetLayout m_spriteSetLayout;
 
         // Skeletal pipeline
         VulkanMaterialPipeline m_skeletalPipeline;
@@ -203,6 +218,12 @@ namespace Vultron
         // -- GPU to CPU resources
         VulkanBuffer m_skeletalInstanceBuffer;
         VulkanBuffer m_animationInstanceBuffer;
+
+        // Sprite pipeline
+        VulkanMaterialPipeline m_spritePipeline;
+        VulkanQuadMesh m_spriteQuadMesh = {};
+        VulkanShader m_spriteVertexShader;
+        VulkanShader m_spriteFragmentShader;
 
         // Material instance resources
         UniformBufferData m_uniformBufferData{};
@@ -266,9 +287,21 @@ namespace Vultron
         bool InitializeDebugMessenger();
 
         // Command buffer
-        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches);
+        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches, const std::vector<RenderBatch> &spriteBatches);
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize);
+
+        template <typename MeshType>
+        MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
+        {
+            return m_resourcePool.GetMeshDrawInfo<MeshType>(id);
+        }
+
+        template <>
+        MeshDrawInfo GetMeshDrawInfo<VulkanQuadMesh>(RenderHandle id) const
+        {
+            return m_spriteQuadMesh.GetDrawInfo();
+        }
 
     public:
         VulkanRenderer() = default;
@@ -276,7 +309,7 @@ namespace Vultron
 
         bool Initialize(const Window &window);
         void PostInitialize();
-        void Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances);
+        void Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances, const std::vector<RenderBatch> &spriteBatches, const std::vector<SpriteInstanceData> &spriteInstances);
         void Shutdown();
 
         void SetCamera(const Camera &camera) { m_camera = camera; }
@@ -284,6 +317,8 @@ namespace Vultron
 
         const std::vector<SkeletonBone> &GetBones() const { return m_bones; }
         const std::vector<AnimationFrame> &GetAnimationFrames() const { return m_animationFrames; }
+        const glm::mat4 &GetProjectionMatrix() const { return m_uniformBufferData.proj; }
+        const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
 
         RenderHandle LoadMesh(const std::string &filepath);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
@@ -298,6 +333,19 @@ namespace Vultron
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_staticPipeline,
+                {
+                    bindings,
+                });
+
+            return m_resourcePool.AddMaterialInstance(materialInstance);
+        }
+
+        template <>
+        RenderHandle CreateMaterial(const SpriteMaterial &materialCreateInfo)
+        {
+            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            auto materialInstance = VulkanMaterialInstance::Create(
+                m_context, m_descriptorPool, m_spritePipeline,
                 {
                     bindings,
                 });

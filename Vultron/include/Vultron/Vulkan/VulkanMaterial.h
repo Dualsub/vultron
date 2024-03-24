@@ -24,12 +24,12 @@ namespace Vultron
     private:
         VulkanShader m_vertexShader{};
         VulkanShader m_fragmentShader{};
-        VkPipeline m_pipeline{ VK_NULL_HANDLE };
-        VkPipelineLayout m_pipelineLayout{ VK_NULL_HANDLE };
-        VkDescriptorSetLayout m_descriptorSetLayout{ VK_NULL_HANDLE };
+        VkPipeline m_pipeline{VK_NULL_HANDLE};
+        VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
+        VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, bool depthTestEnable);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -48,6 +48,7 @@ namespace Vultron
             const std::vector<DescriptorSetLayoutBinding> &bindings;
             const VertexDescription &vertexDescription = StaticMeshVertex::GetVertexDescription();
             CullMode cullMode = CullMode::Back;
+            bool depthTestEnable = true;
         };
 
         static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);

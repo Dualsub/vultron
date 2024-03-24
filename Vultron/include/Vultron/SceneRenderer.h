@@ -27,6 +27,12 @@ namespace Vultron
         std::vector<struct SkeletalInstanceData> instances = {};
     };
 
+    struct InstancedSpriteRenderJob
+    {
+        RenderHandle material = {};
+        std::vector<struct SpriteInstanceData> instances = {};
+    };
+
     /* Idea: Frontend renderer idea: Take in render jobs */
     class SceneRenderer
     {
@@ -34,6 +40,7 @@ namespace Vultron
         VulkanRenderer m_backend;
         std::map<uint64_t, InstancedStaticRenderJob> m_staticJobs;
         std::map<uint64_t, InstancedSkeletalRenderJob> m_skeletalJobs;
+        std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
         std::vector<AnimationInstanceData> m_animationInstances;
 
     public:
@@ -45,6 +52,7 @@ namespace Vultron
         void BeginFrame();
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
+        void SubmitRenderJob(const SpriteRenderJob &job);
         void EndFrame();
         void Shutdown();
 
@@ -61,6 +69,8 @@ namespace Vultron
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
         // NOTE: Expensive
         glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex);
+        glm::mat4 GetProjectionMatrix() const { return m_backend.GetProjectionMatrix(); }
+        glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }
 
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);

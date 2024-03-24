@@ -18,6 +18,7 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
+        m_spriteJobs.clear();
     }
 
     void SceneRenderer::SubmitRenderJob(const StaticRenderJob &job)
@@ -74,6 +75,23 @@ namespace Vultron
         }
     }
 
+    void SceneRenderer::SubmitRenderJob(const SpriteRenderJob &job)
+    {
+        uint64_t hash = job.GetHash();
+
+        if (m_spriteJobs.find(hash) == m_spriteJobs.end())
+        {
+            m_spriteJobs.insert({hash, InstancedSpriteRenderJob{job.material, {}}});
+        }
+
+        m_spriteJobs[hash].instances.push_back(SpriteInstanceData{
+            .position = job.position,
+            .size = job.size,
+            .texCoord = job.texCoord,
+            .texSize = job.texSize,
+        });
+    }
+
     void SceneRenderer::EndFrame()
     {
         std::vector<glm::mat4> staticInstances;
@@ -104,7 +122,21 @@ namespace Vultron
             skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
-        m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances);
+        std::vector<SpriteInstanceData> spriteInstances;
+        std::vector<RenderBatch> spriteBatches;
+
+        for (auto &job : m_spriteJobs)
+        {
+            spriteBatches.push_back({
+                .mesh = {},
+                .material = job.second.material,
+                .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
+                .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
+            });
+            spriteInstances.insert(spriteInstances.end(), job.second.instances.begin(), job.second.instances.end());
+        }
+
+        m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances, spriteBatches, spriteInstances);
     }
 
     SceneRenderer::AnimationTiming SceneRenderer::GetAnimationTiming(const RenderHandle &animation, float time, bool loop) const

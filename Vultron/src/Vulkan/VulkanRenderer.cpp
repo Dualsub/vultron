@@ -278,7 +278,7 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorSetLayout()
     {
-        m_descriptorSetLayout = VkInit::CreateDescriptorSetLayout(
+        m_staticSetLayout = VkInit::CreateDescriptorSetLayout(
             m_context.GetDevice(),
             {{
                  // Scene data
@@ -340,6 +340,16 @@ namespace Vultron
                 },
             });
 
+        m_spriteSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+            });
+
         return true;
     }
 
@@ -376,7 +386,7 @@ namespace Vultron
             {
                 .vertexShader = m_staticVertexShader,
                 .fragmentShader = m_fragmentShader,
-                .sceneDescriptorSetLayout = m_descriptorSetLayout,
+                .sceneDescriptorSetLayout = m_staticSetLayout,
                 .bindings = materialBindings,
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
             });
@@ -402,7 +412,7 @@ namespace Vultron
             {
                 .vertexShader = m_staticShadowVertexShader,
                 .fragmentShader = m_shadowFragmentShader,
-                .sceneDescriptorSetLayout = m_descriptorSetLayout,
+                .sceneDescriptorSetLayout = m_staticSetLayout,
                 .bindings = {},
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
@@ -417,6 +427,28 @@ namespace Vultron
                 .bindings = {},
                 .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
+            });
+
+        // Sprite
+        m_spriteVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.vert.spv"});
+        m_spriteFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.frag.spv"});
+
+        m_spritePipeline = VulkanMaterialPipeline::Create(
+            m_context, m_renderPass,
+            {
+                .vertexShader = m_spriteVertexShader,
+                .fragmentShader = m_spriteFragmentShader,
+                .sceneDescriptorSetLayout = m_spriteSetLayout,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+                .vertexDescription = SpriteVertex::GetVertexDescription(),
+                .cullMode = CullMode::Front,
+                .depthTestEnable = false,
             });
 
         return true;
@@ -634,6 +666,7 @@ namespace Vultron
         constexpr size_t instancesSize = sizeof(InstanceData) * c_maxInstances;
         constexpr size_t skeletalInstancesSize = sizeof(SkeletalInstanceData) * c_maxSkeletalInstances;
         constexpr size_t animationInstancesSize = sizeof(AnimationInstanceData) * c_maxAnimationInstances;
+        constexpr size_t spriteInstancesSize = sizeof(SpriteInstanceData) * c_maxSpriteInstances;
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &instanceBuffer = m_frames[i].staticInstanceBuffer;
@@ -647,6 +680,10 @@ namespace Vultron
             VulkanBuffer &animationInstanceBuffer = m_frames[i].animationInstanceBuffer;
             animationInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             animationInstanceBuffer.Map(m_context.GetAllocator());
+
+            VulkanBuffer &spriteInstanceBuffer = m_frames[i].spriteInstanceBuffer;
+            spriteInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = spriteInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            spriteInstanceBuffer.Map(m_context.GetAllocator());
         }
 
         return true;
@@ -698,7 +735,7 @@ namespace Vultron
                 },
             };
 
-            m_frames[i].staticDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_descriptorSetLayout, bindings);
+            m_frames[i].staticDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_staticSetLayout, bindings);
 
             bindings = {
                 {
@@ -741,6 +778,17 @@ namespace Vultron
             };
 
             m_frames[i].skeletalDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skeletalSetLayout, bindings);
+
+            bindings = {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_frames[i].spriteInstanceBuffer.GetBuffer(),
+                    .size = m_frames[i].spriteInstanceBuffer.GetSize(),
+                },
+            };
+
+            m_frames[i].spriteDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_spriteSetLayout, bindings);
         }
 
         return true;
@@ -760,6 +808,7 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeTestResources()
     {
+        m_spriteQuadMesh = VulkanQuadMesh::Create(m_context, m_commandPool);
         return true;
     }
 
@@ -796,7 +845,7 @@ namespace Vultron
         // InitializeCommandBuffer();
     }
 
-    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches)
+    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches, const std::vector<RenderBatch> &spriteBatches)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -853,6 +902,7 @@ namespace Vultron
 
             DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches, viewportSize);
             DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches, viewportSize);
+            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, spriteBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -862,6 +912,11 @@ namespace Vultron
     template <typename MeshType>
     void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize)
     {
+        if (batches.empty())
+        {
+            return;
+        }
+
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
 
         VkViewport viewport{};
@@ -883,7 +938,7 @@ namespace Vultron
 
         for (const auto &batch : batches)
         {
-            MeshDrawInfo mesh = m_resourcePool.GetMeshDrawInfo<MeshType>(batch.mesh);
+            MeshDrawInfo mesh = GetMeshDrawInfo<MeshType>(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
             VkBuffer vertexBuffers[] = {mesh.vertexBuffer};
@@ -901,7 +956,7 @@ namespace Vultron
         }
     }
 
-    void VulkanRenderer::Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances)
+    void VulkanRenderer::Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances, const std::vector<RenderBatch> &spriteBatches, const std::vector<SpriteInstanceData> &spriteInstances)
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
         const uint32_t currentFrame = m_currentFrameIndex;
@@ -913,7 +968,7 @@ namespace Vultron
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
-        WriteCommandBuffer(frame.commandBuffer, imageIndex, staticBatches, skeletalBatches);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex, staticBatches, skeletalBatches, spriteBatches);
 
         static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
         const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -928,6 +983,7 @@ namespace Vultron
         ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.viewPos = viewPos;
         ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
+        m_uniformBufferData = ubo;
 
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
@@ -942,6 +998,10 @@ namespace Vultron
         // Animation instance buffer
         const size_t animationSize = sizeof(AnimationInstanceData) * animationInstances.size();
         frame.animationInstanceBuffer.CopyData(animationInstances.data(), animationSize);
+
+        // Sprite instance buffer
+        const size_t spriteSize = sizeof(SpriteInstanceData) * spriteInstances.size();
+        frame.spriteInstanceBuffer.CopyData(spriteInstances.data(), spriteSize);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -981,6 +1041,8 @@ namespace Vultron
     {
         vkDeviceWaitIdle(m_context.GetDevice());
 
+        m_spriteQuadMesh.Destroy(m_context);
+
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].imageAvailableSemaphore, nullptr);
@@ -1000,6 +1062,9 @@ namespace Vultron
 
             m_frames[i].animationInstanceBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].animationInstanceBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].spriteInstanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].spriteInstanceBuffer.Destroy(m_context.GetAllocator());
         }
 
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
@@ -1014,12 +1079,15 @@ namespace Vultron
         m_staticShadowVertexShader.Destroy(m_context);
         m_skeletalShadowVertexShader.Destroy(m_context);
         m_shadowFragmentShader.Destroy(m_context);
+        m_spriteVertexShader.Destroy(m_context);
+        m_spriteFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_descriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_staticSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_spriteSetLayout, nullptr);
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
@@ -1030,6 +1098,7 @@ namespace Vultron
         m_skeletalPipeline.Destroy(m_context);
         m_staticShadowPipeline.Destroy(m_context);
         m_skeletalShadowPipeline.Destroy(m_context);
+        m_spritePipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

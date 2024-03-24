@@ -29,7 +29,7 @@ def main():
     args = parser.parse_args()
 
     image = Image.open(args.input)
-    if image.mode == "RGB":
+    if image.mode == "RGB" or image.mode == "P":
         image = image.convert("RGBA")
 
     if args.flip:
@@ -48,7 +48,7 @@ def main():
     elif image.mode == "RGB":
         numChannels = 3
 
-    assert numChannels > 0, "Unsupported image mode"
+    assert numChannels > 0, "Unsupported image mode: " + image.mode
 
     mipmaps = generate_mipmaps(image, mipmapLevels)
     with open(args.output, "wb") as f:

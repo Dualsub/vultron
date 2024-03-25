@@ -137,6 +137,7 @@ namespace Vultron
         glm::vec2 size;
         glm::vec2 texCoord;
         glm::vec2 texSize;
+        glm::vec4 color;
     };
 
     struct Camera

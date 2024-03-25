@@ -75,6 +75,7 @@ namespace Vultron
         glm::vec2 size = {};
         glm::vec2 texCoord = glm::vec2(0.0f);
         glm::vec2 texSize = glm::vec2(1.0f);
+        glm::vec4 color = glm::vec4(1.0f);
 
         // Compute hash of mesh and texture
         uint64_t GetHash() const

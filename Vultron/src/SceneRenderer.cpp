@@ -89,6 +89,7 @@ namespace Vultron
             .size = job.size,
             .texCoord = job.texCoord,
             .texSize = job.texSize,
+            .color = job.color,
         });
     }
 

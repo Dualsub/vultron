@@ -20,6 +20,7 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanRenderPass.cpp
     src/Vulkan/VulkanResourcePool.cpp
     src/Vulkan/VulkanSprite.cpp
+    src/Vulkan/VulkanFontAtlas.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

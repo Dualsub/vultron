@@ -140,6 +140,20 @@ namespace Vultron
         m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances, spriteBatches, spriteInstances);
     }
 
+    std::vector<FontGlyph> SceneRenderer::GetTextGlyphs(const RenderHandle &font, const std::string &text) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &fontAtlas = rp.GetFontAtlas(font);
+
+        std::vector<FontGlyph> glyphs;
+        for (char c : text)
+        {
+            glyphs.push_back(fontAtlas.GetGlyph(c));
+        }
+
+        return glyphs;
+    }
+
     SceneRenderer::AnimationTiming SceneRenderer::GetAnimationTiming(const RenderHandle &animation, float time, bool loop) const
     {
         const auto &rp = m_backend.GetResourcePool();
@@ -269,6 +283,11 @@ namespace Vultron
     RenderHandle SceneRenderer::LoadImage(const std::string &path)
     {
         return m_backend.LoadImage(path);
+    }
+
+    RenderHandle SceneRenderer::LoadFontAtlas(const std::string &path)
+    {
+        return m_backend.LoadFontAtlas(path);
     }
 
     RenderHandle SceneRenderer::LoadAnimation(const std::string &path)

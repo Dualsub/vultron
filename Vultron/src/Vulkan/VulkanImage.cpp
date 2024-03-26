@@ -13,6 +13,27 @@
 
 namespace Vultron
 {
+    std::vector<MipInfo> VulkanImage::ReadMipsFromFile(std::fstream &file, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel)
+    {
+        struct MipLevelHeader
+        {
+            uint32_t width;
+            uint32_t height;
+        } mipLevelHeader;
+
+        std::vector<MipInfo> mips;
+        mips.reserve(numMipLevels);
+        for (uint32_t i = 0; i < numMipLevels; i++)
+        {
+            file.read(reinterpret_cast<char *>(&mipLevelHeader), sizeof(mipLevelHeader));
+            std::unique_ptr<uint8_t> data = std::unique_ptr<uint8_t>(new uint8_t[mipLevelHeader.width * mipLevelHeader.height * numChannels * numBytesPerChannel]);
+            file.read(reinterpret_cast<char *>(data.get()), mipLevelHeader.width * mipLevelHeader.height * numChannels * numBytesPerChannel);
+            mips.push_back({.width = mipLevelHeader.width, .height = mipLevelHeader.height, .depth = 1, .mipLevel = i, .data = std::move(data)});
+        }
+
+        return mips;
+    }
+
     VulkanImage VulkanImage::Create(const ImageCreateInfo &createInfo)
     {
         VkImageCreateInfo imageInfo{};
@@ -79,25 +100,11 @@ namespace Vultron
         } header;
 
         file.seekg(0);
+
         file.read(reinterpret_cast<char *>(&header), sizeof(header));
 
         header.numMipLevels = std::clamp(header.numMipLevels, 1u, 10u);
-
-        struct MipLevelHeader
-        {
-            uint32_t width;
-            uint32_t height;
-        } mipLevelHeader;
-
-        std::vector<MipInfo> mips;
-        mips.reserve(header.numMipLevels);
-        for (uint32_t i = 0; i < header.numMipLevels; i++)
-        {
-            file.read(reinterpret_cast<char *>(&mipLevelHeader), sizeof(mipLevelHeader));
-            uint8_t *data = new uint8_t[mipLevelHeader.width * mipLevelHeader.height * header.numChannels * header.numBytesPerChannel];
-            file.read(reinterpret_cast<char *>(data), mipLevelHeader.width * mipLevelHeader.height * header.numChannels * header.numBytesPerChannel);
-            mips.push_back({.width = mipLevelHeader.width, .height = mipLevelHeader.height, .depth = 1, .mipLevel = i, .data = data});
-        }
+        std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
 
         file.close();
 
@@ -114,11 +121,6 @@ namespace Vultron
                  .format = createInfo.format}});
 
         image.UploadData(createInfo.device, createInfo.allocator, createInfo.commandPool, createInfo.queue, mips);
-
-        for (const MipInfo &mip : mips)
-        {
-            delete[] reinterpret_cast<uint8_t *>(mip.data);
-        }
 
         return image;
     }
@@ -142,7 +144,7 @@ namespace Vultron
             const MipInfo &mip = mips[i];
             const size_t imageSize = mip.width * mip.height * 4 * sizeof(uint8_t); // Doing it like this for now.
             VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = imageSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
-            stagingBuffer.Write(allocator, mip.data, imageSize);
+            stagingBuffer.Write(allocator, mip.data.get(), imageSize);
 
             VkUtil::CopyBufferToImage(
                 device,

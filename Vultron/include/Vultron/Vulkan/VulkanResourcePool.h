@@ -6,6 +6,7 @@
 #include "Vultron/Vulkan/VulkanMesh.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMaterial.h"
+#include "Vultron/Vulkan/VulkanFontAtlas.h"
 
 #include <unordered_map>
 
@@ -19,6 +20,7 @@ namespace Vultron
         std::unordered_map<RenderHandle, VulkanImage> m_images;
         std::unordered_map<RenderHandle, VulkanMaterialInstance> m_materialInstances;
         std::unordered_map<RenderHandle, VulkanAnimation> m_animations;
+        std::unordered_map<RenderHandle, VulkanFontAtlas> m_fontAtlases;
 
         RenderHandle m_handleCounter = 0;
 
@@ -56,11 +58,18 @@ namespace Vultron
             return m_handleCounter++;
         }
 
+        RenderHandle AddFontAtlas(const VulkanFontAtlas &fontAtlas)
+        {
+            m_fontAtlases.insert({m_handleCounter, fontAtlas});
+            return m_handleCounter++;
+        }
+
         const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
         const VulkanSkeletalMesh &GetSkeletalMesh(RenderHandle id) const { return m_skeletalMeshes.at(id); }
         const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
         const VulkanMaterialInstance &GetMaterialInstance(RenderHandle id) const { return m_materialInstances.at(id); }
         const VulkanAnimation &GetAnimation(RenderHandle id) const { return m_animations.at(id); }
+        const VulkanFontAtlas &GetFontAtlas(RenderHandle id) const { return m_fontAtlases.at(id); }
 
         template <typename T>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
@@ -106,6 +115,13 @@ namespace Vultron
             }
 
             m_images.clear();
+
+            for (auto &fontAtlas : m_fontAtlases)
+            {
+                fontAtlas.second.Destroy(context);
+            }
+
+            m_fontAtlases.clear();
 
             m_animations.clear();
         }

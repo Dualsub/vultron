@@ -50,6 +50,24 @@ namespace Vultron
         }
     };
 
+    struct FontSpriteMaterial
+    {
+        RenderHandle fontAtlas;
+
+        std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
+        {
+            const auto &atlas = pool.GetFontAtlas(fontAtlas);
+            return {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = atlas.GetAtlas().GetImageView(),
+                    .sampler = sampler,
+                },
+            };
+        }
+    };
+
     struct PBRMaterial
     {
         RenderHandle albedo;
@@ -325,6 +343,7 @@ namespace Vultron
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
+        RenderHandle LoadFontAtlas(const std::string &filepath);
 
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 
@@ -343,6 +362,19 @@ namespace Vultron
 
         template <>
         RenderHandle CreateMaterial(const SpriteMaterial &materialCreateInfo)
+        {
+            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            auto materialInstance = VulkanMaterialInstance::Create(
+                m_context, m_descriptorPool, m_spritePipeline,
+                {
+                    bindings,
+                });
+
+            return m_resourcePool.AddMaterialInstance(materialInstance);
+        }
+
+        template <>
+        RenderHandle CreateMaterial(const FontSpriteMaterial &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(

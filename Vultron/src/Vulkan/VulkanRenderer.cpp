@@ -1150,4 +1150,9 @@ namespace Vultron
 
         return m_resourcePool.AddImage(std::move(image));
     }
+
+    RenderHandle VulkanRenderer::LoadFontAtlas(const std::string &filepath)
+    {
+        return m_resourcePool.AddFontAtlas(VulkanFontAtlas::CreateFromFile(m_context, m_commandPool, {.filepath = filepath}));
+    }
 }

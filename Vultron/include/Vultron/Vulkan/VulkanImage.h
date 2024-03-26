@@ -27,17 +27,21 @@ namespace Vultron
         uint32_t height = 0;
         uint32_t depth = 0;
         uint32_t mipLevel = 0;
-        void *data = nullptr;
+        std::unique_ptr<uint8_t> data;
     };
 
     class VulkanImage
     {
     public:
+        friend class VulkanFontAtlas;
+
     private:
         VkImage m_image{VK_NULL_HANDLE};
         VkImageView m_imageView{VK_NULL_HANDLE};
         VmaAllocation m_allocation{VK_NULL_HANDLE};
         ImageInfo m_info{};
+
+        static std::vector<MipInfo> ReadMipsFromFile(std::fstream &file, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel);
 
     public:
         VulkanImage(VkImage image, VkImageView imageView, VmaAllocation allocation, const ImageInfo &info)

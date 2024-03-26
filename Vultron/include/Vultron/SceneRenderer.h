@@ -66,9 +66,14 @@ namespace Vultron
             float duration = 0.0f;
         };
 
+        // Font stuff
+        std::vector<FontGlyph> GetTextGlyphs(const RenderHandle &font, const std::string &text) const;
+
+        // Animation stuff
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
-        // NOTE: Expensive
+        // --NOTE: Expensive
         glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex);
+
         glm::mat4 GetProjectionMatrix() const { return m_backend.GetProjectionMatrix(); }
         glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }
 
@@ -78,6 +83,7 @@ namespace Vultron
         RenderHandle LoadMesh(const std::string &path);
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path);
+        RenderHandle LoadFontAtlas(const std::string &path);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
         RenderHandle CreateMaterial(const T &materialCreateInfo)

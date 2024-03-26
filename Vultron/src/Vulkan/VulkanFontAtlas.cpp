@@ -53,6 +53,7 @@ namespace Vultron
             file.read(reinterpret_cast<char *>(&glyph.character), sizeof(glyph.character));
             file.read(reinterpret_cast<char *>(&glyph.uvOffset), sizeof(glyph.uvOffset));
             file.read(reinterpret_cast<char *>(&glyph.uvExtent), sizeof(glyph.uvExtent));
+            file.read(reinterpret_cast<char *>(&glyph.aspectRatio), sizeof(glyph.aspectRatio));
 
             glpyhs[glyph.character] = glyph;
         }

@@ -13,6 +13,7 @@ namespace Vultron
         char character;
         glm::vec2 uvOffset;
         glm::vec2 uvExtent;
+        float aspectRatio;
     };
 
     class VulkanFontAtlas

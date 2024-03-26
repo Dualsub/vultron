@@ -11,6 +11,7 @@ class FontInfo:
     char: str
     uvPos: Tuple[int, int]
     uvSize: Tuple[int, int]
+    aspectRatio: float = 1.0
 
 def get_char_width(font, char):
     (width, baseline), (offset_x, offset_y) = font.font.getsize(char)
@@ -25,9 +26,11 @@ def create_image(font_path, font_size):
     font_height = ascent + descent
     print("font_height: ", font_height)
 
-    # Draw ASCII characters A-Z and 0-9
-    chars = [chr(i) for i in range(65, 91)] + [chr(i) for i in range(48, 58)]
+    # Draw ASCII characters
+    chars = [chr(i) for i in range(32, 127)]
     char_widths = [get_char_width(font, char) for char in chars]
+
+    print(list(zip(chars, char_widths)))
 
     # Create an image canvas. Adjust the size as needed
     image_size = (sum(char_widths), font_height)
@@ -44,7 +47,7 @@ def create_image(font_path, font_size):
         draw.text((start_position, 0), char, fill=(255, 255, 255, 255), font=font)
         # draw.rectangle([start_position, 0, start_position + char_width, font_height], outline=(255, 255, 255, 255))
         
-        font_info.append(FontInfo(char, (start_position / image_size[0], 0), (char_width / image_size[0], font_height / image_size[1])))
+        font_info.append(FontInfo(char, (start_position / image_size[0], 0), (char_width / image_size[0], font_height / image_size[1]), char_width / font_height))
         start_position += char_width
 
     return image, font_info
@@ -65,6 +68,7 @@ def pack_font_atlas(image, font_info, numMipLevels, output_path):
             f.write(struct.pack("c", info.char.encode("ascii")))
             f.write(struct.pack("ff", *info.uvPos))
             f.write(struct.pack("ff", *info.uvSize))
+            f.write(struct.pack("f", info.aspectRatio))
 
 
 

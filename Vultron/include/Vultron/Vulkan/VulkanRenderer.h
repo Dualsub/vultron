@@ -166,15 +166,15 @@ namespace Vultron
 
     struct UniformBufferData
     {
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::vec3 viewPos;
+        glm::mat4 view = glm::mat4(1.0f);
+        glm::mat4 proj = glm::mat4(1.0f);
+        glm::vec3 viewPos = glm::vec3(0.0f);
         float _padding1;
-        glm::vec3 lightDir;
+        glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
         float _padding2;
-        glm::vec3 lightColor;
+        glm::vec3 lightColor = glm::vec3(1.0f);
         float _padding3;
-        glm::mat4 lightViewProjection;
+        glm::mat4 lightViewProjection = glm::mat4(1.0f);
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);

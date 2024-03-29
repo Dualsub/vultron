@@ -5,7 +5,9 @@ namespace Vultron
 
     bool SceneRenderer::Initialize(const Window &window)
     {
-        return m_backend.Initialize(window);
+        bool success = m_backend.Initialize(window);
+        m_quadMesh = m_backend.LoadQuad();
+        return success;
     }
 
     void SceneRenderer::PostInitialize()

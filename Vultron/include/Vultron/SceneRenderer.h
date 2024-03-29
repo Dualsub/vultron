@@ -43,6 +43,8 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
         std::vector<AnimationInstanceData> m_animationInstances;
 
+        RenderHandle m_quadMesh = {};
+
     public:
         SceneRenderer() = default;
         ~SceneRenderer() = default;
@@ -80,6 +82,7 @@ namespace Vultron
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);
 
+        RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path);

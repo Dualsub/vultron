@@ -1127,6 +1127,28 @@ namespace Vultron
         return m_resourcePool.AddMesh(std::move(mesh));
     }
 
+    RenderHandle VulkanRenderer::LoadQuad()
+    {
+        std::vector<StaticMeshVertex> vertices = {
+            {.position = {-1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
+            {.position = {1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 0.0f}},
+            {.position = {1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 1.0f}},
+            {.position = {-1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 1.0f}},
+        };
+
+        std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};
+
+        VulkanMesh mesh = VulkanMesh::Create({
+            .device = m_context.GetDevice(),
+            .commandPool = m_commandPool,
+            .queue = m_context.GetGraphicsQueue(),
+            .allocator = m_context.GetAllocator(),
+            .vertices = vertices,
+            .indices = indices,
+        });
+        return m_resourcePool.AddMesh(std::move(mesh));
+    }
+
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
         VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});

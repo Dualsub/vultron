@@ -340,6 +340,7 @@ namespace Vultron
         const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
 
         RenderHandle LoadMesh(const std::string &filepath);
+        RenderHandle LoadQuad();
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);

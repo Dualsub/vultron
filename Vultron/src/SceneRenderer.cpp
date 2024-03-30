@@ -28,7 +28,7 @@ namespace Vultron
         uint64_t hash = job.GetHash();
         if (m_staticJobs.find(hash) == m_staticJobs.end())
         {
-            m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
+            m_staticJobs.insert({ hash, InstancedStaticRenderJob{job.mesh, job.material, {}} });
         }
 
         m_staticJobs[hash].transforms.push_back(job.transform);
@@ -39,13 +39,23 @@ namespace Vultron
         uint64_t hash = job.GetHash();
         if (m_skeletalJobs.find(hash) == m_skeletalJobs.end())
         {
-            m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}}});
+            m_skeletalJobs.insert({ hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}} });
         }
 
         auto &instancedJob = m_skeletalJobs[hash];
 
+        // Filter out animations with 0 blend factor
+        std::vector<AnimationInstance> animations;
+        for (const auto &animation : job.animations)
+        {
+            if (animation.blendFactor > 0.0f)
+            {
+                animations.push_back(animation);
+            }
+        }
+
         int32_t animationOffset = static_cast<int32_t>(m_animationInstances.size());
-        int32_t animationCount = static_cast<int32_t>(job.animations.size());
+        int32_t animationCount = static_cast<int32_t>(animations.size());
 
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(job.mesh);
@@ -63,7 +73,7 @@ namespace Vultron
 
         instancedJob.instances.push_back(instance);
 
-        for (const auto &animation : job.animations)
+        for (const auto &animation : animations)
         {
             const auto &a = rp.GetAnimation(animation.animation);
             const int32_t frameOffset = static_cast<int32_t>(a.GetFrameOffset());
@@ -73,7 +83,7 @@ namespace Vultron
                 .frame2 = static_cast<int32_t>(animation.frame2),
                 .timeFactor = animation.frameBlendFactor,
                 .blendFactor = animation.blendFactor,
-            });
+                });
         }
     }
 
@@ -83,7 +93,7 @@ namespace Vultron
 
         if (m_spriteJobs.find(hash) == m_spriteJobs.end())
         {
-            m_spriteJobs.insert({hash, InstancedSpriteRenderJob{job.material, {}}});
+            m_spriteJobs.insert({ hash, InstancedSpriteRenderJob{job.material, {}} });
         }
 
         m_spriteJobs[hash].instances.push_back(SpriteInstanceData{
@@ -92,7 +102,7 @@ namespace Vultron
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
-        });
+            });
     }
 
     void SceneRenderer::EndFrame()
@@ -107,7 +117,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(staticInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.transforms.size()),
-            });
+                });
             staticInstances.insert(staticInstances.end(), job.second.transforms.begin(), job.second.transforms.end());
         }
 
@@ -121,7 +131,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(skeletalInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-            });
+                });
             skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
@@ -135,7 +145,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-            });
+                });
             spriteInstances.insert(spriteInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
@@ -196,7 +206,7 @@ namespace Vultron
 
         float frameBlendFactor = glm::clamp((newTime - frame1Time) / (frame2Time - frame1Time), 0.0f, 1.0f);
 
-        return {frame1, frame2, frameBlendFactor, newTime, anim.GetDuration()};
+        return { frame1, frame2, frameBlendFactor, newTime, anim.GetDuration() };
     }
 
     // NOTE: Expensive

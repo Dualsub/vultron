@@ -238,6 +238,11 @@ namespace Vultron
                 const float frameBlendFactor = instance.frameBlendFactor;
                 const float blendFactor = instance.blendFactor;
 
+                if (blendFactor <= 0.0f)
+                {
+                    continue;
+                }
+
                 uint32_t frame1Index = frameOffset + frame1 * mesh.GetBoneCount() + currBoneIndex;
                 uint32_t frame2Index = frameOffset + frame2 * mesh.GetBoneCount() + currBoneIndex;
 

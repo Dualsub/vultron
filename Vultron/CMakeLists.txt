@@ -33,5 +33,11 @@ target_link_libraries(Vultron PUBLIC
     stb_image
 )
 
-# Define a macro for the absolute path to the assets directory
-target_compile_definitions(Vultron PUBLIC VLT_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+# Set if not defined externally
+if(NOT DEFINED VLT_ASSET_DIR)
+    set(VLT_ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets") 
+endif()
+
+message(STATUS "VLT_ASSET_DIR: ${VLT_ASSET_DIR}")
+
+target_compile_definitions(Vultron PUBLIC VLT_ASSETS_DIR="${VLT_ASSET_DIR}")

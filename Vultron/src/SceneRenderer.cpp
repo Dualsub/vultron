@@ -6,7 +6,7 @@ namespace Vultron
     bool SceneRenderer::Initialize(const Window &window)
     {
         bool success = m_backend.Initialize(window);
-        m_quadMesh = m_backend.LoadQuad();
+        m_quadMesh = m_backend.LoadQuad("quad");
         return success;
     }
 
@@ -28,7 +28,7 @@ namespace Vultron
         uint64_t hash = job.GetHash();
         if (m_staticJobs.find(hash) == m_staticJobs.end())
         {
-            m_staticJobs.insert({ hash, InstancedStaticRenderJob{job.mesh, job.material, {}} });
+            m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
         }
 
         m_staticJobs[hash].transforms.push_back(job.transform);
@@ -39,7 +39,7 @@ namespace Vultron
         uint64_t hash = job.GetHash();
         if (m_skeletalJobs.find(hash) == m_skeletalJobs.end())
         {
-            m_skeletalJobs.insert({ hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}} });
+            m_skeletalJobs.insert({hash, InstancedSkeletalRenderJob{job.mesh, job.material, {}}});
         }
 
         auto &instancedJob = m_skeletalJobs[hash];
@@ -83,7 +83,7 @@ namespace Vultron
                 .frame2 = static_cast<int32_t>(animation.frame2),
                 .timeFactor = animation.frameBlendFactor,
                 .blendFactor = animation.blendFactor,
-                });
+            });
         }
     }
 
@@ -93,7 +93,7 @@ namespace Vultron
 
         if (m_spriteJobs.find(hash) == m_spriteJobs.end())
         {
-            m_spriteJobs.insert({ hash, InstancedSpriteRenderJob{job.material, {}} });
+            m_spriteJobs.insert({hash, InstancedSpriteRenderJob{job.material, {}}});
         }
 
         m_spriteJobs[hash].instances.push_back(SpriteInstanceData{
@@ -102,7 +102,7 @@ namespace Vultron
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
-            });
+        });
     }
 
     void SceneRenderer::EndFrame()
@@ -117,7 +117,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(staticInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.transforms.size()),
-                });
+            });
             staticInstances.insert(staticInstances.end(), job.second.transforms.begin(), job.second.transforms.end());
         }
 
@@ -131,7 +131,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(skeletalInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-                });
+            });
             skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
@@ -145,7 +145,7 @@ namespace Vultron
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-                });
+            });
             spriteInstances.insert(spriteInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
@@ -206,7 +206,7 @@ namespace Vultron
 
         float frameBlendFactor = glm::clamp((newTime - frame1Time) / (frame2Time - frame1Time), 0.0f, 1.0f);
 
-        return { frame1, frame2, frameBlendFactor, newTime, anim.GetDuration() };
+        return {frame1, frame2, frameBlendFactor, newTime, anim.GetDuration()};
     }
 
     // NOTE: Expensive

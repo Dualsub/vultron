@@ -1124,10 +1124,10 @@ namespace Vultron
              .allocator = m_context.GetAllocator(),
              .filepath = filepath});
 
-        return m_resourcePool.AddMesh(std::move(mesh));
+        return m_resourcePool.AddMesh(filepath, std::move(mesh));
     }
 
-    RenderHandle VulkanRenderer::LoadQuad()
+    RenderHandle VulkanRenderer::LoadQuad(const std::string &name)
     {
         std::vector<StaticMeshVertex> vertices = {
             {.position = {-1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
@@ -1146,19 +1146,20 @@ namespace Vultron
             .vertices = vertices,
             .indices = indices,
         });
-        return m_resourcePool.AddMesh(std::move(mesh));
+
+        return m_resourcePool.AddMesh(name, std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
         VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_commandPool, m_bones, {.filepath = filepath});
 
-        return m_resourcePool.AddSkeletalMesh(std::move(mesh));
+        return m_resourcePool.AddSkeletalMesh(filepath, std::move(mesh));
     }
 
     RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
     {
-        return m_resourcePool.AddAnimation(VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
+        return m_resourcePool.AddAnimation(filepath, VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
@@ -1170,11 +1171,11 @@ namespace Vultron
              .allocator = m_context.GetAllocator(),
              .filepath = filepath});
 
-        return m_resourcePool.AddImage(std::move(image));
+        return m_resourcePool.AddImage(filepath, std::move(image));
     }
 
     RenderHandle VulkanRenderer::LoadFontAtlas(const std::string &filepath)
     {
-        return m_resourcePool.AddFontAtlas(VulkanFontAtlas::CreateFromFile(m_context, m_commandPool, {.filepath = filepath}));
+        return m_resourcePool.AddFontAtlas(filepath, VulkanFontAtlas::CreateFromFile(m_context, m_commandPool, {.filepath = filepath}));
     }
 }

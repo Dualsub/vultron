@@ -89,9 +89,9 @@ namespace Vultron
         RenderHandle LoadFontAtlas(const std::string &path);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
-        RenderHandle CreateMaterial(const T &materialCreateInfo)
+        RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
         {
-            return m_backend.CreateMaterial(materialCreateInfo);
+            return m_backend.CreateMaterial(name, materialCreateInfo);
         }
     };
 

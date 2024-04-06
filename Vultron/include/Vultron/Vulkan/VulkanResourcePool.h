@@ -12,9 +12,12 @@
 
 namespace Vultron
 {
+    constexpr RenderHandle c_invalidHandle = 0;
+
     // TODO: Make generic
     class ResourcePool
     {
+    private:
         std::unordered_map<RenderHandle, VulkanMesh> m_meshes;
         std::unordered_map<RenderHandle, VulkanSkeletalMesh> m_skeletalMeshes;
         std::unordered_map<RenderHandle, VulkanImage> m_images;
@@ -22,46 +25,64 @@ namespace Vultron
         std::unordered_map<RenderHandle, VulkanAnimation> m_animations;
         std::unordered_map<RenderHandle, VulkanFontAtlas> m_fontAtlases;
 
-        RenderHandle m_handleCounter = 0;
+        static RenderHandle CreateHandle(const std::string &input)
+        {
+            uint32_t hash = 0x811c9dc5;
+            uint32_t prime = 0x1000193;
+
+            for (char c : input)
+            {
+                hash ^= c;
+                hash *= prime;
+            }
+
+            return hash;
+        }
 
     public:
         ResourcePool() = default;
         ~ResourcePool() = default;
 
-        RenderHandle AddMesh(const VulkanMesh &mesh)
+        RenderHandle AddMesh(const std::string &name, const VulkanMesh &mesh)
         {
-            m_meshes.insert({m_handleCounter, mesh});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_meshes.insert({handle, mesh});
+            return handle;
         }
 
-        RenderHandle AddSkeletalMesh(const VulkanSkeletalMesh &skeletalMesh)
+        RenderHandle AddSkeletalMesh(const std::string &name, const VulkanSkeletalMesh &skeletalMesh)
         {
-            m_skeletalMeshes.insert({m_handleCounter, skeletalMesh});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_skeletalMeshes.insert({handle, skeletalMesh});
+            return handle;
         }
 
-        RenderHandle AddImage(const VulkanImage &image)
+        RenderHandle AddImage(const std::string &name, const VulkanImage &image)
         {
-            m_images.insert({m_handleCounter, image});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_images.insert({handle, image});
+            return handle;
         }
 
-        RenderHandle AddMaterialInstance(const VulkanMaterialInstance &materialInstance)
+        RenderHandle AddMaterialInstance(const std::string &name, const VulkanMaterialInstance &materialInstance)
         {
-            m_materialInstances.insert({m_handleCounter, materialInstance});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_materialInstances.insert({handle, materialInstance});
+            return handle;
         }
 
-        RenderHandle AddAnimation(const VulkanAnimation &animation)
+        RenderHandle AddAnimation(const std::string &name, const VulkanAnimation &animation)
         {
-            m_animations.insert({m_handleCounter, animation});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_animations.insert({handle, animation});
+            return handle;
         }
 
-        RenderHandle AddFontAtlas(const VulkanFontAtlas &fontAtlas)
+        RenderHandle AddFontAtlas(const std::string &name, const VulkanFontAtlas &fontAtlas)
         {
-            m_fontAtlases.insert({m_handleCounter, fontAtlas});
-            return m_handleCounter++;
+            RenderHandle handle = CreateHandle(name);
+            m_fontAtlases.insert({handle, fontAtlas});
+            return handle;
         }
 
         const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }

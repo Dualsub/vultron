@@ -340,7 +340,7 @@ namespace Vultron
         const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
 
         RenderHandle LoadMesh(const std::string &filepath);
-        RenderHandle LoadQuad();
+        RenderHandle LoadQuad(const std::string &name);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
@@ -349,7 +349,7 @@ namespace Vultron
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 
         template <typename T>
-        RenderHandle CreateMaterial(const T &materialCreateInfo)
+        RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
@@ -358,11 +358,11 @@ namespace Vultron
                     bindings,
                 });
 
-            return m_resourcePool.AddMaterialInstance(materialInstance);
+            return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
 
         template <>
-        RenderHandle CreateMaterial(const SpriteMaterial &materialCreateInfo)
+        RenderHandle CreateMaterial(const std::string &name, const SpriteMaterial &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
@@ -371,11 +371,11 @@ namespace Vultron
                     bindings,
                 });
 
-            return m_resourcePool.AddMaterialInstance(materialInstance);
+            return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
 
         template <>
-        RenderHandle CreateMaterial(const FontSpriteMaterial &materialCreateInfo)
+        RenderHandle CreateMaterial(const std::string &name, const FontSpriteMaterial &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             auto materialInstance = VulkanMaterialInstance::Create(
@@ -384,7 +384,7 @@ namespace Vultron
                     bindings,
                 });
 
-            return m_resourcePool.AddMaterialInstance(materialInstance);
+            return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
     };
 

@@ -25,14 +25,21 @@ def main():
         "-l", "--levels", help="The number of mipmap levels to generate", default=-1, type=int)
     parser.add_argument(
         "-f", "--flip", help="Flip the image vertically", action="store_true")
+    parser.add_argument(
+        "-i", "--invert", help="Invert the image", action="store_true")
 
     args = parser.parse_args()
 
     image = Image.open(args.input)
-    if image.mode == "RGB" or image.mode == "P":
+    if image.mode == "RGB" or image.mode == "P" or image.mode == "L":
         image = image.convert("RGBA")
 
+    if args.invert:
+        print("Inverting image")
+        image = Image.eval(image, lambda x: 255 - x)
+
     if args.flip:
+        print("Flipping image vertically")
         image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
     assert args.input != args.output, "Input and output file cannot be the same"

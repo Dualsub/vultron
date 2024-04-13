@@ -46,6 +46,7 @@ namespace Vultron
         RenderHandle AddMesh(const std::string &name, const VulkanMesh &mesh)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_meshes.find(handle) == m_meshes.end() && "Mesh already exists");
             m_meshes.insert({handle, mesh});
             return handle;
         }
@@ -53,6 +54,7 @@ namespace Vultron
         RenderHandle AddSkeletalMesh(const std::string &name, const VulkanSkeletalMesh &skeletalMesh)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_skeletalMeshes.find(handle) == m_skeletalMeshes.end() && "Skeletal mesh already exists");
             m_skeletalMeshes.insert({handle, skeletalMesh});
             return handle;
         }
@@ -60,6 +62,7 @@ namespace Vultron
         RenderHandle AddImage(const std::string &name, const VulkanImage &image)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_images.find(handle) == m_images.end() && "Image already exists");
             m_images.insert({handle, image});
             return handle;
         }
@@ -67,6 +70,7 @@ namespace Vultron
         RenderHandle AddMaterialInstance(const std::string &name, const VulkanMaterialInstance &materialInstance)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_materialInstances.find(handle) == m_materialInstances.end() && "Material instance already exists");
             m_materialInstances.insert({handle, materialInstance});
             return handle;
         }
@@ -74,6 +78,7 @@ namespace Vultron
         RenderHandle AddAnimation(const std::string &name, const VulkanAnimation &animation)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_animations.find(handle) == m_animations.end() && "Animation already exists");
             m_animations.insert({handle, animation});
             return handle;
         }
@@ -81,6 +86,7 @@ namespace Vultron
         RenderHandle AddFontAtlas(const std::string &name, const VulkanFontAtlas &fontAtlas)
         {
             RenderHandle handle = CreateHandle(name);
+            assert(m_fontAtlases.find(handle) == m_fontAtlases.end() && "Font atlas already exists");
             m_fontAtlases.insert({handle, fontAtlas});
             return handle;
         }

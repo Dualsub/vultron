@@ -29,7 +29,6 @@ namespace Vultron
             m_windowHandle = glfwCreateWindow(m_width, m_height, createInfo.title.c_str(), glfwGetPrimaryMonitor(), NULL);
         }
 
-
         if (m_windowHandle == nullptr)
         {
             glfwTerminate();
@@ -50,10 +49,6 @@ namespace Vultron
     void Window::PollEvents()
     {
         glfwPollEvents();
-        if (glfwGetKey(m_windowHandle, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        {
-            glfwSetWindowShouldClose(m_windowHandle, GLFW_TRUE);
-        }
     }
 
     void Window::Shutdown()

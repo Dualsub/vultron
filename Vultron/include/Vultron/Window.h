@@ -52,6 +52,11 @@ namespace Vultron
         void Shutdown();
         bool ShouldShutdown();
 
+        void SetShouldClose(bool shouldClose)
+        {
+            glfwSetWindowShouldClose(m_windowHandle, shouldClose);
+        }
+
         std::vector<const char *> GetWindowExtensions() const;
         std::pair<uint32_t, uint32_t> GetExtent() const
         {

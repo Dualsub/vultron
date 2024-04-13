@@ -139,11 +139,12 @@ namespace Vultron
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             mipLevels);
 
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = mips[0].width * mips[0].height * 4 * sizeof(uint8_t), .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+
         for (uint32_t i = 0; i < mips.size(); i++)
         {
             const MipInfo &mip = mips[i];
             const size_t imageSize = mip.width * mip.height * 4 * sizeof(uint8_t); // Doing it like this for now.
-            VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = allocator, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = imageSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             stagingBuffer.Write(allocator, mip.data.get(), imageSize);
 
             VkUtil::CopyBufferToImage(
@@ -155,9 +156,9 @@ namespace Vultron
                 mip.width,
                 mip.height,
                 i);
-
-            stagingBuffer.Destroy(allocator);
         }
+
+        stagingBuffer.Destroy(allocator);
 
         VkUtil::TransitionImageLayout(
             device,

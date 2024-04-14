@@ -149,6 +149,9 @@ namespace Vultron
             spriteInstances.insert(spriteInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
+        // Hack to get correct rendering order
+        std::reverse(spriteBatches.begin(), spriteBatches.end());
+
         m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances, spriteBatches, spriteInstances);
     }
 

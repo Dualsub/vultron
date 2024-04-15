@@ -17,6 +17,8 @@ namespace Vultron
 
         struct Header
         {
+            uint32_t width;
+            uint32_t height;
             uint32_t numChannels;
             uint32_t numBytesPerChannel;
             uint32_t numMipLevels;
@@ -26,7 +28,9 @@ namespace Vultron
 
         file.read(reinterpret_cast<char *>(&header), sizeof(header));
 
-        std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
+        std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.width, header.height, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
+        std::vector<std::vector<MipInfo>> layers;
+        layers.push_back(std::move(mips));
 
         VulkanImage image = VulkanImage::Create(
             {.device = context.GetDevice(),
@@ -36,11 +40,10 @@ namespace Vultron
              .info = {
                  .width = static_cast<uint32_t>(mips[0].width),
                  .height = static_cast<uint32_t>(mips[0].height),
-                 .depth = 1,
                  .mipLevels = static_cast<uint32_t>(mips.size()),
                  .format = createInfo.format}});
 
-        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), mips);
+        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), layers);
 
         std::unordered_map<char, FontGlyph> glpyhs;
 

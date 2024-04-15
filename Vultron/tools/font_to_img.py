@@ -55,12 +55,12 @@ def create_image(font_path, font_size):
 def pack_font_atlas(image, font_info, numMipLevels, output_path):
     with open(output_path, "wb") as f:
         mipmaps = generate_mipmaps(image, numMipLevels)
+        f.write(struct.pack("I", image.width))
+        f.write(struct.pack("I", image.height))
         f.write(struct.pack("I", 4))
         f.write(struct.pack("I", 1))
         f.write(struct.pack("I", len(mipmaps)))
         for mipmap in mipmaps:
-            f.write(struct.pack("I", mipmap.width))
-            f.write(struct.pack("I", mipmap.height))
             f.write(mipmap.tobytes())
 
         f.write(struct.pack("I", len(font_info)))
@@ -69,8 +69,6 @@ def pack_font_atlas(image, font_info, numMipLevels, output_path):
             f.write(struct.pack("ff", *info.uvPos))
             f.write(struct.pack("ff", *info.uvSize))
             f.write(struct.pack("f", info.aspectRatio))
-
-
 
 def main():
     parser = argparse.ArgumentParser(description="Generate an image of ASCII characters in a specified font.")

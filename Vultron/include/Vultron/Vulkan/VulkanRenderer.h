@@ -122,6 +122,8 @@ namespace Vultron
 
         VulkanBuffer spriteInstanceBuffer;
         VkDescriptorSet spriteDescriptorSet;
+
+        VkDescriptorSet skyboxDescriptorSet;
     };
 
     struct InstanceData
@@ -244,6 +246,15 @@ namespace Vultron
         VulkanShader m_spriteVertexShader;
         VulkanShader m_spriteFragmentShader;
 
+        // Skybox
+        VkSampler m_cubemapSampler;
+        VulkanImage m_skyboxImage;
+        VkDescriptorSetLayout m_skyboxSetLayout;
+        VulkanMaterialPipeline m_skyboxPipeline;
+        VulkanShader m_skyboxVertexShader;
+        VulkanShader m_skyboxFragmentShader;
+        VulkanMesh m_skyboxMesh;
+
         // Material instance resources
         UniformBufferData m_uniformBufferData{};
         VulkanImage m_depthImage;
@@ -297,7 +308,7 @@ namespace Vultron
         bool InitializeDescriptorSets();
 
         // Assets, will be removed in the future
-        bool InitializeTestResources();
+        bool InitializeResources();
 
         // Swapchain
         void RecreateSwapchain(uint32_t width, uint32_t height);
@@ -309,6 +320,7 @@ namespace Vultron
         void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches, const std::vector<RenderBatch> &spriteBatches);
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize);
+        void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
 
         template <typename MeshType>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const

@@ -139,29 +139,34 @@ namespace Vultron::VkUtil
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }
 
-    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height, uint32_t mipLevel)
+    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, const std::vector<BufferToImageRegion> &regions)
     {
         VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
 
-        VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
+        std::vector<VkBufferImageCopy> vkRegions(regions.size());
 
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = mipLevel;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
+        for (size_t i = 0; i < regions.size(); i++)
+        {
+            const BufferToImageRegion &region = regions[i];
+            vkRegions[i].bufferOffset = 0;
+            vkRegions[i].bufferRowLength = 0;
+            vkRegions[i].bufferImageHeight = 0;
 
-        region.imageOffset = {0, 0, 0};
-        region.imageExtent = {width, height, 1};
+            vkRegions[i].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            vkRegions[i].imageSubresource.mipLevel = region.mipLevel;
+            vkRegions[i].imageSubresource.baseArrayLayer = region.layer;
+            vkRegions[i].imageSubresource.layerCount = 1;
 
-        vkCmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkRegions[i].imageOffset = {0, 0, 0};
+            vkRegions[i].imageExtent = {region.width, region.height, 1};
+        }
+
+        vkCmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(vkRegions.size()), vkRegions.data());
 
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }
 
-    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
+    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layers)
     {
         VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
 
@@ -192,7 +197,7 @@ namespace Vultron::VkUtil
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = mipLevels;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = layers;
 
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;

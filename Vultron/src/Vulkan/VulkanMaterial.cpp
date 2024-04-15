@@ -19,7 +19,7 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode, createInfo.depthTestEnable))
+        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode, createInfo.depthFunction))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -48,7 +48,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, bool depthTestEnable)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, DepthFunction depthTestEnable)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -136,11 +136,11 @@ namespace Vultron
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        if (depthTestEnable)
+        depthStencil.depthCompareOp = static_cast<VkCompareOp>(depthTestEnable);
+        if (depthTestEnable != DepthFunction::Always && depthTestEnable != DepthFunction::Never)
         {
             depthStencil.depthTestEnable = VK_TRUE;
             depthStencil.depthWriteEnable = VK_TRUE;
-            depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
             depthStencil.depthBoundsTestEnable = VK_FALSE;
             depthStencil.stencilTestEnable = VK_FALSE;
         }
@@ -148,7 +148,6 @@ namespace Vultron
         {
             depthStencil.depthTestEnable = VK_FALSE;
             depthStencil.depthWriteEnable = VK_FALSE;
-            depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
             depthStencil.depthBoundsTestEnable = VK_FALSE;
             depthStencil.stencilTestEnable = VK_FALSE;
         }

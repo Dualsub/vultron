@@ -178,15 +178,15 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeDescriptorSets())
+        if (!InitializeResources())
         {
-            std::cerr << "Faild to initialize descriptor sets." << std::endl;
+            std::cerr << "Faild to initialize geometry." << std::endl;
             return false;
         }
 
-        if (!InitializeTestResources())
+        if (!InitializeDescriptorSets())
         {
-            std::cerr << "Faild to initialize geometry." << std::endl;
+            std::cerr << "Faild to initialize descriptor sets." << std::endl;
             return false;
         }
 
@@ -350,6 +350,21 @@ namespace Vultron
                 },
             });
 
+        m_skyboxSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+            });
+
         return true;
     }
 
@@ -448,7 +463,34 @@ namespace Vultron
                 },
                 .vertexDescription = SpriteVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
-                .depthTestEnable = false,
+                .depthFunction = DepthFunction::Always,
+            });
+
+        // Skybox
+        m_skyboxVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.vert.spv"});
+        m_skyboxFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
+
+        m_skyboxPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_renderPass,
+            {
+                .vertexShader = m_skyboxVertexShader,
+                .fragmentShader = m_skyboxFragmentShader,
+                .sceneDescriptorSetLayout = m_skyboxSetLayout,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::UniformBuffer,
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+                .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+                .cullMode = CullMode::Front,
+                .depthFunction = DepthFunction::LessOrEqual,
             });
 
         return true;
@@ -613,6 +655,26 @@ namespace Vultron
         shadowSamplerInfo.maxLod = 1.0f;
 
         VK_CHECK(vkCreateSampler(m_context.GetDevice(), &shadowSamplerInfo, nullptr, &m_shadowSampler));
+
+        VkSamplerCreateInfo cubemapSamplerInfo{};
+        cubemapSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        cubemapSamplerInfo.magFilter = VK_FILTER_LINEAR;
+        cubemapSamplerInfo.minFilter = VK_FILTER_LINEAR;
+        cubemapSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        cubemapSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        cubemapSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        cubemapSamplerInfo.anisotropyEnable = VK_TRUE;
+        cubemapSamplerInfo.maxAnisotropy = m_context.GetDeviceProperties().limits.maxSamplerAnisotropy;
+        cubemapSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        cubemapSamplerInfo.unnormalizedCoordinates = VK_FALSE;
+        cubemapSamplerInfo.compareEnable = VK_FALSE;
+        cubemapSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        cubemapSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        cubemapSamplerInfo.mipLodBias = 0.0f;
+        cubemapSamplerInfo.minLod = 0.0f;
+        cubemapSamplerInfo.maxLod = 1.0f;
+
+        VK_CHECK(vkCreateSampler(m_context.GetDevice(), &cubemapSamplerInfo, nullptr, &m_cubemapSampler));
 
         return true;
     }
@@ -789,6 +851,23 @@ namespace Vultron
             };
 
             m_frames[i].spriteDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_spriteSetLayout, bindings);
+
+            bindings = {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_frames[i].uniformBuffer.GetBuffer(),
+                    .size = m_frames[i].uniformBuffer.GetSize(),
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_skyboxImage.GetImageView(),
+                    .sampler = m_cubemapSampler,
+                },
+            };
+
+            m_frames[i].skyboxDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skyboxSetLayout, bindings);
         }
 
         return true;
@@ -806,9 +885,30 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanRenderer::InitializeTestResources()
+    bool VulkanRenderer::InitializeResources()
     {
+        // Sprite
         m_spriteQuadMesh = VulkanQuadMesh::Create(m_context, m_commandPool);
+
+        // Skybox
+        m_skyboxMesh = VulkanMesh::CreateFromFile(
+            {
+                .device = m_context.GetDevice(),
+                .commandPool = m_commandPool,
+                .queue = m_context.GetGraphicsQueue(),
+                .allocator = m_context.GetAllocator(),
+                .filepath = std::string(VLT_ASSETS_DIR) + "/meshes/skybox.dat",
+            });
+
+        m_skyboxImage = VulkanImage::CreateFromFile(
+            {
+                .device = m_context.GetDevice(),
+                .commandPool = m_commandPool,
+                .queue = m_context.GetGraphicsQueue(),
+                .allocator = m_context.GetAllocator(),
+                .filepath = std::string(VLT_ASSETS_DIR) + "/textures/skybox.dat",
+            });
+
         return true;
     }
 
@@ -903,6 +1003,7 @@ namespace Vultron
             DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches, viewportSize);
             DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches, viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, spriteBatches, viewportSize);
+            DrawSkybox(commandBuffer, frame.skyboxDescriptorSet, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -954,6 +1055,36 @@ namespace Vultron
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, batch.firstInstance);
         }
+    }
+
+    void VulkanRenderer::DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize)
+    {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline.GetPipeline());
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)viewportSize.x;
+        viewport.height = (float)viewportSize.y;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = {viewportSize.x, viewportSize.y};
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        VkDescriptorSet descriptorSets[] = {descriptorSet};
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+
+        MeshDrawInfo meshInfo = m_skyboxMesh.GetDrawInfo();
+        VkBuffer vertexBuffers[] = {meshInfo.vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
     }
 
     void VulkanRenderer::Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances, const std::vector<RenderBatch> &spriteBatches, const std::vector<SpriteInstanceData> &spriteInstances)
@@ -1042,6 +1173,8 @@ namespace Vultron
         vkDeviceWaitIdle(m_context.GetDevice());
 
         m_spriteQuadMesh.Destroy(m_context);
+        m_skyboxMesh.Destroy(m_context);
+        m_skyboxImage.Destroy(m_context);
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
@@ -1069,6 +1202,7 @@ namespace Vultron
 
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
         vkDestroySampler(m_context.GetDevice(), m_shadowSampler, nullptr);
+        vkDestroySampler(m_context.GetDevice(), m_cubemapSampler, nullptr);
 
         m_depthImage.Destroy(m_context);
         m_shadowMap.Destroy(m_context);
@@ -1081,6 +1215,8 @@ namespace Vultron
         m_shadowFragmentShader.Destroy(m_context);
         m_spriteVertexShader.Destroy(m_context);
         m_spriteFragmentShader.Destroy(m_context);
+        m_skyboxVertexShader.Destroy(m_context);
+        m_skyboxFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
@@ -1088,6 +1224,7 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_staticSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_spriteSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
@@ -1099,6 +1236,7 @@ namespace Vultron
         m_staticShadowPipeline.Destroy(m_context);
         m_skeletalShadowPipeline.Destroy(m_context);
         m_spritePipeline.Destroy(m_context);
+        m_skyboxPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

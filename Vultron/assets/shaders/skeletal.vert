@@ -34,7 +34,7 @@ struct SkeletonBone {
     int parent;
 };
 
-layout(set = 0, binding = 3) uniform SkeletonBoneObject {
+layout(set = 0, binding = 6) uniform SkeletonBoneObject {
     SkeletonBone bones[256];
 };
 
@@ -44,7 +44,7 @@ struct AnimationFrame {
     vec3 scale;
 };
 
-layout(std140, set = 0, binding = 4) readonly buffer AnimationBufferObject {
+layout(std140, set = 0, binding = 7) readonly buffer AnimationBufferObject {
     AnimationFrame frames[];
 };
 
@@ -53,7 +53,7 @@ struct AnimationInstance {
     vec2 timeAndBlendFactor;
 };
 
-layout(set = 0, binding = 5) uniform AnimationInstanceObject {
+layout(set = 0, binding = 8) uniform AnimationInstanceObject {
     AnimationInstance animationInstances[128];
 };
 
@@ -196,6 +196,6 @@ void main()  {
     gl_Position = ubo.proj * ubo.view * fragPos;
     fragWorldPos = vec3(fragPos);
     fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
+    fragNormal = normalize(mat3(instances[gl_InstanceIndex].model * boneMatrix) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * fragPos;
 }

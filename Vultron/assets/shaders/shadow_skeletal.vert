@@ -29,7 +29,7 @@ struct SkeletonBone {
     int parent;
 };
 
-layout(set = 0, binding = 3) uniform SkeletonBoneObject {
+layout(set = 0, binding = 6) uniform SkeletonBoneObject {
     SkeletonBone bones[128];
 };
 
@@ -39,7 +39,7 @@ struct AnimationFrame {
     vec3 scale;
 };
 
-layout(std140, set = 0, binding = 4) readonly buffer AnimationBufferObject {
+layout(std140, set = 0, binding = 7) readonly buffer AnimationBufferObject {
     AnimationFrame frames[];
 };
 
@@ -48,7 +48,7 @@ struct AnimationInstance {
     vec2 timeAndBlendFactor;
 };
 
-layout(set = 0, binding = 5) uniform AnimationInstanceObject {
+layout(set = 0, binding = 8) uniform AnimationInstanceObject {
     AnimationInstance animationInstances[128];
 };
 

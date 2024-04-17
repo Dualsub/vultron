@@ -19,7 +19,13 @@ namespace Vultron
             assert(false);
         }
 
-        if (!material.InitializeGraphicsPipeline(context, renderPass, createInfo.vertexDescription, createInfo.sceneDescriptorSetLayout, createInfo.cullMode, createInfo.depthFunction))
+        if (!material.InitializeGraphicsPipeline(
+                context, renderPass,
+                createInfo.vertexDescription,
+                createInfo.sceneDescriptorSetLayout,
+                createInfo.pushConstantRanges,
+                createInfo.cullMode,
+                createInfo.depthFunction))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -48,7 +54,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, DepthFunction depthTestEnable)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthTestEnable)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -66,10 +72,21 @@ namespace Vultron
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.pVertexBindingDescriptions = &vertexDescription.bindingDescription;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexDescription.attributeDescriptions.size());
-        vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributeDescriptions.data();
+        if (vertexDescription.attributeDescriptions.size() > 0)
+        {
+
+            vertexInputInfo.vertexBindingDescriptionCount = 1;
+            vertexInputInfo.pVertexBindingDescriptions = &vertexDescription.bindingDescription;
+            vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexDescription.attributeDescriptions.size());
+            vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributeDescriptions.data();
+        }
+        else
+        {
+            vertexInputInfo.vertexBindingDescriptionCount = 0;
+            vertexInputInfo.pVertexBindingDescriptions = nullptr;
+            vertexInputInfo.vertexAttributeDescriptionCount = 0;
+            vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+        }
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -131,8 +148,8 @@ namespace Vultron
 
         pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
         pipelineLayoutInfo.pSetLayouts = layouts.data();
-        pipelineLayoutInfo.pushConstantRangeCount = 0;
-        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+        pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+        pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.size() > 0 ? pushConstantRanges.data() : nullptr;
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;

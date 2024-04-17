@@ -41,7 +41,7 @@ namespace Vultron
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, DepthFunction depthTestEnable);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthTestEnable);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -58,6 +58,7 @@ namespace Vultron
             const VulkanShader &fragmentShader;
             VkDescriptorSetLayout sceneDescriptorSetLayout;
             const std::vector<DescriptorSetLayoutBinding> &bindings;
+            const std::vector<VkPushConstantRange> &pushConstantRanges = {};
             const VertexDescription &vertexDescription = StaticMeshVertex::GetVertexDescription();
             CullMode cullMode = CullMode::Back;
             DepthFunction depthFunction = DepthFunction::Less;

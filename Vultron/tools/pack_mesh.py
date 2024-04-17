@@ -1,12 +1,18 @@
 import argparse
 import struct
-from pyassimp import load
+from pyassimp import load, postprocess
+import pyassimp
 import numpy as np
+
+MODEL_FLAGS = (
+    postprocess.aiProcess_Triangulate | 
+    postprocess.aiProcess_GenSmoothNormals | postprocess.aiProcess_CalcTangentSpace)
 
 def pack_mesh(mesh, output_file):
     # Flipping the y and z axis
     positions = np.array(mesh.vertices)
     normals = np.array(mesh.normals)
+    
     uvs = np.array(mesh.texturecoords[0])[:, :2]
     # Edit UVs for Vulkan
     uvs[:, 1] = 1 - uvs[:, 1]
@@ -32,7 +38,7 @@ def main():
 
     assert args.input != args.output, "Input and output file cannot be the same"
 
-    with load(args.input) as scene:
+    with load(args.input, processing=MODEL_FLAGS) as scene:
         mesh = scene.meshes[0]
         pack_mesh(mesh, args.output)
 

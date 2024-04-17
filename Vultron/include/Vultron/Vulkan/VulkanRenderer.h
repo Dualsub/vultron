@@ -254,6 +254,9 @@ namespace Vultron
         VulkanShader m_skyboxVertexShader;
         VulkanShader m_skyboxFragmentShader;
         VulkanMesh m_skyboxMesh;
+        VulkanImage m_brdfLUT;
+        VulkanImage m_irradianceMap;
+        VulkanImage m_prefilteredMap;
 
         // Material instance resources
         UniformBufferData m_uniformBufferData{};
@@ -309,6 +312,11 @@ namespace Vultron
 
         // Assets, will be removed in the future
         bool InitializeResources();
+
+        bool InitializeEnvironmentMap();
+        VulkanImage GenerateBRDFLUT();
+        VulkanImage GenerateIrradianceMap();
+        VulkanImage GeneratePrefilteredMap();
 
         // Swapchain
         void RecreateSwapchain(uint32_t width, uint32_t height);

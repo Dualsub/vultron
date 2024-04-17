@@ -43,7 +43,7 @@ namespace Vultron
                  .mipLevels = static_cast<uint32_t>(mips.size()),
                  .format = createInfo.format}});
 
-        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), layers);
+        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), header.numChannels * header.numBytesPerChannel, layers);
 
         std::unordered_map<char, FontGlyph> glpyhs;
 

@@ -112,8 +112,9 @@ namespace Vultron
         static VulkanImage CreateFromFile(const ImageFromFileCreateInfo &createInfo);
         static Ptr<VulkanImage> CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo);
 
-        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, const std::vector<std::vector<MipInfo>> &layers);
+        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, uint32_t bytesPerPixel, const std::vector<std::vector<MipInfo>> &layers);
         void TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
+        void TransitionLayout(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
 
         void Destroy(const VulkanContext &context);
 

@@ -1,17 +1,21 @@
 import argparse
 import struct
 import numpy as np
-from PIL import Image
+import cv2 as cv
 # Take a image file, generate mipmaps and pack it into a vultron image file
 
 
 def generate_mipmaps(image, mips):
     mipmaps = [image]
     for _ in range(1, mips):
-        mipmaps.append(mipmaps[-1].resize((max(1, mipmaps[-1].width // 2),
-                       max(1, mipmaps[-1].height // 2)), Image.LANCZOS))
+        mipmaps.append(cv.resize(mipmaps[-1], (mipmaps[-1].shape[1] // 2, mipmaps[-1].shape[0] // 2), interpolation=cv.INTER_LANCZOS4))
 
     return mipmaps
+
+FORMATS = {
+    ".hdr": "HDR-FI",
+    ".png": "PNG-FI",
+}
 
 class ImageTypes:
     Texture2D = 0
@@ -47,35 +51,35 @@ def main():
     if args.cubemap:
         print("Packing as a cubemap")
         imageType = ImageTypes.Cubemap
-
     layers = []
+
     for input in inputs:
-        image = Image.open(input)
-        if image.mode == "RGB" or image.mode == "P" or image.mode == "L":
-            image = image.convert("RGBA")
+        image = cv.imread(input, cv.IMREAD_UNCHANGED)
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        height, width, channels = image.shape
+
+        print(f"Loaded image with dimensions {width}x{height} and {channels} channels, type: {image.dtype}")
+        
+        if channels == 3:
+            image = cv.cvtColor(image, cv.COLOR_RGB2RGBA)
+            channels = 4
 
         if args.invert:
             print("Inverting image")
-            image = Image.eval(image, lambda x: 255 - x)
+            image = 1 - image
 
         if args.flip:
             print("Flipping image vertically")
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+            image = cv.flip(image, 0)
 
         assert args.input != args.output, "Input and output file cannot be the same"
 
         mipmapLevels = args.mips
         if mipmapLevels == -1:
             mipmapLevels = int(
-                np.floor(np.log2(max(image.width, image.height)))) + 1
+                np.floor(np.log2(max(width, height)))) + 1
 
-        numChannels = 0
-        if image.mode == "RGBA":
-            numChannels = 4
-        elif image.mode == "RGB":
-            numChannels = 3
-
-        assert numChannels > 0, "Unsupported image mode: " + image.mode
+        assert channels > 0, "Unsupported image format: 0 channels"
         mipmaps = generate_mipmaps(image, mipmapLevels)
         layers.append(mipmaps)
 
@@ -83,14 +87,13 @@ def main():
     for i in range(1, len(layers)):
         assert len(layers[i]) == len(layers[0]), "All images must have the same number of mipmaps"
         for j in range(len(layers[i])):
-            assert layers[i][j].width == layers[0][j].width, "All images must have the same width"
-            assert layers[i][j].height == layers[0][j].height, "All images must have the same height"
-
+            assert layers[i][j].shape == layers[0][j].shape, "All images must have the same dimensions"
+            
     with open(args.output, "wb") as f:
-        f.write(struct.pack("I", layers[0][0].width))
-        f.write(struct.pack("I", layers[0][0].height))
-        f.write(struct.pack("I", numChannels))
-        f.write(struct.pack("I", 1))
+        f.write(struct.pack("I", layers[0][0].shape[1]))
+        f.write(struct.pack("I", layers[0][0].shape[0]))
+        f.write(struct.pack("I", channels))
+        f.write(struct.pack("I", np.dtype(image.dtype).itemsize))
         f.write(struct.pack("I", len(layers)))
         f.write(struct.pack("I", len(layers[0])))
         f.write(struct.pack("I", imageType))
@@ -105,3 +108,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python pack_image.py C:\dev\repos\vultron\Vultron\assets\textures\loft\px.hdr C:\dev\repos\vultron\Vultron\assets\textures\loft\nx.hdr C:\dev\repos\vultron\Vultron\assets\textures\loft\py.hdr C:\dev\repos\vultron\Vultron\assets\textures\loft\ny.hdr C:\dev\repos\vultron\Vultron\assets\textures\loft\pz.hdr C:\dev\repos\vultron\Vultron\assets\textures\loft\nz.hdr -o C:\dev\repos\vultron\Vultron\assets\textures\skybox.dat -c

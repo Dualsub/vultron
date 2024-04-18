@@ -2,13 +2,17 @@ import argparse
 import struct
 import numpy as np
 import cv2 as cv
+from PIL import Image
 # Take a image file, generate mipmaps and pack it into a vultron image file
 
 
 def generate_mipmaps(image, mips):
     mipmaps = [image]
     for _ in range(1, mips):
-        mipmaps.append(cv.resize(mipmaps[-1], (mipmaps[-1].shape[1] // 2, mipmaps[-1].shape[0] // 2), interpolation=cv.INTER_LANCZOS4))
+        mip_width = mipmaps[-1].shape[1] // 2
+        mip_height = mipmaps[-1].shape[0] // 2
+
+        mipmaps.append(cv.resize(mipmaps[-1], (mip_width, mip_height), interpolation=cv.INTER_LANCZOS4))
 
     return mipmaps
 
@@ -37,8 +41,13 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
     layers = []
 
     for input in inputs:
-        image = cv.imread(input, cv.IMREAD_UNCHANGED)
-        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+
+        try:
+            image = cv.imread(input, cv.IMREAD_UNCHANGED)
+            image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        except Exception:
+            image = np.array(Image.open(input))
+
         height, width, channels = image.shape
 
         print(f"Loaded image with dimensions {width}x{height} and {channels} channels, type: {image.dtype}")
@@ -60,7 +69,7 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
         mipmapLevels = mips
         if mipmapLevels == -1:
             mipmapLevels = int(
-                np.floor(np.log2(max(width, height)))) + 1
+                np.floor(np.log2(min(width, height))) + 1)
 
         assert channels > 0, "Unsupported image format: 0 channels"
         mipmaps = generate_mipmaps(image, mipmapLevels)
@@ -118,7 +127,7 @@ if __name__ == "__main__":
     files = []
     for root, _, filenames in os.walk(dir):
         for filename in filenames:
-            if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tga")):
+            if filename.lower().endswith((".tga", ".png", ".jpg", ".jpeg")):
                 files.append(os.path.join(root, filename))
 
     print("Packing", len(files), "images")

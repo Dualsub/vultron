@@ -120,7 +120,7 @@ namespace Vultron
 
         file.read(reinterpret_cast<char *>(&header), sizeof(header));
 
-        VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
         if (header.numBytesPerChannel == 4) // We are using hdr images
         {
             if (header.numChannels == 3)

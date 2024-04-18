@@ -147,13 +147,12 @@ void main() {
     vec4 texColor = texture(albedoMap, fragTexCoord);
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
     float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b);
-    float roughness = mix(0.05, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g);
+    float roughness = mix(0.01, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g);
     float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;
 
     float shadow = GetShadow(fragLightSpacePos / fragLightSpacePos.w);
 
-	// There is a bug with the normal map, so we disable it for now
-    vec3 N = fragNormal;//GetNormalFromMap();
+	vec3 N = GetNormalFromMap();
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
     vec3 R = reflect(-V, N); 
 

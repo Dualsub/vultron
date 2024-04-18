@@ -105,7 +105,7 @@ namespace Vultron
             VkQueue queue = VK_NULL_HANDLE;
             VmaAllocator allocator = VK_NULL_HANDLE;
             ImageType type = ImageType::Texture2D;
-            VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+            VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
             const std::string &filepath;
         };
 

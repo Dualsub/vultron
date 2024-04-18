@@ -38,6 +38,6 @@ void main()
     gl_Position = ubo.proj * ubo.view * pos;
     fragWorldPos = pos.xyz;
     fragTexCoord = inTexCoord;
-    fragNormal = normalize(mat3(instances[gl_InstanceIndex].model) * inNormal);
+    fragNormal = normalize(mat3(transpose(inverse(instances[gl_InstanceIndex].model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * pos;
 }

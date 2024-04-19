@@ -54,7 +54,7 @@ def create_image(font_path, font_size):
 
 def pack_font_atlas(image, font_info, numMipLevels, output_path):
     with open(output_path, "wb") as f:
-        mipmaps = generate_mipmaps(image, numMipLevels)
+        mipmaps = generate_mipmaps(np.array(image), numMipLevels)
         f.write(struct.pack("I", image.width))
         f.write(struct.pack("I", image.height))
         f.write(struct.pack("I", 4))
@@ -83,7 +83,7 @@ def main():
     mipmapLevels = args.mips
     if mipmapLevels == -1:
         mipmapLevels = int(
-            np.floor(np.log2(max(image.width, image.height)))) + 1
+            np.floor(np.log2(min(image.width, image.height))) + 1)
 
     pack_font_atlas(image, font_info, mipmapLevels, args.output)
 

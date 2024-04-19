@@ -44,7 +44,7 @@ float textureProj(vec4 shadowCoord, vec2 off)
 float GetShadow(vec4 sc)
 {
 	ivec2 texDim = textureSize(shadowMap, 0);
-	float scale = 1.0;
+	float scale = 2.0;
 	float dx = scale * 1.0 / float(texDim.x);
 	float dy = scale * 1.0 / float(texDim.y);
 
@@ -79,6 +79,12 @@ vec3 GetNormalFromMap()
 	mat3 TBN = mat3(T, B, N);
 
 	return normalize(TBN * tangentNormal);
+}
+
+vec3 Tonemap(vec3 x)
+{
+    const float L_white = 4.0;
+    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
 }
 
 float D_GGX(float dotNH, float roughness)
@@ -128,7 +134,7 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 	float dotNV = clamp(dot(N, V), 0.0, 1.0);
 	float dotNL = clamp(dot(N, L), 0.0, 1.0);
 
-	vec3 lightColor = vec3(1.0);
+	vec3 lightColor = ubo.lightColor;
 	vec3 color = vec3(0.0);
 
 	if (dotNL > 0.0) {
@@ -137,7 +143,7 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 		vec3 F = F_Schlick(dotNV, F0);		
 		vec3 spec = D * F * G / (4.0 * dotNL * dotNV + 0.001);		
 		vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);			
-		color += (kD * albedo / PI + spec) * dotNL;
+		color += (kD * albedo / PI + spec) * dotNL * lightColor;
 	}
 
 	return color;
@@ -178,8 +184,12 @@ void main() {
 	
 	vec3 color = ambient + Lo * shadow;
 	
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));
+	float exposure = 0.8;
+	float gamma = 2.2;
 
-    outColor = vec4(color, texColor.a);
+	color = Tonemap(color * exposure);
+	color = color * (1.0f / Tonemap(vec3(11.2f)));	
+	color = pow(color, vec3(1.0f / gamma));
+
+    outColor = vec4(color, 1.0);
 }

@@ -18,7 +18,7 @@ namespace Vultron
         std::vector<MipInfo> mips;
         mips.reserve(numMipLevels);
 
-        for (uint32_t i = 0; i < numMipLevels; i++)
+        for (int32_t i = 0; i < numMipLevels; i++)
         {
             uint32_t mipWidth = width >> i;
             uint32_t mipHeight = height >> i;
@@ -119,6 +119,14 @@ namespace Vultron
         file.seekg(0);
 
         file.read(reinterpret_cast<char *>(&header), sizeof(header));
+
+        if (header.numMipLevels > 16 || header.numMipLevels <= 0)
+        {
+            std::cout << "Image " << createInfo.filepath << " has " << header.numMipLevels << " mips." << std::endl;
+            std::cout << "Mip levels greater than 16 are not supported." << std::endl;
+
+            abort();
+        }
 
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
         if (header.numBytesPerChannel == 4) // We are using hdr images

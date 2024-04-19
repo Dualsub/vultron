@@ -38,9 +38,9 @@ namespace Vultron
              .queue = context.GetGraphicsQueue(),
              .allocator = context.GetAllocator(),
              .info = {
-                 .width = static_cast<uint32_t>(mips[0].width),
-                 .height = static_cast<uint32_t>(mips[0].height),
-                 .mipLevels = static_cast<uint32_t>(mips.size()),
+                 .width = static_cast<uint32_t>(header.width),
+                 .height = static_cast<uint32_t>(header.height),
+                 .mipLevels = static_cast<uint32_t>(header.numMipLevels),
                  .format = createInfo.format}});
 
         image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), header.numChannels * header.numBytesPerChannel, layers);

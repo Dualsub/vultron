@@ -584,8 +584,8 @@ namespace Vultron
                 .queue = m_context.GetGraphicsQueue(),
                 .allocator = m_context.GetAllocator(),
                 .info = {
-                    .width = 2048,
-                    .height = 2048,
+                    .width = 2048 * 2,
+                    .height = 2048 * 2,
                     .depth = 1,
                     .mipLevels = 1,
                     .format = VK_FORMAT_D32_SFLOAT,
@@ -760,8 +760,8 @@ namespace Vultron
         m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 3200.0f);
         m_uniformBufferData.proj[1][1] *= -1;
 
-        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(1.0f, -0.1f, -0.1f));
-        m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 1.0f;
+        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(1.0f, -1.0f, 1.0f));
+        m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 4.0f;
         m_uniformBufferData.lightViewProjection = ComputeLightProjectionMatrix(m_uniformBufferData.proj, m_uniformBufferData.view, m_uniformBufferData.lightDir);
 
         return true;
@@ -946,7 +946,7 @@ namespace Vultron
                 {
                     .binding = 1,
                     .type = DescriptorType::CombinedImageSampler,
-                    .imageView = m_prefilteredMap.GetImageView(),
+                    .imageView = m_skyboxImage.GetImageView(),
                     .sampler = m_cubemapSampler,
                 },
             };
@@ -1454,7 +1454,7 @@ namespace Vultron
     {
         auto tStart = std::chrono::high_resolution_clock::now();
 
-        const VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
         const int32_t dim = 512;
         const uint32_t numMips = static_cast<uint32_t>(glm::floor(glm::log2(static_cast<float>(dim)))) + 1;
 
@@ -1840,8 +1840,8 @@ namespace Vultron
 
             DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches, viewportSize);
             DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches, viewportSize);
-            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, spriteBatches, viewportSize);
             DrawSkybox(commandBuffer, frame.skyboxDescriptorSet, viewportSize);
+            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, spriteBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }

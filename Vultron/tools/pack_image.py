@@ -114,8 +114,8 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
     print(f"Image packed into {output_file}")
     print(f"Generated {len(mipmaps)} mipmaps")
 
-def pack_all():
-    dir = "C:/dev/repos/arcane-siege/assets"
+def pack_all(dir):
+    # dir = "C:/dev/repos/arcane-siege/assets"
 
     # Take all png, jpg, jpeg, and tga files in the directory and pack them into a vultron image file, it should include files from subdirectories
     import os
@@ -159,7 +159,7 @@ def main():
     args = parser.parse_args()
 
     if args.all:
-        pack_all()
+        pack_all(args.input[0])
     elif args.cubemap:
         sides = ["px", "nx", "py", "ny", "pz", "nz"]
         base_path = args.input[0]

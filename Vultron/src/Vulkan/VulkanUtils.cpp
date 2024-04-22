@@ -139,32 +139,55 @@ namespace Vultron::VkUtil
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }
 
-    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height, uint32_t mipLevel)
+    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, const std::vector<BufferToImageRegion> &regions)
     {
         VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
 
-        VkBufferImageCopy region{};
-        region.bufferOffset = 0;
-        region.bufferRowLength = 0;
-        region.bufferImageHeight = 0;
+        std::vector<VkBufferImageCopy> vkRegions(regions.size());
 
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = mipLevel;
-        region.imageSubresource.baseArrayLayer = 0;
-        region.imageSubresource.layerCount = 1;
+        for (size_t i = 0; i < regions.size(); i++)
+        {
+            const BufferToImageRegion &region = regions[i];
+            vkRegions[i].bufferOffset = 0;
+            vkRegions[i].bufferRowLength = 0;
+            vkRegions[i].bufferImageHeight = 0;
 
-        region.imageOffset = {0, 0, 0};
-        region.imageExtent = {width, height, 1};
+            vkRegions[i].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            vkRegions[i].imageSubresource.mipLevel = region.mipLevel;
+            vkRegions[i].imageSubresource.baseArrayLayer = region.layer;
+            vkRegions[i].imageSubresource.layerCount = 1;
 
-        vkCmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            vkRegions[i].imageOffset = {0, 0, 0};
+            vkRegions[i].imageExtent = {region.width, region.height, 1};
+        }
+
+        vkCmdCopyBufferToImage(commandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(vkRegions.size()), vkRegions.data());
 
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }
 
-    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
+    void CopyImage(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImage srcImage, VkImage dstImage, VkImageLayout srcLayout, VkImageLayout dstLayout, VkExtent3D extent, uint32_t mipLevel, uint32_t srcLayer, uint32_t dstLayer, uint32_t numLayers)
     {
-        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
+        VkImageCopy copyRegion = {};
+        copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.srcSubresource.mipLevel = mipLevel;
+        copyRegion.srcSubresource.baseArrayLayer = srcLayer;
+        copyRegion.srcSubresource.layerCount = numLayers;
+        copyRegion.srcOffset = {0, 0, 0};
 
+        copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.dstSubresource.mipLevel = mipLevel;
+        copyRegion.dstSubresource.baseArrayLayer = dstLayer;
+        copyRegion.dstSubresource.layerCount = numLayers;
+        copyRegion.dstOffset = {0, 0, 0};
+
+        copyRegion.extent = extent;
+
+        vkCmdCopyImage(commandBuffer, srcImage, srcLayout, dstImage, dstLayout, 1, &copyRegion);
+    }
+
+    void TransitionImageLayout(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layers)
+    {
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = oldLayout;
@@ -192,7 +215,7 @@ namespace Vultron::VkUtil
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = mipLevels;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = layers;
 
         VkPipelineStageFlags sourceStage;
         VkPipelineStageFlags destinationStage;
@@ -221,12 +244,46 @@ namespace Vultron::VkUtil
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         }
+        else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        {
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+        {
+            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        }
+        else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        {
+            barrier.srcAccessMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            barrier.dstAccessMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            destinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        }
         else
         {
-            assert(false && "Unsupported layout transition.");
+            std::cerr << "Unsupported layout transition" << std::endl;
+            std::cerr << "Old layout: " << oldLayout << std::endl;
+            std::cerr << "New layout: " << newLayout << std::endl;
+            abort();
         }
 
         vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
+    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layers)
+    {
+        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
+
+        TransitionImageLayout(device, commandBuffer, queue, image, format, oldLayout, newLayout, mipLevels, layers);
 
         EndSingleTimeCommands(device, commandPool, queue, commandBuffer);
     }

@@ -6,6 +6,11 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in ivec4 inBoneIDs;
 layout(location = 4) in vec4 inWeights;
 
+layout(location = 0) out vec3 fragWorldPos;
+layout(location = 1) out vec2 fragTexCoord;
+layout(location = 2) out vec3 fragNormal;
+layout(location = 3) out vec4 fragLightSpacePos;
+
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
@@ -29,8 +34,8 @@ struct SkeletonBone {
     int parent;
 };
 
-layout(set = 0, binding = 3) uniform SkeletonBoneObject {
-    SkeletonBone bones[128];
+layout(set = 0, binding = 6) uniform SkeletonBoneObject {
+    SkeletonBone bones[256];
 };
 
 struct AnimationFrame {
@@ -39,7 +44,7 @@ struct AnimationFrame {
     vec3 scale;
 };
 
-layout(std140, set = 0, binding = 4) readonly buffer AnimationBufferObject {
+layout(std140, set = 0, binding = 7) readonly buffer AnimationBufferObject {
     AnimationFrame frames[];
 };
 
@@ -48,7 +53,7 @@ struct AnimationInstance {
     vec2 timeAndBlendFactor;
 };
 
-layout(set = 0, binding = 5) uniform AnimationInstanceObject {
+layout(set = 0, binding = 8) uniform AnimationInstanceObject {
     AnimationInstance animationInstances[128];
 };
 
@@ -56,6 +61,15 @@ vec3 QMulV(vec4 q, vec3 v) {
     return q.xyz * 2.0f * dot(q.xyz, v) +
            v * (q.w * q.w - dot(q.xyz, q.xyz)) +
            cross(q.xyz, v) * 2.0f * q.w;
+}
+
+vec4 QMul(vec4 q1, vec4 q2) {
+    return vec4(
+        q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y,
+        q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
+        q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w,
+        q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z
+    );
 }
 
 mat4 ToMatrix(vec3 position, vec4 rotation, vec3 scale) {
@@ -71,28 +85,76 @@ mat4 ToMatrix(vec3 position, vec4 rotation, vec3 scale) {
     );
 }
 
-mat4 GetPose(int frame1, int frame2, float frameBlend, int boneIndex, int boneCount)
+vec4 slerp(vec4 q1, vec4 q2, float t) {
+    // Compute the cosine of the angle between the two vectors.
+    float cosTheta = dot(q1, q2);
+
+    // If cosTheta < 0, the interpolation will take the long way around the sphere. 
+    // To fix this, one quaternion is negated.
+    if (cosTheta < 0.0) {
+        q1 = -q1;
+        cosTheta = -cosTheta;
+    }
+
+    // Perform a linear interpolation when cosTheta is close to 1 to avoid side effect of sin(angle) becoming a zero denominator
+    if (cosTheta > 1.0 - 1E-6) {
+        // Linear interpolation
+        return mix(q1, q2, t);
+    } else {
+        // Essential Mathematics for SLERP
+        float angle = acos(cosTheta);
+        return (sin((1.0 - t) * angle) * q1 + sin(t * angle) * q2) / sin(angle);
+    }
+}
+
+struct BonePose {
+    vec3 position;
+    vec4 rotation;
+    vec3 scale;
+};
+
+mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount)
 {
     mat4 boneMatrix = mat4(1.0);
     int currBoneIndex = boneIndex;
 
-    for (int i = 0; i < boneCount; i++)
-    {
-        int frame1Index = currBoneIndex + frame1;
-        int frame2Index = currBoneIndex + frame2;
-
-        vec4 rotation1 = normalize(frames[frame1Index].rotation);
-        vec4 rotation2 = normalize(frames[frame2Index].rotation);
-
-        if (dot(rotation1, rotation2) < 0.0) { rotation1 *= -1.0; }
-
-        vec3 position = mix(frames[frame1Index].position, frames[frame2Index].position, frameBlend);
-        vec4 rotation = normalize(mix(rotation1, rotation2, frameBlend));
-        vec3 scale = mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlend);
-
-        boneMatrix = ToMatrix(position, rotation, scale) * boneMatrix;
+    for (int b = 0; b < boneCount; b++)
+    { 
+        float totalBlendFactor = 0.0;
+        BonePose accPose = BonePose(vec3(0.0), vec4(0.0, 0.0, 0.0, 1.0), vec3(1.0));
         
-        currBoneIndex = bones[currBoneIndex].parent;
+        for (int i = 0; i < animationInstanceCount; i++) {
+            int frameOffset = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.x;
+            int frame1 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.y;
+            int frame2 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.z;
+            float frameBlend = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.x;
+            float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
+
+            // Blending between two frames
+            int frame1Index = frameOffset + frame1 * boneCount + currBoneIndex;
+            int frame2Index = frameOffset + frame2 * boneCount + currBoneIndex;
+
+            vec4 rotation1 = normalize(frames[frame1Index].rotation);
+            vec4 rotation2 = normalize(frames[frame2Index].rotation);
+
+            if (dot(rotation1, rotation2) < 0.0) { rotation1 *= -1.0; }
+
+            vec3 position = mix(frames[frame1Index].position, frames[frame2Index].position, frameBlend);
+            vec4 rotation = normalize(slerp(rotation1, rotation2, frameBlend));
+            vec3 scale = mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlend);
+
+            // Blending between animations
+            totalBlendFactor += blendFactor;
+            float blend = blendFactor / totalBlendFactor;
+
+            accPose.position = mix(accPose.position, position, blend);
+            accPose.rotation = normalize(slerp(accPose.rotation, rotation, blend));
+            accPose.scale = mix(accPose.scale, scale, blend);
+        }
+
+        boneMatrix = ToMatrix(accPose.position, accPose.rotation, accPose.scale) * boneMatrix;
+
+        currBoneIndex = bones[boneOffset + currBoneIndex].parent;
 
         if (currBoneIndex == -1)
         {
@@ -112,25 +174,15 @@ void main()  {
     int animationInstanceOffset = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.z;
     int animationInstanceCount = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.w;
 
-    for (int i = 0; i < animationInstanceCount; i++) {
-        int frameOffset = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.x;
-        int frame1 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.y;
-        int frame2 = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2.z;
-        float frameBlend = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.x;
-        float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
 
-        for (int j = 0; j < 4; j++) {
-            if (inBoneIDs[j] == -1) {
-                break;
-            }
-
-            int frame1Index = frameOffset + frame1 * boneCount;
-            int frame2Index = frameOffset + frame2 * boneCount;
-
-            mat4 offset = bones[boneOffset + inBoneIDs[j]].offset;
-            mat4 boneTransform = GetPose(frame1Index, frame2Index, frameBlend, inBoneIDs[j], boneCount);
-            boneMatrix += (boneTransform * offset) * inWeights[j] * blendFactor;
+    for (int j = 0; j < 4; j++) {
+        if (inBoneIDs[j] == -1) {
+            break;
         }
+
+        mat4 offset = bones[boneOffset + inBoneIDs[j]].offset;
+        mat4 boneTransform = GetPose(animationInstanceOffset, animationInstanceCount, inBoneIDs[j], boneOffset, boneCount);
+        boneMatrix += (boneTransform * offset) * inWeights[j];
     }
 
     gl_Position = ubo.lightSpaceMatrix * instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);

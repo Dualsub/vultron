@@ -19,6 +19,18 @@ namespace Vultron
         Back = VK_CULL_MODE_BACK_BIT,
     };
 
+    enum class DepthFunction
+    {
+        Never = VK_COMPARE_OP_NEVER,
+        Less = VK_COMPARE_OP_LESS,
+        Equal = VK_COMPARE_OP_EQUAL,
+        LessOrEqual = VK_COMPARE_OP_LESS_OR_EQUAL,
+        Greater = VK_COMPARE_OP_GREATER,
+        NotEqual = VK_COMPARE_OP_NOT_EQUAL,
+        GreaterOrEqual = VK_COMPARE_OP_GREATER_OR_EQUAL,
+        Always = VK_COMPARE_OP_ALWAYS,
+    };
+
     class VulkanMaterialPipeline
     {
     private:
@@ -29,7 +41,7 @@ namespace Vultron
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, CullMode cullMode, bool depthTestEnable);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthTestEnable);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -46,9 +58,10 @@ namespace Vultron
             const VulkanShader &fragmentShader;
             VkDescriptorSetLayout sceneDescriptorSetLayout;
             const std::vector<DescriptorSetLayoutBinding> &bindings;
+            const std::vector<VkPushConstantRange> &pushConstantRanges = {};
             const VertexDescription &vertexDescription = StaticMeshVertex::GetVertexDescription();
             CullMode cullMode = CullMode::Back;
-            bool depthTestEnable = true;
+            DepthFunction depthFunction = DepthFunction::Less;
         };
 
         static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);

@@ -34,9 +34,10 @@ const mat4 biasMat = mat4(
 
 void main()  
 {
-    gl_Position = ubo.proj * ubo.view * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
-    fragWorldPos = vec3(instances[gl_InstanceIndex].model * vec4(inPosition, 1.0));
+    vec4 pos = instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * pos;
+    fragWorldPos = pos.xyz;
     fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
-    fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
+    fragNormal = normalize(mat3(transpose(inverse(instances[gl_InstanceIndex].model))) * inNormal);
+    fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * pos;
 }

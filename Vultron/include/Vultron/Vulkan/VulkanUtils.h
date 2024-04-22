@@ -42,6 +42,14 @@ namespace Vultron::VkUtil
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    struct BufferToImageRegion
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t mipLevel = 0;
+        uint32_t layer = 0;
+    };
+
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
     SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
@@ -52,9 +60,11 @@ namespace Vultron::VkUtil
     void EndSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer);
 
     void CopyBuffer(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height, uint32_t mipLevel = 0);
-    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
-
+    void CopyBufferToImage(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer srcBuffer, VkImage dstImage, const std::vector<BufferToImageRegion> &regions);
+    void CopyImage(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImage srcImage, VkImage dstImage, VkImageLayout srcLayout, VkImageLayout dstLayout, VkExtent3D extent, uint32_t mipLevel = 0, uint32_t srcLayer = 0, uint32_t dstLayer = 0, uint32_t numLayers = 1);
+    // If you pass a command pool, the function will create a command buffer and submit it to the queue
+    void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1, uint32_t layers = 1);
+    void TransitionImageLayout(VkDevice device, VkCommandBuffer VkCommandBuffer, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1, uint32_t layers = 1);
     size_t GetAlignedSize(size_t offset, size_t alignment);
 
     VkDescriptorType GetDescriptorType(DescriptorType type);

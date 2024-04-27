@@ -4,6 +4,7 @@ layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec4 fragLightSpacePos;
+layout(location = 4) in vec4 fragColor;
 
 layout(location = 0) out vec4 outColor;
 
@@ -150,6 +151,7 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 }
 
 void main() {
+	if (fragColor.a < 0.1) discard;
     vec4 texColor = texture(albedoMap, fragTexCoord);
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
     float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b);
@@ -191,5 +193,5 @@ void main() {
 	color = color * (1.0f / Tonemap(vec3(11.2f)));	
 	color = pow(color, vec3(1.0f / gamma));
 
-    outColor = vec4(color, 1.0);
+    outColor = vec4(color, texColor.a) * fragColor;
 }

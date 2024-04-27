@@ -20,6 +20,7 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
+        m_particleJobs.clear();
         m_spriteJobs.clear();
     }
 
@@ -31,7 +32,30 @@ namespace Vultron
             m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
         }
 
-        m_staticJobs[hash].transforms.push_back(job.transform);
+        auto &instancedJob = m_staticJobs[hash];
+        if (job.castShadows)
+        {
+            instancedJob.instances.push_back(
+                StaticInstanceData{
+                    .model = job.transform,
+                    .texCoord = job.texCoord,
+                    .texSize = job.texSize,
+                    .color = job.color,
+                });
+        }
+        else
+        {
+            // Insert at the beginning of the list to separate shadow casters from non-shadow casters
+            instancedJob.instances.emplace(
+                instancedJob.instances.begin(),
+                StaticInstanceData{
+                    .model = job.transform,
+                    .texCoord = job.texCoord,
+                    .texSize = job.texSize,
+                    .color = job.color,
+                });
+            instancedJob.nonShadowCasterCount++;
+        }
     }
 
     void SceneRenderer::SubmitRenderJob(const SkeletalRenderJob &job)
@@ -107,7 +131,7 @@ namespace Vultron
 
     void SceneRenderer::EndFrame()
     {
-        std::vector<glm::mat4> staticInstances;
+        std::vector<StaticInstanceData> staticInstances;
         std::vector<RenderBatch> staticBatches;
 
         for (auto &job : m_staticJobs)
@@ -116,9 +140,10 @@ namespace Vultron
                 .mesh = job.second.mesh,
                 .material = job.second.material,
                 .firstInstance = static_cast<uint32_t>(staticInstances.size()),
-                .instanceCount = static_cast<uint32_t>(job.second.transforms.size()),
+                .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
+                .nonShadowCasterCount = job.second.nonShadowCasterCount,
             });
-            staticInstances.insert(staticInstances.end(), job.second.transforms.begin(), job.second.transforms.end());
+            staticInstances.insert(staticInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 
         std::vector<SkeletalInstanceData> skeletalInstances;
@@ -152,7 +177,15 @@ namespace Vultron
         // Hack to get correct rendering order
         std::reverse(spriteBatches.begin(), spriteBatches.end());
 
-        m_backend.Draw(staticBatches, staticInstances, skeletalBatches, skeletalInstances, m_animationInstances, spriteBatches, spriteInstances);
+        m_backend.Draw(RenderData{
+            .staticBatches = staticBatches,
+            .staticInstances = staticInstances,
+            .skeletalBatches = skeletalBatches,
+            .skeletalInstances = skeletalInstances,
+            .animationInstances = m_animationInstances,
+            .spriteBatches = spriteBatches,
+            .spriteInstances = spriteInstances,
+        });
     }
 
     std::vector<FontGlyph> SceneRenderer::GetTextGlyphs(const RenderHandle &font, const std::string &text) const

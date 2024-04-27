@@ -25,6 +25,10 @@ namespace Vultron
         RenderHandle material;
         uint32_t firstInstance;
         uint32_t instanceCount;
+
+        // We have some instances that should not be submitted to the shadow pass.
+        // These are stored at the beginning of the batch.
+        uint32_t nonShadowCasterCount = 0;
     };
 
     struct StaticRenderJob
@@ -32,6 +36,10 @@ namespace Vultron
         RenderHandle mesh = {};
         RenderHandle material = {};
         glm::mat4 transform = {};
+        glm::vec2 texCoord = glm::vec2(0.0f);
+        glm::vec2 texSize = glm::vec2(1.0f);
+        glm::vec4 color = glm::vec4(1.0f);
+        bool castShadows = true;
 
         // Compute hash of mesh and texture
         uint64_t GetHash() const

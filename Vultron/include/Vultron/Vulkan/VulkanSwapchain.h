@@ -34,6 +34,7 @@ namespace Vultron
         inline const std::vector<VkImageView> &GetImageViews() const { return m_swapchainImageViews; }
         inline const std::vector<VkFramebuffer> &GetFramebuffers() const { return m_swapchainFramebuffers; }
         inline std::vector<VkFramebuffer> &GetFramebuffers() { return m_swapchainFramebuffers; }
+        inline VkFramebuffer GetFramebuffer(uint32_t index) const { return m_swapchainFramebuffers[index]; }
         inline VkFormat GetImageFormat() const { return m_swapchainImageFormat; }
         inline VkExtent2D GetExtent() const { return m_swapchainExtent; }
     };

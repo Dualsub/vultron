@@ -8,6 +8,7 @@ layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
+layout(location = 4) out vec4 fragColor;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -20,6 +21,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 struct InstanceData {
     mat4 model;
+    vec4 texOffsetAndSize;
+    vec4 color;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
@@ -37,7 +40,8 @@ void main()
     vec4 pos = instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * pos;
     fragWorldPos = pos.xyz;
-    fragTexCoord = inTexCoord;
+    fragTexCoord = inTexCoord * instances[gl_InstanceIndex].texOffsetAndSize.zw + instances[gl_InstanceIndex].texOffsetAndSize.xy;
     fragNormal = normalize(mat3(transpose(inverse(instances[gl_InstanceIndex].model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * pos;
+    fragColor = instances[gl_InstanceIndex].color;
 }

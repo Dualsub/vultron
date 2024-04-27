@@ -769,10 +769,11 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeInstanceBuffers()
     {
-        constexpr size_t instancesSize = sizeof(InstanceData) * c_maxInstances;
+        constexpr size_t instancesSize = sizeof(StaticInstanceData) * c_maxInstances;
         constexpr size_t skeletalInstancesSize = sizeof(SkeletalInstanceData) * c_maxSkeletalInstances;
         constexpr size_t animationInstancesSize = sizeof(AnimationInstanceData) * c_maxAnimationInstances;
         constexpr size_t spriteInstancesSize = sizeof(SpriteInstanceData) * c_maxSpriteInstances;
+
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
             VulkanBuffer &instanceBuffer = m_frames[i].staticInstanceBuffer;
@@ -1783,7 +1784,7 @@ namespace Vultron
         // InitializeCommandBuffer();
     }
 
-    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches, const std::vector<RenderBatch> &spriteBatches)
+    void VulkanRenderer::WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1813,8 +1814,8 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, staticBatches, viewportSize);
-            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalShadowPipeline, skeletalBatches, viewportSize);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticShadowPipeline, renderData.staticBatches, viewportSize, true);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalShadowPipeline, renderData.skeletalBatches, viewportSize, true);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -1823,7 +1824,7 @@ namespace Vultron
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = m_renderPass.GetRenderPass();
-            renderPassInfo.framebuffer = m_swapchain.GetFramebuffers()[imageIndex];
+            renderPassInfo.framebuffer = m_swapchain.GetFramebuffer(imageIndex);
 
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
@@ -1838,10 +1839,10 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, staticBatches, viewportSize);
-            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, skeletalBatches, viewportSize);
             DrawSkybox(commandBuffer, frame.skyboxDescriptorSet, viewportSize);
-            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, spriteBatches, viewportSize);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
+            DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, renderData.staticBatches, viewportSize);
+            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, renderData.spriteBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -1849,7 +1850,7 @@ namespace Vultron
     }
 
     template <typename MeshType>
-    void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize)
+    void VulkanRenderer::DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters)
     {
         if (batches.empty())
         {
@@ -1877,6 +1878,8 @@ namespace Vultron
 
         for (const auto &batch : batches)
         {
+            uint32_t firstInstance = omitNonShadowCasters ? batch.firstInstance + batch.nonShadowCasterCount : batch.firstInstance;
+
             MeshDrawInfo mesh = GetMeshDrawInfo<MeshType>(batch.mesh);
             const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
 
@@ -1891,7 +1894,7 @@ namespace Vultron
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 1, 1, descriptorSets, 0, nullptr);
             }
 
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, batch.firstInstance);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, firstInstance);
         }
     }
 
@@ -1925,7 +1928,7 @@ namespace Vultron
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
     }
 
-    void VulkanRenderer::Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances, const std::vector<RenderBatch> &spriteBatches, const std::vector<SpriteInstanceData> &spriteInstances)
+    void VulkanRenderer::Draw(const RenderData &renderData)
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
         const uint32_t currentFrame = m_currentFrameIndex;
@@ -1937,7 +1940,7 @@ namespace Vultron
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
         vkResetCommandBuffer(frame.commandBuffer, 0);
-        WriteCommandBuffer(frame.commandBuffer, imageIndex, staticBatches, skeletalBatches, spriteBatches);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex, renderData);
 
         static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
         const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1957,20 +1960,20 @@ namespace Vultron
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
         // Instance buffer
-        const size_t size = sizeof(InstanceData) * staticInstances.size();
-        frame.staticInstanceBuffer.CopyData(staticInstances.data(), size);
+        const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
+        frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), size);
 
         // Skeletal instance buffer
-        const size_t skeletalSize = sizeof(SkeletalInstanceData) * skeletalInstances.size();
-        frame.skeletalInstanceBuffer.CopyData(skeletalInstances.data(), skeletalSize);
+        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
+        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
 
         // Animation instance buffer
-        const size_t animationSize = sizeof(AnimationInstanceData) * animationInstances.size();
-        frame.animationInstanceBuffer.CopyData(animationInstances.data(), animationSize);
+        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
+        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
 
         // Sprite instance buffer
-        const size_t spriteSize = sizeof(SpriteInstanceData) * spriteInstances.size();
-        frame.spriteInstanceBuffer.CopyData(spriteInstances.data(), spriteSize);
+        const size_t spriteSize = sizeof(SpriteInstanceData) * renderData.spriteInstances.size();
+        frame.spriteInstanceBuffer.CopyData(renderData.spriteInstances.data(), spriteSize);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

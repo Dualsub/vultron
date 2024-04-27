@@ -15,6 +15,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 struct InstanceData {
     mat4 model;
+    vec4 texOffsetAndSize;
+    vec4 color;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {

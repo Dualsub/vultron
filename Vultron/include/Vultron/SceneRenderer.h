@@ -17,7 +17,8 @@ namespace Vultron
     {
         RenderHandle mesh = {};
         RenderHandle material = {};
-        std::vector<glm::mat4> transforms = {};
+        std::vector<StaticInstanceData> instances = {};
+        uint32_t nonShadowCasterCount = 0;
     };
 
     struct InstancedSkeletalRenderJob

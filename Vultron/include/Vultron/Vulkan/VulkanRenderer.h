@@ -1,8 +1,17 @@
 #pragma once
 
+// Undefine windows.h define for min/max
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+
 #define GLM_FORCE_ALIGNED_GENTYPES
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 
 #include "Vultron/Core/Core.h"
 #include "Vultron/Types.h"
@@ -126,9 +135,12 @@ namespace Vultron
         VkDescriptorSet skyboxDescriptorSet;
     };
 
-    struct InstanceData
+    struct StaticInstanceData
     {
         glm::mat4 model;
+        glm::vec2 texCoord;
+        glm::vec2 texSize;
+        glm::vec4 color;
     };
 
     struct SkeletalInstanceData
@@ -180,6 +192,17 @@ namespace Vultron
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
+
+    struct RenderData
+    {
+        const std::vector<RenderBatch> &staticBatches;
+        const std::vector<StaticInstanceData> &staticInstances;
+        const std::vector<RenderBatch> &skeletalBatches;
+        const std::vector<SkeletalInstanceData> &skeletalInstances;
+        const std::vector<AnimationInstanceData> &animationInstances;
+        const std::vector<RenderBatch> &spriteBatches;
+        const std::vector<SpriteInstanceData> &spriteInstances;
+    };
 
     constexpr size_t c_maxInstances = 1024;
     constexpr uint32_t c_frameOverlap = 2;
@@ -325,9 +348,9 @@ namespace Vultron
         bool InitializeDebugMessenger();
 
         // Command buffer
-        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const std::vector<RenderBatch> &staticBatches, const std::vector<RenderBatch> &skeletalBatches, const std::vector<RenderBatch> &spriteBatches);
+        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData);
         template <typename MeshType>
-        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize);
+        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
 
         template <typename MeshType>
@@ -348,7 +371,7 @@ namespace Vultron
 
         bool Initialize(const Window &window);
         void PostInitialize();
-        void Draw(const std::vector<RenderBatch> &staticBatches, const std::vector<glm::mat4> &staticInstances, const std::vector<RenderBatch> &skeletalBatches, const std::vector<SkeletalInstanceData> &skeletalInstances, const std::vector<AnimationInstanceData> &animationInstances, const std::vector<RenderBatch> &spriteBatches, const std::vector<SpriteInstanceData> &spriteInstances);
+        void Draw(const RenderData &renderData);
         void Shutdown();
 
         void SetCamera(const Camera &camera) { m_camera = camera; }

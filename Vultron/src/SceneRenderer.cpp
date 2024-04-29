@@ -1,5 +1,7 @@
 #include "Vultron/SceneRenderer.h"
 
+#include <algorithm>
+
 namespace Vultron
 {
 
@@ -20,7 +22,6 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
-        m_particleJobs.clear();
         m_spriteJobs.clear();
     }
 
@@ -143,6 +144,11 @@ namespace Vultron
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
                 .nonShadowCasterCount = job.second.nonShadowCasterCount,
             });
+
+            // This is a hack that works for a top-down game.
+            std::sort(job.second.instances.begin(), job.second.instances.end(), [](const StaticInstanceData &a, const StaticInstanceData &b)
+                      { return a.model[3].y < b.model[3].y; });
+
             staticInstances.insert(staticInstances.end(), job.second.instances.begin(), job.second.instances.end());
         }
 

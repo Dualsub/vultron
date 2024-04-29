@@ -376,6 +376,7 @@ namespace Vultron
 
         void SetCamera(const Camera &camera) { m_camera = camera; }
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
+        Camera &GetCamera() { return m_camera; }
 
         const std::vector<SkeletonBone> &GetBones() const { return m_bones; }
         const std::vector<AnimationFrame> &GetAnimationFrames() const { return m_animationFrames; }

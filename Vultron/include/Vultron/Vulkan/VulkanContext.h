@@ -18,7 +18,12 @@ namespace Vultron
             VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
             VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     constexpr std::array<const char *, 1> c_validationLayers = {"VK_LAYER_KHRONOS_validation"};
+
+#if VLT_ENABLE_VALIDATION_LAYERS
     constexpr bool c_validationLayersEnabled = true;
+#else
+    constexpr bool c_validationLayersEnabled = false;
+#endif
 
     class VulkanContext
     {

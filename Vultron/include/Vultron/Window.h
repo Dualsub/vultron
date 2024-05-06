@@ -14,6 +14,8 @@
 #endif
 #include <GLFW/glfw3native.h>
 
+#include <glm/glm.hpp>
+
 #include <vector>
 #include <utility>
 #include <stdio.h>
@@ -61,6 +63,11 @@ namespace Vultron
         std::pair<uint32_t, uint32_t> GetExtent() const
         {
             return std::make_pair(m_width, m_height);
+        }
+
+        glm::vec2 GetAspectRatio() const
+        {
+            return glm::vec2(1.0f, static_cast<float>(m_width) / static_cast<float>(m_height));
         }
 
         GLFWwindow *GetWindowHandle() const

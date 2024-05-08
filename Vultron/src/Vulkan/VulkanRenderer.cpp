@@ -1842,6 +1842,9 @@ namespace Vultron
             DrawSkybox(commandBuffer, frame.skyboxDescriptorSet, viewportSize);
             DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
             DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, renderData.staticBatches, viewportSize);
+
+            ClearDepthBuffer(commandBuffer, viewportSize);
+
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, renderData.spriteBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
@@ -1926,6 +1929,21 @@ namespace Vultron
         vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
+    }
+
+    void VulkanRenderer::ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize)
+    {
+        VkClearAttachment clearAttachment{};
+        clearAttachment.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        clearAttachment.clearValue.depthStencil = {1.0f, 0};
+
+        VkClearRect clearRect{};
+        clearRect.rect.offset = {0, 0};
+        clearRect.rect.extent = {viewportSize.x, viewportSize.y};
+        clearRect.baseArrayLayer = 0;
+        clearRect.layerCount = 1;
+
+        vkCmdClearAttachments(commandBuffer, 1, &clearAttachment, 1, &clearRect);
     }
 
     void VulkanRenderer::Draw(const RenderData &renderData)

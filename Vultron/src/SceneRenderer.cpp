@@ -168,20 +168,26 @@ namespace Vultron
 
         std::vector<SpriteInstanceData> spriteInstances;
         std::vector<RenderBatch> spriteBatches;
+        std::vector<InstancedSpriteRenderJob> spriteJobs;
 
         for (auto &job : m_spriteJobs)
         {
-            spriteBatches.push_back({
-                .mesh = {},
-                .material = job.second.material,
-                .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
-                .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-            });
-            spriteInstances.insert(spriteInstances.end(), job.second.instances.begin(), job.second.instances.end());
+            spriteJobs.push_back(job.second);
         }
 
-        // Hack to get correct rendering order
-        std::reverse(spriteBatches.begin(), spriteBatches.end());
+        std::sort(spriteJobs.begin(), spriteJobs.end(), [this](const InstancedSpriteRenderJob &a, const InstancedSpriteRenderJob &b)
+                  { return m_spriteMaterialToLayer[a.material] < m_spriteMaterialToLayer[b.material]; });
+
+        for (auto &job : spriteJobs)
+        {
+            spriteBatches.push_back({
+                .mesh = {},
+                .material = job.material,
+                .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
+                .instanceCount = static_cast<uint32_t>(job.instances.size()),
+            });
+            spriteInstances.insert(spriteInstances.end(), job.instances.begin(), job.instances.end());
+        }
 
         m_backend.Draw(RenderData{
             .staticBatches = staticBatches,

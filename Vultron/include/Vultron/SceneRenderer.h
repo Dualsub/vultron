@@ -9,6 +9,7 @@
 #include <map>
 #include <vector>
 #include <iostream>
+#include <unordered_map>
 
 namespace Vultron
 {
@@ -44,6 +45,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
         std::vector<AnimationInstanceData> m_animationInstances;
 
+        std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
         RenderHandle m_quadMesh = {};
 
     public:
@@ -93,6 +95,14 @@ namespace Vultron
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
         {
             return m_backend.CreateMaterial(name, materialCreateInfo);
+        }
+
+        template <>
+        RenderHandle CreateMaterial<SpriteMaterial>(const std::string &name, const SpriteMaterial &materialCreateInfo)
+        {
+            RenderHandle handle = m_backend.CreateMaterial(name, materialCreateInfo);
+            m_spriteMaterialToLayer[handle] = materialCreateInfo.layer;
+            return handle;
         }
     };
 

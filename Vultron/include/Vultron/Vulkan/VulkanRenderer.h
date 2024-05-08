@@ -44,6 +44,7 @@ namespace Vultron
     struct SpriteMaterial
     {
         RenderHandle texture;
+        int32_t layer = 0;
 
         std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
         {
@@ -352,6 +353,7 @@ namespace Vultron
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
+        void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
 
         template <typename MeshType>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const

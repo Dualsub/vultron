@@ -208,10 +208,17 @@ namespace Vultron
         std::vector<FontGlyph> glyphs;
         for (char c : text)
         {
-            glyphs.push_back(fontAtlas.GetGlyph(c));
+            glyphs.push_back(fontAtlas.GetGlyph(std::string(1, c)));
         }
 
         return glyphs;
+    }
+
+    FontGlyph SceneRenderer::GetGlyph(const RenderHandle &font, const std::string &name) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &fontAtlas = rp.GetFontAtlas(font);
+        return fontAtlas.GetGlyph(name);
     }
 
     SceneRenderer::AnimationTiming SceneRenderer::GetAnimationTiming(const RenderHandle &animation, float time, bool loop) const

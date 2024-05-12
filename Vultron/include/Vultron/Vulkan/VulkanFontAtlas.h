@@ -4,26 +4,30 @@
 
 #include <glm/glm.hpp>
 
+#include <string>
 #include <unordered_map>
 
 namespace Vultron
 {
+
     struct FontGlyph
     {
-        char character;
+        std::string character;
         glm::vec2 uvOffset;
         glm::vec2 uvExtent;
         float aspectRatio;
     };
 
+    using GlyphMap = std::unordered_map<std::string, FontGlyph>;
+
     class VulkanFontAtlas
     {
     private:
         VulkanImage m_atlas;
-        std::unordered_map<char, FontGlyph> m_glyphs;
+        GlyphMap m_glyphs;
 
     public:
-        VulkanFontAtlas(const VulkanImage &atlas, const std::unordered_map<char, FontGlyph> &glyphs)
+        VulkanFontAtlas(const VulkanImage &atlas, const GlyphMap &glyphs)
             : m_atlas(atlas), m_glyphs(glyphs) {}
         VulkanFontAtlas() = default;
         ~VulkanFontAtlas() = default;
@@ -36,7 +40,7 @@ namespace Vultron
 
         static VulkanFontAtlas CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, const FontAtlasFromFileCreateInfo &createInfo);
 
-        FontGlyph GetGlyph(char character) const { return m_glyphs.at(character); }
+        FontGlyph GetGlyph(const std::string &name) const { return m_glyphs.at(name); }
         const VulkanImage GetAtlas() const { return m_atlas; }
 
         void Destroy(const VulkanContext &context);

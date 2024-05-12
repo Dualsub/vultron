@@ -224,6 +224,7 @@ namespace Vultron
         {
             createInfo.enabledLayerCount = static_cast<uint32_t>(c_validationLayers.size());
             createInfo.ppEnabledLayerNames = c_validationLayers.data();
+            std::cout << "Validation layers enabled." << std::endl;
         }
         else
         {

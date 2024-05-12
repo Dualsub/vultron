@@ -73,6 +73,7 @@ namespace Vultron
 
         // Font stuff
         std::vector<FontGlyph> GetTextGlyphs(const RenderHandle &font, const std::string &text) const;
+        FontGlyph GetGlyph(const RenderHandle &font, const std::string &name) const;
 
         // Animation stuff
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;

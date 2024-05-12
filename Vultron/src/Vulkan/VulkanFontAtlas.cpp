@@ -45,7 +45,7 @@ namespace Vultron
 
         image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), header.numChannels * header.numBytesPerChannel, layers);
 
-        std::unordered_map<char, FontGlyph> glpyhs;
+        GlyphMap glpyhs;
 
         uint32_t numGlyphs;
         file.read(reinterpret_cast<char *>(&numGlyphs), sizeof(numGlyphs));
@@ -53,7 +53,15 @@ namespace Vultron
         for (uint32_t i = 0; i < numGlyphs; i++)
         {
             FontGlyph glyph;
-            file.read(reinterpret_cast<char *>(&glyph.character), sizeof(glyph.character));
+
+            // Read string length and then the string
+            uint32_t length;
+            file.read(reinterpret_cast<char *>(&length), sizeof(length));
+            std::string character;
+            character.resize(length);
+            file.read(character.data(), length);
+            glyph.character = character;
+
             file.read(reinterpret_cast<char *>(&glyph.uvOffset), sizeof(glyph.uvOffset));
             file.read(reinterpret_cast<char *>(&glyph.uvExtent), sizeof(glyph.uvExtent));
             file.read(reinterpret_cast<char *>(&glyph.aspectRatio), sizeof(glyph.aspectRatio));

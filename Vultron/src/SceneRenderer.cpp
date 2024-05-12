@@ -30,7 +30,15 @@ namespace Vultron
         uint64_t hash = job.GetHash();
         if (m_staticJobs.find(hash) == m_staticJobs.end())
         {
-            m_staticJobs.insert({hash, InstancedStaticRenderJob{job.mesh, job.material, {}}});
+            m_staticJobs.insert({
+                hash,
+                InstancedStaticRenderJob{
+                    .mesh = job.mesh,
+                    .material = job.material,
+                    .instances = {},
+                    .transparent = m_transparentMaterials.find(job.material) != m_transparentMaterials.end(),
+                },
+            });
         }
 
         auto &instancedJob = m_staticJobs[hash];
@@ -134,22 +142,33 @@ namespace Vultron
     {
         std::vector<StaticInstanceData> staticInstances;
         std::vector<RenderBatch> staticBatches;
+        std::vector<InstancedStaticRenderJob> staticJobs;
 
+        staticJobs.reserve(m_staticJobs.size());
         for (auto &job : m_staticJobs)
         {
+            staticJobs.push_back(job.second);
+        }
+
+        // Maybe look over this sorting logic
+        std::sort(staticJobs.begin(), staticJobs.end(), [](const InstancedStaticRenderJob &a, const InstancedStaticRenderJob &b)
+                  { return a.transparent < b.transparent; });
+
+        for (auto &job : staticJobs)
+        {
             staticBatches.push_back({
-                .mesh = job.second.mesh,
-                .material = job.second.material,
+                .mesh = job.mesh,
+                .material = job.material,
                 .firstInstance = static_cast<uint32_t>(staticInstances.size()),
-                .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
-                .nonShadowCasterCount = job.second.nonShadowCasterCount,
+                .instanceCount = static_cast<uint32_t>(job.instances.size()),
+                .nonShadowCasterCount = job.nonShadowCasterCount,
             });
 
             // This is a hack that works for a top-down game.
-            std::sort(job.second.instances.begin(), job.second.instances.end(), [](const StaticInstanceData &a, const StaticInstanceData &b)
+            std::sort(job.instances.begin(), job.instances.end(), [](const StaticInstanceData &a, const StaticInstanceData &b)
                       { return a.model[3].y < b.model[3].y; });
 
-            staticInstances.insert(staticInstances.end(), job.second.instances.begin(), job.second.instances.end());
+            staticInstances.insert(staticInstances.end(), job.instances.begin(), job.instances.end());
         }
 
         std::vector<SkeletalInstanceData> skeletalInstances;

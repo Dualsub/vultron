@@ -83,6 +83,7 @@ namespace Vultron
         RenderHandle albedo;
         RenderHandle normal;
         RenderHandle metallicRoughnessAO;
+        bool transparent = false;
 
         std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
         {

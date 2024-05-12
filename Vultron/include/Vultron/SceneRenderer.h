@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include <map>
+#include <set>
 #include <vector>
 #include <iostream>
 #include <unordered_map>
@@ -20,6 +21,7 @@ namespace Vultron
         RenderHandle material = {};
         std::vector<StaticInstanceData> instances = {};
         uint32_t nonShadowCasterCount = 0;
+        bool transparent = false;
     };
 
     struct InstancedSkeletalRenderJob
@@ -46,6 +48,7 @@ namespace Vultron
         std::vector<AnimationInstanceData> m_animationInstances;
 
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
+        std::set<RenderHandle> m_transparentMaterials;
         RenderHandle m_quadMesh = {};
 
     public:
@@ -103,6 +106,17 @@ namespace Vultron
         {
             RenderHandle handle = m_backend.CreateMaterial(name, materialCreateInfo);
             m_spriteMaterialToLayer[handle] = materialCreateInfo.layer;
+            return handle;
+        }
+
+        template <>
+        RenderHandle CreateMaterial<PBRMaterial>(const std::string &name, const PBRMaterial &materialCreateInfo)
+        {
+            RenderHandle handle = m_backend.CreateMaterial(name, materialCreateInfo);
+            if (materialCreateInfo.transparent)
+            {
+                m_transparentMaterials.insert(handle);
+            }
             return handle;
         }
     };

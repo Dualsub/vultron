@@ -415,9 +415,9 @@ namespace Vultron
     bool VulkanRenderer::InitializeGraphicsPipeline()
     {
         // Shader
-        m_staticVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.vert.spv"});
-        m_skeletalVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
-        m_fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.frag.spv"});
+        m_staticVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.vert.spv"});
+        m_skeletalVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.vert.spv"});
+        m_fragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/scene.frag.spv"});
 
         auto materialBindings = std::vector<DescriptorSetLayoutBinding>{
             // Albedo
@@ -462,9 +462,9 @@ namespace Vultron
 
         // Shadow
 
-        m_staticShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.vert.spv"});
-        m_skeletalShadowVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow_skeletal.vert.spv"});
-        m_shadowFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.frag.spv"});
+        m_staticShadowVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.vert.spv"});
+        m_skeletalShadowVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow_skeletal.vert.spv"});
+        m_shadowFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/shadow.frag.spv"});
 
         m_staticShadowPipeline = VulkanMaterialPipeline::Create(
             m_context, m_shadowPass,
@@ -489,8 +489,8 @@ namespace Vultron
             });
 
         // Sprite
-        m_spriteVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.vert.spv"});
-        m_spriteFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.frag.spv"});
+        m_spriteVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.vert.spv"});
+        m_spriteFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.frag.spv"});
 
         m_spritePipeline = VulkanMaterialPipeline::Create(
             m_context, m_renderPass,
@@ -511,8 +511,8 @@ namespace Vultron
             });
 
         // Skybox
-        m_skyboxVertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.vert.spv"});
-        m_skyboxFragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
+        m_skyboxVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.vert.spv"});
+        m_skyboxFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
 
         m_skyboxPipeline = VulkanMaterialPipeline::Create(
             m_context, m_renderPass,
@@ -1085,8 +1085,8 @@ namespace Vultron
 
         VkDescriptorSet descriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, descriptorSetLayout, {});
 
-        VulkanShader vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/brdf.vert.spv"});
-        VulkanShader fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/brdf.frag.spv"});
+        VulkanShader vertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/brdf.vert.spv"});
+        VulkanShader fragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/brdf.frag.spv"});
         VulkanMaterialPipeline pipeline = VulkanMaterialPipeline::Create(
             m_context, renderPass,
             {
@@ -1298,8 +1298,8 @@ namespace Vultron
             float deltaTheta = (0.5f * glm::pi<float>()) / 64.0f;
         } pushBlock;
 
-        VulkanShader vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});
-        VulkanShader fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/irradiance.frag.spv"});
+        VulkanShader vertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});
+        VulkanShader fragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/irradiance.frag.spv"});
         VulkanMaterialPipeline pipeline = VulkanMaterialPipeline::Create(
             m_context, renderPass,
             {
@@ -1597,8 +1597,8 @@ namespace Vultron
             uint32_t numSamples = 32u;
         } pushBlock;
 
-        VulkanShader vertexShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});
-        VulkanShader fragmentShader = VulkanShader::CreateFromFile({.device = m_context.GetDevice(), .filepath = std::string(VLT_ASSETS_DIR) + "/shaders/prefilter.frag.spv"});
+        VulkanShader vertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});
+        VulkanShader fragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/prefilter.frag.spv"});
         VulkanMaterialPipeline pipeline = VulkanMaterialPipeline::Create(
             m_context, renderPass,
             {

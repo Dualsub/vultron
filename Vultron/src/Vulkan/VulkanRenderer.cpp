@@ -112,6 +112,12 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeSkeletalComputePipeline())
+        {
+            std::cerr << "Faild to initialize skeletal compute pipeline." << std::endl;
+            return false;
+        }
+
         if (!InitializeSkeletalBuffers())
         {
             std::cerr << "Faild to initialize skeletal buffers." << std::endl;
@@ -338,7 +344,7 @@ namespace Vultron
                     // Instance data
                     .binding = 1,
                     .type = DescriptorType::StorageBuffer,
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                 },
                 {
                     // Shadow map
@@ -365,22 +371,10 @@ namespace Vultron
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
                 {
-                    // Bone data
+                    // Bone Output
                     .binding = 6,
-                    .type = DescriptorType::UniformBuffer,
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                },
-                {
-                    // Animation data
-                    .binding = 7,
                     .type = DescriptorType::StorageBuffer,
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                },
-                {
-                    // Animation instance data
-                    .binding = 8,
-                    .type = DescriptorType::UniformBuffer,
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                 },
             });
 
@@ -540,6 +534,70 @@ namespace Vultron
         return true;
     }
 
+    bool VulkanRenderer::InitializeSkeletalComputePipeline()
+    {
+        m_skeletalComputeShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skeletal.comp.spv"});
+
+        // Create descriptor set layout
+        m_skeletalComputeSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Instance data
+                    .binding = 0,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    // Bone data
+                    .binding = 1,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    // Animation data
+                    .binding = 2,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    // Animation instance data
+                    .binding = 3,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    // Output bone data
+                    .binding = 4,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+            });
+
+        // Create pipeline layout
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &m_skeletalComputeSetLayout;
+        pipelineLayoutInfo.pushConstantRangeCount = 0;
+        pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+        VK_CHECK(vkCreatePipelineLayout(m_context.GetDevice(), &pipelineLayoutInfo, nullptr, &m_skeletalComputePipelineLayout));
+
+        // Create compute pipeline
+        VkComputePipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        pipelineInfo.stage.module = m_skeletalComputeShader.GetShaderModule();
+        pipelineInfo.stage.pName = "main";
+        pipelineInfo.layout = m_skeletalComputePipelineLayout;
+
+        VK_CHECK(vkCreateComputePipelines(m_context.GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_skeletalComputePipeline));
+
+        return true;
+    }
+
     bool VulkanRenderer::InitializeSkeletalBuffers()
     {
         m_boneBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(SkeletalBoneData) * c_maxBones, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
@@ -630,9 +688,12 @@ namespace Vultron
             allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             allocInfo.commandPool = m_commandPool;
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandBufferCount = 1;
+            allocInfo.commandBufferCount = 2;
+            VkCommandBuffer buffers[2];
+            VK_CHECK(vkAllocateCommandBuffers(m_context.GetDevice(), &allocInfo, buffers));
 
-            VK_CHECK(vkAllocateCommandBuffers(m_context.GetDevice(), &allocInfo, &m_frames[i].commandBuffer));
+            m_frames[i].commandBuffer = buffers[0];
+            m_frames[i].computeCommandBuffer = buffers[1];
         }
 
         return true;
@@ -647,12 +708,14 @@ namespace Vultron
 
             VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].imageAvailableSemaphore));
             VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].renderFinishedSemaphore));
+            VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].computeFinishedSemaphore));
 
             VkFenceCreateInfo fenceInfo{};
             fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
             fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
             VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].inFlightFence));
+            VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].computeInFlightFence));
         }
 
         return true;
@@ -788,6 +851,10 @@ namespace Vultron
             animationInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             animationInstanceBuffer.Map(m_context.GetAllocator());
 
+            VulkanBuffer &boneOutputBuffer = m_frames[i].boneOutputBuffer;
+            boneOutputBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = sizeof(glm::mat4) * c_maxBoneOutputs, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            boneOutputBuffer.Map(m_context.GetAllocator());
+
             VulkanBuffer &spriteInstanceBuffer = m_frames[i].spriteInstanceBuffer;
             spriteInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = spriteInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             spriteInstanceBuffer.Map(m_context.GetAllocator());
@@ -906,21 +973,9 @@ namespace Vultron
                 },
                 {
                     .binding = 6,
-                    .type = DescriptorType::UniformBuffer,
-                    .buffer = m_boneBuffer.GetBuffer(),
-                    .size = m_boneBuffer.GetSize(),
-                },
-                {
-                    .binding = 7,
                     .type = DescriptorType::StorageBuffer,
-                    .buffer = m_animationFrameBuffer.GetBuffer(),
-                    .size = m_animationFrameBuffer.GetSize(),
-                },
-                {
-                    .binding = 8,
-                    .type = DescriptorType::UniformBuffer,
-                    .buffer = m_frames[i].animationInstanceBuffer.GetBuffer(),
-                    .size = m_frames[i].animationInstanceBuffer.GetSize(),
+                    .buffer = m_frames[i].boneOutputBuffer.GetBuffer(),
+                    .size = m_frames[i].boneOutputBuffer.GetSize(),
                 },
             };
 
@@ -953,6 +1008,43 @@ namespace Vultron
             };
 
             m_frames[i].skyboxDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skyboxSetLayout, bindings);
+
+            m_frames[i].skeletalComputeDescriptorSet = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(),
+                m_descriptorPool,
+                m_skeletalComputeSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::StorageBuffer,
+                        .buffer = m_frames[i].skeletalInstanceBuffer.GetBuffer(),
+                        .size = m_frames[i].skeletalInstanceBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::UniformBuffer,
+                        .buffer = m_boneBuffer.GetBuffer(),
+                        .size = m_boneBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 2,
+                        .type = DescriptorType::StorageBuffer,
+                        .buffer = m_animationFrameBuffer.GetBuffer(),
+                        .size = m_animationFrameBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 3,
+                        .type = DescriptorType::UniformBuffer,
+                        .buffer = m_frames[i].animationInstanceBuffer.GetBuffer(),
+                        .size = m_frames[i].animationInstanceBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 4,
+                        .type = DescriptorType::StorageBuffer,
+                        .buffer = m_frames[i].boneOutputBuffer.GetBuffer(),
+                        .size = m_frames[i].boneOutputBuffer.GetSize(),
+                    },
+                });
         }
 
         return true;
@@ -1952,6 +2044,55 @@ namespace Vultron
         const uint32_t currentFrame = m_currentFrameIndex;
         const FrameData &frame = m_frames[currentFrame];
 
+        // Compute
+        vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
+
+        // Skeletal instance buffer
+        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
+        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
+
+        // Animation instance buffer
+        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
+        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
+
+        vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
+
+        vkResetCommandBuffer(frame.computeCommandBuffer, 0);
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0;                  // Optional
+        beginInfo.pInheritanceInfo = nullptr; // Optional
+
+        VK_CHECK(vkBeginCommandBuffer(frame.computeCommandBuffer, &beginInfo));
+
+        // Skeletal Compute
+        {
+            vkCmdBindPipeline(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_skeletalComputePipeline);
+            vkCmdBindDescriptorSets(frame.computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_skeletalComputePipelineLayout, 0, 1, &frame.skeletalComputeDescriptorSet, 0, nullptr);
+            vkCmdDispatch(frame.computeCommandBuffer, static_cast<uint32_t>(renderData.skeletalInstances.size()), 1, 1);
+        }
+
+        VK_CHECK(vkEndCommandBuffer(frame.computeCommandBuffer));
+
+        VkSubmitInfo computeSubmitInfo{};
+        computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore computeWaitSemaphores[] = {frame.computeFinishedSemaphore};
+        VkPipelineStageFlags computeWaitStages[] = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
+        computeSubmitInfo.waitSemaphoreCount = 1;
+        computeSubmitInfo.pWaitSemaphores = computeWaitSemaphores;
+        computeSubmitInfo.pWaitDstStageMask = computeWaitStages;
+
+        computeSubmitInfo.commandBufferCount = 1;
+        computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
+
+        VkSemaphore computeSignalSemaphores[] = {frame.computeFinishedSemaphore};
+        computeSubmitInfo.signalSemaphoreCount = 1;
+        computeSubmitInfo.pSignalSemaphores = computeSignalSemaphores;
+
+        VK_CHECK(vkQueueSubmit(m_context.GetGraphicsQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
+
+        // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
         vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
 
@@ -1977,17 +2118,9 @@ namespace Vultron
 
         frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
-        // Instance buffer
+        // Static instance buffer
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
         frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), size);
-
-        // Skeletal instance buffer
-        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
-        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
-
-        // Animation instance buffer
-        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
-        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
 
         // Sprite instance buffer
         const size_t spriteSize = sizeof(SpriteInstanceData) * renderData.spriteInstances.size();

@@ -2165,7 +2165,9 @@ namespace Vultron
         {
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].imageAvailableSemaphore, nullptr);
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].renderFinishedSemaphore, nullptr);
+            vkDestroySemaphore(m_context.GetDevice(), m_frames[i].computeFinishedSemaphore, nullptr);
             vkDestroyFence(m_context.GetDevice(), m_frames[i].inFlightFence, nullptr);
+            vkDestroyFence(m_context.GetDevice(), m_frames[i].computeInFlightFence, nullptr);
 
             vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &m_frames[i].commandBuffer);
 
@@ -2180,6 +2182,9 @@ namespace Vultron
 
             m_frames[i].animationInstanceBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].animationInstanceBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].boneOutputBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].boneOutputBuffer.Destroy(m_context.GetAllocator());
 
             m_frames[i].spriteInstanceBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].spriteInstanceBuffer.Destroy(m_context.GetAllocator());
@@ -2205,6 +2210,7 @@ namespace Vultron
         m_spriteFragmentShader.Destroy(m_context);
         m_skyboxVertexShader.Destroy(m_context);
         m_skyboxFragmentShader.Destroy(m_context);
+        m_skeletalComputeShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
 
@@ -2213,6 +2219,7 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_spriteSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalComputeSetLayout, nullptr);
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
@@ -2225,6 +2232,8 @@ namespace Vultron
         m_skeletalShadowPipeline.Destroy(m_context);
         m_spritePipeline.Destroy(m_context);
         m_skyboxPipeline.Destroy(m_context);
+        vkDestroyPipelineLayout(m_context.GetDevice(), m_skeletalComputePipelineLayout, nullptr);
+        vkDestroyPipeline(m_context.GetDevice(), m_skeletalComputePipeline, nullptr);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

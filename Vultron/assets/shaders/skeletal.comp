@@ -16,7 +16,7 @@ struct SkeletonBone {
 };
 
 layout(set = 0, binding = 1) uniform SkeletonBoneObject {
-    SkeletonBone bones[256];
+    SkeletonBone bones[128];
 };
 
 struct AnimationFrame {
@@ -38,9 +38,9 @@ layout(set = 0, binding = 3) uniform AnimationInstanceObject {
     AnimationInstance animationInstances[128];
 };
 
-layout(std140, set = 0, binding = 4) buffer BoneOutputBufferObject {
+layout(std140, set = 0, binding = 4) writeonly buffer BoneOutputBufferObject {
     mat4 boneOutput[];
-}; 
+};
 
 vec3 QMulV(vec4 q, vec3 v) {
     return q.xyz * 2.0f * dot(q.xyz, v) +
@@ -150,20 +150,20 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
     return boneMatrix;
 }
 
-layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout (local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 void main()  {
+    int instanceIndex = int(gl_WorkGroupID.x);
+    int boneIndex = int(gl_LocalInvocationID.x);
+    int boneCount = int(min(128, instances[instanceIndex].boneAndInstanceOffsetAndCount.y));
 
-    uint index = gl_GlobalInvocationID.x;  
+    if (boneIndex < boneCount) {
+        int boneOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.x;
+        int animationInstanceOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.z;
+        int animationInstanceCount = instances[instanceIndex].boneAndInstanceOffsetAndCount.w;
+        int boneOutputOffset = instances[instanceIndex].boneOutputOffset;
 
-    int boneOffset = instances[index].boneAndInstanceOffsetAndCount.x;
-    int boneCount = instances[index].boneAndInstanceOffsetAndCount.y;
-    int animationInstanceOffset = instances[index].boneAndInstanceOffsetAndCount.z;
-    int animationInstanceCount = instances[index].boneAndInstanceOffsetAndCount.w;
-    int boneOutputOffset = instances[index].boneOutputOffset;
-
-    for (int i = 0; i < boneCount; i++) {
-        mat4 offset = bones[boneOffset + i].offset;
-        boneOutput[boneOutputOffset + i] = GetPose(animationInstanceOffset, animationInstanceCount, i, boneOffset, boneCount) * offset;
+        mat4 offset = bones[boneOffset + boneIndex].offset;
+        boneOutput[boneOutputOffset + boneIndex] = GetPose(animationInstanceOffset, animationInstanceCount, boneIndex, boneOffset, boneCount) * offset;
     }
 }

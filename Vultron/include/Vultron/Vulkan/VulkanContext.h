@@ -35,6 +35,7 @@ namespace Vultron
         uint32_t m_graphicsQueueFamily;
         VkQueue m_graphicsQueue;
         VkQueue m_presentQueue;
+        VkQueue m_computeQueue;
         VkSurfaceKHR m_surface;
         VmaAllocator m_allocator;
 
@@ -62,6 +63,7 @@ namespace Vultron
         inline uint32_t GetGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
         inline VkQueue GetGraphicsQueue() const { return m_graphicsQueue; }
         inline VkQueue GetPresentQueue() const { return m_presentQueue; }
+        inline VkQueue GetComputeQueue() const { return m_computeQueue; }
         inline VkSurfaceKHR GetSurface() const { return m_surface; }
         inline VmaAllocator GetAllocator() const { return m_allocator; }
     };

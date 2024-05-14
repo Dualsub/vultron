@@ -2047,14 +2047,6 @@ namespace Vultron
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
 
-        // Skeletal instance buffer
-        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
-        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
-
-        // Animation instance buffer
-        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
-        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
-
         vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
 
         vkResetCommandBuffer(frame.computeCommandBuffer, 0);
@@ -2077,34 +2069,15 @@ namespace Vultron
         VkSubmitInfo computeSubmitInfo{};
         computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore computeWaitSemaphores[] = {frame.computeFinishedSemaphore};
-        VkPipelineStageFlags computeWaitStages[] = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
-        computeSubmitInfo.waitSemaphoreCount = 1;
-        computeSubmitInfo.pWaitSemaphores = computeWaitSemaphores;
-        computeSubmitInfo.pWaitDstStageMask = computeWaitStages;
-
         computeSubmitInfo.commandBufferCount = 1;
         computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
-
-        VkSemaphore computeSignalSemaphores[] = {frame.computeFinishedSemaphore};
         computeSubmitInfo.signalSemaphoreCount = 1;
-        computeSubmitInfo.pSignalSemaphores = computeSignalSemaphores;
+        computeSubmitInfo.pSignalSemaphores = &frame.computeFinishedSemaphore;
 
-        VK_CHECK(vkQueueSubmit(m_context.GetGraphicsQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
+        VK_CHECK(vkQueueSubmit(m_context.GetComputeQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
 
         // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
-        vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
-
-        uint32_t imageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
-        vkResetCommandBuffer(frame.commandBuffer, 0);
-        WriteCommandBuffer(frame.commandBuffer, imageIndex, renderData);
-
-        static std::chrono::high_resolution_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
-        const auto currentTime = std::chrono::high_resolution_clock::now();
-        const float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
-        lastTime = currentTime;
 
         // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
@@ -2122,16 +2095,36 @@ namespace Vultron
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
         frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), size);
 
+        // Skeletal instance buffer
+        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
+        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
+
+        // Animation instance buffer
+        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
+        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
+
         // Sprite instance buffer
         const size_t spriteSize = sizeof(SpriteInstanceData) * renderData.spriteInstances.size();
         frame.spriteInstanceBuffer.CopyData(renderData.spriteInstances.data(), spriteSize);
 
+        uint32_t imageIndex;
+        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+
+        vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
+
+        vkResetCommandBuffer(frame.commandBuffer, 0);
+        WriteCommandBuffer(frame.commandBuffer, imageIndex, renderData);
+
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {frame.imageAvailableSemaphore};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 1;
+        VkSemaphore waitSemaphores[] = {
+            frame.computeFinishedSemaphore,
+            frame.imageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submitInfo.waitSemaphoreCount = 2;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 

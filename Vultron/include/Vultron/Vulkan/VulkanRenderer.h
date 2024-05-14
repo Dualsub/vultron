@@ -119,8 +119,8 @@ namespace Vultron
         VkSemaphore renderFinishedSemaphore;
         VkFence inFlightFence;
 
-        VkFence computeInFlightFence;
         VkSemaphore computeFinishedSemaphore;
+        VkFence computeInFlightFence;
 
         VkCommandBuffer commandBuffer;
         VkCommandBuffer computeCommandBuffer;
@@ -223,7 +223,7 @@ namespace Vultron
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
 
     constexpr uint32_t c_maxSkeletalInstances = 512;
-    constexpr uint32_t c_maxAnimationInstances = 512;
+    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
     constexpr uint32_t c_maxBones = 128;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
     constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;

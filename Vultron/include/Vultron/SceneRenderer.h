@@ -37,7 +37,6 @@ namespace Vultron
         std::vector<struct SpriteInstanceData> instances = {};
     };
 
-    /* Idea: Frontend renderer idea: Take in render jobs */
     class SceneRenderer
     {
     private:

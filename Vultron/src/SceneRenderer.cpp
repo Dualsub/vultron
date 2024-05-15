@@ -93,6 +93,8 @@ namespace Vultron
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(job.mesh);
 
+        int32_t boneOutputOffset = instancedJob.instances.size() > 0 ? instancedJob.instances.back().boneOutputOffset + instancedJob.instances.back().boneCount : 0;
+
         SkeletalInstanceData instance = {
             .model = job.transform,
             // We are settings these per instance for now, but we only need to do it per batch.
@@ -102,6 +104,8 @@ namespace Vultron
 
             .animationInstanceOffset = animationOffset,
             .animationInstanceCount = animationCount,
+
+            .boneOutputOffset = boneOutputOffset,
         };
 
         instancedJob.instances.push_back(instance);

@@ -119,7 +119,11 @@ namespace Vultron
         VkSemaphore renderFinishedSemaphore;
         VkFence inFlightFence;
 
+        VkSemaphore computeFinishedSemaphore;
+        VkFence computeInFlightFence;
+
         VkCommandBuffer commandBuffer;
+        VkCommandBuffer computeCommandBuffer;
 
         // Global scene data resources
         VulkanBuffer uniformBuffer;
@@ -130,6 +134,8 @@ namespace Vultron
         VulkanBuffer skeletalInstanceBuffer;
         VulkanBuffer animationInstanceBuffer;
         VkDescriptorSet skeletalDescriptorSet;
+        VulkanBuffer boneOutputBuffer;
+        VkDescriptorSet skeletalComputeDescriptorSet;
 
         VulkanBuffer spriteInstanceBuffer;
         VkDescriptorSet spriteDescriptorSet;
@@ -152,6 +158,8 @@ namespace Vultron
         int32_t boneCount;
         int32_t animationInstanceOffset;
         int32_t animationInstanceCount;
+        int32_t boneOutputOffset;
+        int32_t _padding[3];
     };
 
     struct AnimationInstanceData
@@ -215,9 +223,10 @@ namespace Vultron
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
 
     constexpr uint32_t c_maxSkeletalInstances = 512;
-    constexpr uint32_t c_maxAnimationInstances = 512;
-    constexpr uint32_t c_maxBones = 256;
+    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
+    constexpr uint32_t c_maxBones = 128;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
+    constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
 
     constexpr uint32_t c_maxSpriteInstances = 1024;
 
@@ -241,6 +250,12 @@ namespace Vultron
         // Pools
         VkCommandPool m_commandPool;
         VkDescriptorPool m_descriptorPool;
+
+        // Skeletal animation compute pipeline
+        VkPipeline m_skeletalComputePipeline;
+        VkPipelineLayout m_skeletalComputePipelineLayout;
+        VkDescriptorSetLayout m_skeletalComputeSetLayout;
+        VulkanShader m_skeletalComputeShader;
 
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
@@ -317,6 +332,7 @@ namespace Vultron
         bool InitializeGraphicsPipeline();
 
         // Skeletal pipeline
+        bool InitializeSkeletalComputePipeline();
         bool InitializeSkeletalBuffers();
 
         // Command pool

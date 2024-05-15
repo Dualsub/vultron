@@ -24,19 +24,17 @@ namespace Vultron
 
         struct ShaderCreateInfo
         {
-            VkDevice device = VK_NULL_HANDLE;
             const std::string &source;
         };
-        static VulkanShader Create(const ShaderCreateInfo &createInfo);
-        static Ptr<VulkanShader> CreatePtr(const ShaderCreateInfo &createInfo);
+        static VulkanShader Create(const VulkanContext &context, const ShaderCreateInfo &createInfo);
+        static Ptr<VulkanShader> CreatePtr(const VulkanContext &context, const ShaderCreateInfo &createInfo);
 
         struct ShaderFromFileCreateInfo
         {
-            VkDevice device = VK_NULL_HANDLE;
             const std::string &filepath;
         };
-        static VulkanShader CreateFromFile(const ShaderFromFileCreateInfo &createInfo);
-        static Ptr<VulkanShader> CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo);
+        static VulkanShader CreateFromFile(const VulkanContext &context, const ShaderFromFileCreateInfo &createInfo);
+        static Ptr<VulkanShader> CreatePtrFromFile(const VulkanContext &context, const ShaderFromFileCreateInfo &createInfo);
         void Destroy(const VulkanContext &context);
     };
 }

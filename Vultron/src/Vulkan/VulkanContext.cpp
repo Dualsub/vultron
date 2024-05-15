@@ -237,6 +237,7 @@ namespace Vultron
 
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
+        vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_computeQueue);
 
         return true;
     }

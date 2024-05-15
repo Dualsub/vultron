@@ -9,7 +9,7 @@
 
 namespace Vultron
 {
-    VulkanShader VulkanShader::Create(const ShaderCreateInfo &createInfo)
+    VulkanShader VulkanShader::Create(const VulkanContext &context, const ShaderCreateInfo &createInfo)
     {
         VkShaderModuleCreateInfo createInfoVk = {};
         createInfoVk.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -17,18 +17,18 @@ namespace Vultron
         createInfoVk.pCode = reinterpret_cast<const uint32_t *>(createInfo.source.data());
 
         VkShaderModule shaderModule;
-        VK_CHECK(vkCreateShaderModule(createInfo.device, &createInfoVk, nullptr, &shaderModule));
+        VK_CHECK(vkCreateShaderModule(context.GetDevice(), &createInfoVk, nullptr, &shaderModule));
 
         return VulkanShader(shaderModule);
     }
 
-    Ptr<VulkanShader> VulkanShader::CreatePtr(const ShaderCreateInfo &createInfo)
+    Ptr<VulkanShader> VulkanShader::CreatePtr(const VulkanContext &context, const ShaderCreateInfo &createInfo)
     {
 
-        return MakePtr<VulkanShader>(Create(createInfo));
+        return MakePtr<VulkanShader>(Create(context, createInfo));
     }
 
-    VulkanShader VulkanShader::CreateFromFile(const ShaderFromFileCreateInfo &createInfo)
+    VulkanShader VulkanShader::CreateFromFile(const VulkanContext &context, const ShaderFromFileCreateInfo &createInfo)
     {
         std::ifstream file(createInfo.filepath, std::ios::ate | std::ios::binary);
         assert(file.is_open());
@@ -39,10 +39,10 @@ namespace Vultron
         file.read(buffer.data(), fileSize);
         file.close();
 
-        return Create({.device = createInfo.device, .source = std::string(buffer.data(), fileSize)});
+        return Create(context, {.source = std::string(buffer.data(), fileSize)});
     }
 
-    Ptr<VulkanShader> VulkanShader::CreatePtrFromFile(const ShaderFromFileCreateInfo &createInfo)
+    Ptr<VulkanShader> VulkanShader::CreatePtrFromFile(const VulkanContext &context, const ShaderFromFileCreateInfo &createInfo)
     {
         std::ifstream file(createInfo.filepath, std::ios::ate | std::ios::binary);
         assert(file.is_open());
@@ -53,7 +53,7 @@ namespace Vultron
         file.read(buffer.data(), fileSize);
         file.close();
 
-        return MakePtr<VulkanShader>(Create({.device = createInfo.device, .source = std::string(buffer.data(), fileSize)}));
+        return MakePtr<VulkanShader>(Create(context, {.source = std::string(buffer.data(), fileSize)}));
     }
 
     void VulkanShader::Destroy(const VulkanContext &context)

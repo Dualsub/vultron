@@ -288,7 +288,7 @@ namespace Vultron
     }
 
     // NOTE: Expensive
-    glm::mat4 SceneRenderer::GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex)
+    glm::mat4 SceneRenderer::GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const
     {
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(skeletalMesh);

@@ -80,7 +80,7 @@ namespace Vultron
         // Animation stuff
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
         // --NOTE: Expensive
-        glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex);
+        glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const;
 
         glm::mat4 GetProjectionMatrix() const { return m_backend.GetProjectionMatrix(); }
         glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }

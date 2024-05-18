@@ -5,6 +5,7 @@ from typing import Tuple, Dict
 import struct
 from pack_image import generate_mipmaps
 import numpy as np
+import json
 
 @dataclass
 class FontInfo:
@@ -12,6 +13,7 @@ class FontInfo:
     uvPos: Tuple[int, int]
     uvSize: Tuple[int, int]
     aspectRatio: float = 1.0
+    baselineOffset: float = 0.0
 
 def get_char_width(font, char):
     (width, baseline), (offset_x, offset_y) = font.font.getsize(char)
@@ -61,11 +63,71 @@ def create_image(font_path, font_size, image_height, custom_glyphs: Dict[str, Im
 
         # draw.rectangle([start_position, 0, start_position + char_width, font_height], outline=(255, 255, 255, 255))
         
-        font_info.append(FontInfo(char, (start_position / image_size[0], 0), (char_width / image_size[0], font_height / image_size[1]), char_width / font_height))
+        font_info.append(FontInfo(char, (start_position / image_size[0], 0), (char_width / image_size[0], font_height / image_size[1]), char_width / font_height, 0.0))
         start_position += char_width
 
     image.save("font_atlas.png")
     # image = image.resize((image_height * image.width // image.height, image_height), Image.LANCZOS)
+
+    return image, font_info
+
+def create_msdf_font_atlas(font_path, atlas_path, json_path, output_path):
+    with open(json_path, "r") as f:
+        atlas_info = json.load(f)
+
+    image = Image.open(atlas_path)
+    image = image.convert("RGBA")
+    width, height = image.size
+
+    font_size = atlas_info["atlas"]["size"]
+    font = ImageFont.truetype(font_path, font_size)
+
+    draw = ImageDraw.Draw(image)
+    ascender = atlas_info["metrics"]["ascender"]
+    descender = atlas_info["metrics"]["descender"]
+    line_height = atlas_info["metrics"]["lineHeight"]
+
+    font_info = []
+    # Write a box around the glyphs
+    for glyph in atlas_info["glyphs"]:
+        unicode = glyph["unicode"]
+        if unicode is None:
+            continue
+
+        char = chr(unicode)
+
+        if "atlasBounds" not in glyph:
+            continue
+        top = height - glyph["atlasBounds"]["top"]
+        left = glyph["atlasBounds"]["left"]
+        bottom = height - glyph["atlasBounds"]["bottom"]
+        right = glyph["atlasBounds"]["right"]
+
+        uv_left = left / width
+        uv_bottom = bottom / height
+        uv_right = right / width
+        uv_top = top / height
+        
+        glyph_ascent = glyph["planeBounds"]["top"]
+        glyph_descent = glyph["planeBounds"]["bottom"]
+
+        plane_height = glyph_ascent - glyph_descent
+        baseline_y = top + (glyph_ascent / plane_height) * (bottom - top)
+        
+        # Get baseline offset from center of glyph and then convert to UV space
+        baseline_offset = (baseline_y - (top + bottom) / 2)
+        baseline_offset /= (bottom - top)
+
+        print(char, baseline_offset)
+
+        # draw.line([(left, baseline_offset), (right, baseline_y)], fill=(255, 0, 0, 255))
+        # draw.rectangle([(left, top), (right, bottom)], outline=(255, 255, 255, 255))
+
+        font_info.append(FontInfo(char, 
+            (uv_left, uv_top),
+            (uv_right - uv_left, uv_bottom - uv_top),
+            aspectRatio=(right - left) / (bottom - top),
+            baselineOffset=baseline_offset))
 
     return image, font_info
 
@@ -88,6 +150,7 @@ def pack_font_atlas(image, font_info, numMipLevels, output_path):
             f.write(struct.pack("ff", *info.uvPos))
             f.write(struct.pack("ff", *info.uvSize))
             f.write(struct.pack("f", info.aspectRatio))
+            f.write(struct.pack("f", info.baselineOffset))
 
 def main():
     parser = argparse.ArgumentParser(description="Generate an image of ASCII characters in a specified font.")
@@ -97,18 +160,30 @@ def main():
     parser.add_argument("--image-height", type=int, default=256, help="Height of the output image.")
     parser.add_argument("--mips", type=int, default=-1, help="Number of mipmaps to generate.")
     parser.add_argument("--custom-glyphs", type=str, help="Path to a file containing custom glyphs.")
+    parser.add_argument("--json", type=str, help="JSON file containing information about MSDF font.")
+    parser.add_argument("--msdf-atlas", type=str, help="Path to the MSDF font atlas image.")
     args = parser.parse_args()
 
-    # Load custom glyphs
-    custom_glyphs = {}
-    if args.custom_glyphs:
-        with open(args.custom_glyphs, "r") as f:
-            for line in f:
-                char, path = line.strip().split(" ")
-                custom_glyphs[char] = Image.open(path)
+    if args.msdf_atlas:
+        # MSDF font
+        if args.json is None:
+            print("Error: JSON file containing MSDF font information is required.")
+            return
+        
+        image, font_info = create_msdf_font_atlas(args.input, args.msdf_atlas, args.json, args.output)
+    else:
+        # Regular font
 
-    # Load image
-    image, font_info = create_image(args.input, args.font_size, args.image_height, custom_glyphs)
+        custom_glyphs = {}
+        if args.custom_glyphs:
+            with open(args.custom_glyphs, "r") as f:
+                for line in f:
+                    char, path = line.strip().split(" ")
+                    custom_glyphs[char] = Image.open(path)
+
+        # Load image
+        image, font_info = create_image(args.input, args.font_size, args.image_height, custom_glyphs)
+
 
     mipmapLevels = args.mips
     if mipmapLevels == -1:

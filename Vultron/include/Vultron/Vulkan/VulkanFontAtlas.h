@@ -16,6 +16,7 @@ namespace Vultron
         glm::vec2 uvOffset;
         glm::vec2 uvExtent;
         float aspectRatio;
+        float baselineOffset;
     };
 
     using GlyphMap = std::unordered_map<std::string, FontGlyph>;

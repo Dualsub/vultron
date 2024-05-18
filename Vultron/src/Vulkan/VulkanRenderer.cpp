@@ -504,6 +504,27 @@ namespace Vultron
                 .depthFunction = DepthFunction::Always,
             });
 
+        // SDF
+        m_sdfFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sdf.frag.spv"});
+
+        m_sdfPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_renderPass,
+            {
+                .vertexShader = m_spriteVertexShader,
+                .fragmentShader = m_sdfFragmentShader,
+                .sceneDescriptorSetLayout = m_spriteSetLayout,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+                .vertexDescription = SpriteVertex::GetVertexDescription(),
+                .cullMode = CullMode::Front,
+                .depthFunction = DepthFunction::Always,
+            });
+
         // Skybox
         m_skyboxVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.vert.spv"});
         m_skyboxFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
@@ -1938,6 +1959,7 @@ namespace Vultron
             ClearDepthBuffer(commandBuffer, viewportSize);
 
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_spritePipeline, renderData.spriteBatches, viewportSize);
+            DrawWithPipeline<VulkanQuadMesh>(commandBuffer, frame.spriteDescriptorSet, m_sdfPipeline, renderData.sdfBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -2208,6 +2230,7 @@ namespace Vultron
         m_shadowFragmentShader.Destroy(m_context);
         m_spriteVertexShader.Destroy(m_context);
         m_spriteFragmentShader.Destroy(m_context);
+        m_sdfFragmentShader.Destroy(m_context);
         m_skyboxVertexShader.Destroy(m_context);
         m_skyboxFragmentShader.Destroy(m_context);
         m_skeletalComputeShader.Destroy(m_context);
@@ -2231,6 +2254,7 @@ namespace Vultron
         m_staticShadowPipeline.Destroy(m_context);
         m_skeletalShadowPipeline.Destroy(m_context);
         m_spritePipeline.Destroy(m_context);
+        m_sdfPipeline.Destroy(m_context);
         m_skyboxPipeline.Destroy(m_context);
         vkDestroyPipelineLayout(m_context.GetDevice(), m_skeletalComputePipelineLayout, nullptr);
         vkDestroyPipeline(m_context.GetDevice(), m_skeletalComputePipeline, nullptr);

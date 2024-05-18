@@ -44,6 +44,7 @@ namespace Vultron
         std::map<uint64_t, InstancedStaticRenderJob> m_staticJobs;
         std::map<uint64_t, InstancedSkeletalRenderJob> m_skeletalJobs;
         std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
+        std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<AnimationInstanceData> m_animationInstances;
 
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
@@ -60,6 +61,7 @@ namespace Vultron
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
+        void SubmitRenderJob(const FontRenderJob &job);
         void EndFrame();
         void Shutdown();
 

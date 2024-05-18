@@ -211,6 +211,7 @@ namespace Vultron
         const std::vector<SkeletalInstanceData> &skeletalInstances;
         const std::vector<AnimationInstanceData> &animationInstances;
         const std::vector<RenderBatch> &spriteBatches;
+        const std::vector<RenderBatch> &sdfBatches;
         const std::vector<SpriteInstanceData> &spriteInstances;
     };
 
@@ -285,6 +286,10 @@ namespace Vultron
         VulkanQuadMesh m_spriteQuadMesh = {};
         VulkanShader m_spriteVertexShader;
         VulkanShader m_spriteFragmentShader;
+
+        // SDF pipeline
+        VulkanMaterialPipeline m_sdfPipeline;
+        VulkanShader m_sdfFragmentShader;
 
         // Skybox
         VkSampler m_cubemapSampler;

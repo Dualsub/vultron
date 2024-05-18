@@ -23,6 +23,7 @@ namespace Vultron
         m_skeletalJobs.clear();
         m_animationInstances.clear();
         m_spriteJobs.clear();
+        m_fontJobs.clear();
     }
 
     void SceneRenderer::SubmitRenderJob(const StaticRenderJob &job)
@@ -142,6 +143,24 @@ namespace Vultron
         });
     }
 
+    void SceneRenderer::SubmitRenderJob(const FontRenderJob &job)
+    {
+        uint64_t hash = job.GetHash();
+
+        if (m_fontJobs.find(hash) == m_fontJobs.end())
+        {
+            m_fontJobs.insert({hash, InstancedSpriteRenderJob{job.material, {}}});
+        }
+
+        m_fontJobs[hash].instances.push_back(SpriteInstanceData{
+            .position = job.position,
+            .size = job.size,
+            .texCoord = job.texCoord,
+            .texSize = job.texSize,
+            .color = job.color,
+        });
+    }
+
     void SceneRenderer::EndFrame()
     {
         std::vector<StaticInstanceData> staticInstances;
@@ -191,20 +210,42 @@ namespace Vultron
 
         std::vector<SpriteInstanceData> spriteInstances;
         std::vector<RenderBatch> spriteBatches;
+        std::vector<RenderBatch> sdfBatches;
         std::vector<InstancedSpriteRenderJob> spriteJobs;
+        std::vector<InstancedSpriteRenderJob> fontJobs;
 
         for (auto &job : m_spriteJobs)
         {
             spriteJobs.push_back(job.second);
         }
 
-        std::sort(spriteJobs.begin(), spriteJobs.end(), [this](const InstancedSpriteRenderJob &a, const InstancedSpriteRenderJob &b)
-                  { return m_spriteMaterialToLayer[a.material] < m_spriteMaterialToLayer[b.material]; });
+        for (auto &job : m_fontJobs)
+        {
+            fontJobs.push_back(job.second);
+        }
+
+        std::sort(
+            spriteJobs.begin(), spriteJobs.end(),
+            [this](const InstancedSpriteRenderJob &a, const InstancedSpriteRenderJob &b)
+            {
+                return m_spriteMaterialToLayer[a.material] < m_spriteMaterialToLayer[b.material];
+            });
 
         for (auto &job : spriteJobs)
         {
             spriteBatches.push_back({
                 .mesh = {},
+                .material = job.material,
+                .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
+                .instanceCount = static_cast<uint32_t>(job.instances.size()),
+            });
+            spriteInstances.insert(spriteInstances.end(), job.instances.begin(), job.instances.end());
+        }
+
+        for (auto &job : fontJobs)
+        {
+            sdfBatches.push_back({
+                .mesh = m_quadMesh,
                 .material = job.material,
                 .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.instances.size()),
@@ -219,18 +260,27 @@ namespace Vultron
             .skeletalInstances = skeletalInstances,
             .animationInstances = m_animationInstances,
             .spriteBatches = spriteBatches,
+            .sdfBatches = sdfBatches,
             .spriteInstances = spriteInstances,
         });
     }
 
     std::vector<FontGlyph> SceneRenderer::GetTextGlyphs(const RenderHandle &font, const std::string &text) const
     {
+        static FontGlyph spaceGlyph = {.character = " ", .uvOffset = {1.0f, 1.0f}, .uvExtent = {0.03f, 0.0f}, .aspectRatio = 1.0f};
+
         const auto &rp = m_backend.GetResourcePool();
         const auto &fontAtlas = rp.GetFontAtlas(font);
 
         std::vector<FontGlyph> glyphs;
         for (char c : text)
         {
+            if (c == ' ')
+            {
+                glyphs.push_back(spaceGlyph);
+                continue;
+            }
+
             glyphs.push_back(fontAtlas.GetGlyph(std::string(1, c)));
         }
 

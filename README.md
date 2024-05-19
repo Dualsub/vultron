@@ -3,11 +3,13 @@
 Vulkan renderer.
 
 ## TODO
-- [ ] Multiple objects, instacing
-- [ ] Abstrations(VulkanContext, VulkanRenderer)
-- [ ] Mipmapping
-- [ ] Material system
-- [ ] Environment mapping
-- [ ] PBR
-- [ ] Shadow mapping
-- [ ] Skeletal animation
+- [x] Multiple objects, instacing
+- [x] Abstrations(VulkanContext, VulkanRenderer)
+- [x] Mipmapping
+- [x] Material system
+- [x] Environment mapping
+- [x] PBR
+- [x] Shadow mapping
+- [x] Skeletal animation(compute shader)
+- [x] MSDF text rendering
+- [ ] Particle system

@@ -19,9 +19,10 @@
 #include "Vultron/Vulkan/VulkanTypes.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanAnimation.h"
+#include "Vultron/Vulkan/VulkanBuffer.h"
+#include "Vultron/Vulkan/VulkanComputePipeline.h"
 #include "Vultron/Vulkan/VulkanContext.h"
 #include "Vultron/Vulkan/VulkanMaterial.h"
-#include "Vultron/Vulkan/VulkanBuffer.h"
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMesh.h"
 #include "Vultron/Vulkan/VulkanRenderPass.h"
@@ -253,9 +254,7 @@ namespace Vultron
         VkDescriptorPool m_descriptorPool;
 
         // Skeletal animation compute pipeline
-        VkPipeline m_skeletalComputePipeline;
-        VkPipelineLayout m_skeletalComputePipelineLayout;
-        VkDescriptorSetLayout m_skeletalComputeSetLayout;
+        VulkanComputePipeline m_skeletalComputePipeline;
         VulkanShader m_skeletalComputeShader;
 
         // Static pipeline

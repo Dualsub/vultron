@@ -45,6 +45,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSkeletalRenderJob> m_skeletalJobs;
         std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
+        std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
 
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
@@ -62,6 +63,7 @@ namespace Vultron
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
+        void SubmitRenderJob(const ParticleEmitJob &job);
         void EndFrame();
         void Shutdown();
 
@@ -89,6 +91,7 @@ namespace Vultron
 
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);
+        void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
 
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);
@@ -119,6 +122,12 @@ namespace Vultron
                 m_transparentMaterials.insert(handle);
             }
             return handle;
+        }
+
+        template <typename T>
+        void SetParticleAtlasMaterial(const T &materialInstance)
+        {
+            m_backend.SetParticleAtlasMaterial(materialInstance);
         }
     };
 

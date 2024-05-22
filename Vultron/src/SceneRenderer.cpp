@@ -161,6 +161,26 @@ namespace Vultron
         });
     }
 
+    void SceneRenderer::SubmitRenderJob(const ParticleEmitJob &job)
+    {
+        m_particleEmitters.push_back({
+            .position = job.position,
+            .lifetime = job.lifetime,
+            .initialVelocity = job.initialVelocity,
+            .gravityFactor = job.gravityFactor,
+            .size = job.size,
+            .sizeSpan = job.sizeSpan,
+            .phiSpan = job.phiSpan,
+            .thetaSpan = job.thetaSpan,
+            .texCoord = job.texCoord,
+            .texSize = job.texSize,
+            .color = job.color,
+            .numParticles = float(job.numParticles),
+            .velocitySpan = job.velocitySpan,
+            .texCoordSpan = job.texCoordSpan,
+        });
+    }
+
     void SceneRenderer::EndFrame()
     {
         std::vector<StaticInstanceData> staticInstances;
@@ -262,7 +282,11 @@ namespace Vultron
             .spriteBatches = spriteBatches,
             .sdfBatches = sdfBatches,
             .spriteInstances = spriteInstances,
+            .particleEmitters = m_particleEmitters,
         });
+
+        m_particleEmitters.clear();
+        m_backend.SetDeltaTime(0.0f);
     }
 
     std::vector<FontGlyph> SceneRenderer::GetTextGlyphs(const RenderHandle &font, const std::string &text) const

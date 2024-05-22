@@ -107,4 +107,23 @@ namespace Vultron
             return static_cast<uint64_t>(material);
         }
     };
+
+    struct ParticleEmitJob
+    {
+        glm::vec3 position = glm::vec3(0.0f);
+        glm::vec2 size = glm::vec2(100.0f);
+        glm::vec2 sizeSpan = glm::vec2(0.0f);
+        float lifetime = 1.0f;
+        glm::vec3 initialVelocity = glm::vec3(0.0f, 1.0f, 0.0f);
+        float velocitySpan = 0.0f;
+        float gravityFactor = 1.0f;
+        float phiSpan = 0.0f;
+        float thetaSpan = 0.0f;
+        glm::vec2 texCoord = glm::vec2(0.0f);
+        glm::vec2 texSize = glm::vec2(1.0f);
+        glm::vec2 texCoordSpan = glm::vec2(0.0f);
+        glm::vec4 color = glm::vec4(1.0f);
+        uint32_t numParticles = 1;
+    };
+
 }

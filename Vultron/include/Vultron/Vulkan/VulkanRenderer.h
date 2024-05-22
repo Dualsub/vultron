@@ -42,6 +42,25 @@
 
 namespace Vultron
 {
+    constexpr size_t c_maxInstances = 1024;
+    constexpr uint32_t c_frameOverlap = 2;
+
+    constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
+    constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
+    constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
+    constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
+
+    constexpr uint32_t c_maxSkeletalInstances = 512;
+    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
+    constexpr uint32_t c_maxBones = 128;
+    constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
+    constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
+
+    constexpr uint32_t c_maxSpriteInstances = 1024;
+
+    constexpr uint32_t c_maxParticleEmitters = 128;
+    constexpr uint32_t c_maxParticleInstances = 1024 * 16;
+
     struct SpriteMaterial
     {
         RenderHandle texture;
@@ -142,6 +161,13 @@ namespace Vultron
         VkDescriptorSet spriteDescriptorSet;
 
         VkDescriptorSet skyboxDescriptorSet;
+
+        VulkanBuffer particleEmitterBuffer;
+        VulkanBuffer particleInstanceBuffer;
+        VulkanBuffer particleDrawCommandBuffer;
+        VkDescriptorSet particleEmitterDescriptorSet;
+        VkDescriptorSet particleUpdateDescriptorSet;
+        VkDescriptorSet particleDescriptorSet;
     };
 
     struct StaticInstanceData
@@ -151,6 +177,8 @@ namespace Vultron
         glm::vec2 texSize;
         glm::vec4 color;
     };
+
+    static_assert(sizeof(StaticInstanceData) % 16 == 0);
 
     struct SkeletalInstanceData
     {
@@ -163,6 +191,8 @@ namespace Vultron
         int32_t _padding[3];
     };
 
+    static_assert(sizeof(SkeletalInstanceData) % 16 == 0);
+
     struct AnimationInstanceData
     {
         int32_t frameOffset;
@@ -174,6 +204,8 @@ namespace Vultron
         float _padding2[2];
     };
 
+    static_assert(sizeof(SkeletalInstanceData) % 16 == 0);
+
     struct SpriteInstanceData
     {
         glm::vec2 position;
@@ -182,6 +214,62 @@ namespace Vultron
         glm::vec2 texSize;
         glm::vec4 color;
     };
+
+    static_assert(sizeof(SpriteInstanceData) % 16 == 0);
+
+    struct ParticleEmitterData
+    {
+        glm::vec3 position;
+        float lifetime;
+
+        glm::vec3 initialVelocity;
+        float gravityFactor;
+
+        glm::vec2 size;
+        glm::vec2 sizeSpan;
+
+        float phiSpan;
+        float thetaSpan;
+        float _padding[2];
+
+        glm::vec2 texCoord;
+        glm::vec2 texSize;
+
+        glm::vec4 color;
+
+        // We use a float here to avoid having to deal with alignment issues
+        float numParticles;
+        float velocitySpan;
+        glm::vec2 texCoordSpan;
+    };
+
+    static_assert(sizeof(ParticleEmitterData) % 16 == 0);
+
+    struct ParticleInstanceData
+    {
+        struct InstanceData
+        {
+            glm::vec3 position;
+            float lifetime;
+
+            glm::vec2 size;
+            float _padding[2];
+
+            glm::vec3 velocity;
+            float gravityFactor;
+
+            glm::vec2 texCoord;
+            glm::vec2 texSize;
+
+            glm::vec4 color;
+        };
+
+        uint32_t numParticles;
+        uint32_t _padding[3];
+        InstanceData instances[c_maxParticleInstances];
+    };
+
+    static_assert(sizeof(StaticInstanceData) % 16 == 0);
 
     struct Camera
     {
@@ -194,11 +282,11 @@ namespace Vultron
         glm::mat4 view = glm::mat4(1.0f);
         glm::mat4 proj = glm::mat4(1.0f);
         glm::vec3 viewPos = glm::vec3(0.0f);
-        float _padding1;
+        float deltaTime = 0.0f;
         glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
-        float _padding2;
+        float random = 0.0f;
         glm::vec3 lightColor = glm::vec3(1.0f);
-        float _padding3;
+        float _padding2;
         glm::mat4 lightViewProjection = glm::mat4(1.0f);
     };
 
@@ -214,23 +302,8 @@ namespace Vultron
         const std::vector<RenderBatch> &spriteBatches;
         const std::vector<RenderBatch> &sdfBatches;
         const std::vector<SpriteInstanceData> &spriteInstances;
+        const std::vector<ParticleEmitterData> &particleEmitters;
     };
-
-    constexpr size_t c_maxInstances = 1024;
-    constexpr uint32_t c_frameOverlap = 2;
-
-    constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
-    constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
-    constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
-    constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
-
-    constexpr uint32_t c_maxSkeletalInstances = 512;
-    constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
-    constexpr uint32_t c_maxBones = 128;
-    constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
-    constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
-
-    constexpr uint32_t c_maxSpriteInstances = 1024;
 
     class VulkanRenderer
     {
@@ -302,6 +375,15 @@ namespace Vultron
         VulkanImage m_irradianceMap;
         VulkanImage m_prefilteredMap;
 
+        // Particle pipeline
+        VulkanShader m_particleEmitterShader;
+        VulkanComputePipeline m_particleEmitterPipeline;
+        VulkanShader m_particleUpdateShader;
+        VulkanComputePipeline m_particleUpdatePipeline;
+        VulkanShader m_particleVertexShader;
+        VulkanMaterialPipeline m_particlePipeline;
+        VkDescriptorSetLayout m_particleSetLayout;
+
         // Material instance resources
         UniformBufferData m_uniformBufferData{};
         VulkanImage m_depthImage;
@@ -339,6 +421,10 @@ namespace Vultron
         bool InitializeSkeletalComputePipeline();
         bool InitializeSkeletalBuffers();
 
+        // Particle pipeline
+        bool InitializeParticlePipeline();
+        bool InitializeParticleBuffers();
+
         // Command pool
         bool InitializeCommandPool();
         bool InitializeCommandBuffer();
@@ -370,10 +456,12 @@ namespace Vultron
         bool InitializeDebugMessenger();
 
         // Command buffer
-        void WriteCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData);
+        void WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData);
+        void WriteComputeCommands(VkCommandBuffer commandBuffer, const RenderData &renderData);
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
+        void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
 
         template <typename MeshType>
@@ -399,12 +487,13 @@ namespace Vultron
 
         void SetCamera(const Camera &camera) { m_camera = camera; }
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
-        Camera &GetCamera() { return m_camera; }
+        void SetDeltaTime(float deltaTime) { m_uniformBufferData.deltaTime = deltaTime; }
 
         const std::vector<SkeletonBone> &GetBones() const { return m_bones; }
         const std::vector<AnimationFrame> &GetAnimationFrames() const { return m_animationFrames; }
         const glm::mat4 &GetProjectionMatrix() const { return m_uniformBufferData.proj; }
         const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
+        Camera &GetCamera() { return m_camera; }
 
         RenderHandle LoadMesh(const std::string &filepath);
         RenderHandle LoadQuad(const std::string &name);
@@ -452,6 +541,17 @@ namespace Vultron
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
+        }
+
+        template <typename T>
+        void SetParticleAtlasMaterial(const T &materialCreateInfo)
+        {
+            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            m_resourcePool.SetParticleAtlasMaterial(VulkanMaterialInstance::Create(
+                m_context, m_descriptorPool, m_particlePipeline,
+                {
+                    bindings,
+                }));
         }
     };
 

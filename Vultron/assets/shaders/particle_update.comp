@@ -1,0 +1,70 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform UniformBufferObject {
+    mat4 view;
+    mat4 proj;
+    vec4 viewPosAndDeltaTime;
+    vec3 lightDir;
+    vec3 lightColor;
+    mat4 lightSpaceMatrix;
+} ubo;
+
+struct ParticleInstanceData {
+    vec4 positionAndLifeTime;
+    vec2 size;
+    vec4 velocityAndGravityFactor;
+    vec4 texCoordAndSize;
+    vec4 color;
+};
+
+layout(std140, set = 0, binding = 1) readonly buffer ParticleInstanceInputBuffer  {
+    uint instanceCount;
+    ParticleInstanceData instances[];
+} inputBuffer;
+
+layout(std140, set = 0, binding = 2) writeonly buffer ParticleInstanceOutputBuffer {
+    uint instanceCount;
+    ParticleInstanceData instances[];
+} outputBuffer;
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main()  {
+    uint instanceIndex = gl_GlobalInvocationID.x;
+    float deltaTime = ubo.viewPosAndDeltaTime.w;
+
+    if (instanceIndex < inputBuffer.instanceCount) {
+        ParticleInstanceData instance = inputBuffer.instances[instanceIndex];
+
+        vec3 position = instance.positionAndLifeTime.xyz;
+        float lifeTime = instance.positionAndLifeTime.w;
+        vec3 velocity = instance.velocityAndGravityFactor.xyz;
+        float gravityFactor = instance.velocityAndGravityFactor.w;
+        vec2 texCoord = instance.texCoordAndSize.xy;
+        vec2 size = instance.texCoordAndSize.zw;
+
+        const float groundLevel = 10.0;
+
+        if (lifeTime > 0.0) {
+            lifeTime -= deltaTime;
+            if (position.y > groundLevel)  {
+                velocity.y -= 981.0 * gravityFactor * deltaTime;
+                position += velocity * deltaTime;
+            }
+            else {
+                position.y = groundLevel;
+                velocity.y = 0.0;
+            }
+
+
+
+            ParticleInstanceData updatedInstance = instance;
+            updatedInstance.positionAndLifeTime = vec4(position, lifeTime);
+            updatedInstance.velocityAndGravityFactor = vec4(velocity, gravityFactor);
+
+            uint outputIndex = atomicAdd(outputBuffer.instanceCount, 1);
+            outputBuffer.instances[outputIndex] = updatedInstance;
+        }
+    }
+    
+}

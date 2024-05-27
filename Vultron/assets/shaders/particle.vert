@@ -21,10 +21,12 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 struct ParticleInstanceData {
     vec4 positionAndLifeTime;
+    vec3 lifeDurationAndNumFramesAndFrameRate;
     vec2 size;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
     vec4 color;
+    vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer ParticleInstanceInputBuffer  {
@@ -38,6 +40,10 @@ const mat4 biasMat = mat4(
 	0.0, 0.0, 1.0, 0.0,
 	0.5, 0.5, 0.0, 1.0 );
 
+float easeOutQuint(float x) {
+    return 1.0 - pow(1.0 - x, 5.0);
+}
+
 void main()  
 {
     ParticleInstanceData instance = instances[gl_InstanceIndex];
@@ -46,9 +52,18 @@ void main()
     mat4 translation = mat4(1.0);
     translation[3] = vec4(instance.positionAndLifeTime.xyz, 1.0);
 
+    float timeElapsed = instance.lifeDurationAndNumFramesAndFrameRate.x - instance.positionAndLifeTime.w;
+    float timeRemaining = instance.positionAndLifeTime.w;
+
+    float scaleIn = instance.scaleFadeInOutAndOpacityFadeInOut.x > 0.0 ? easeOutQuint(clamp(timeElapsed / instance.scaleFadeInOutAndOpacityFadeInOut.x, 0.0, 1.0)) : 1.0;
+    float scaleOut = 1.0;//clamp(instance.scaleFadeInOutAndOpacityFadeInOut.y / timeRemaining, 0.0, 1.0);
+
+    float opacityIn = instance.scaleFadeInOutAndOpacityFadeInOut.z > 0.0 ? clamp(timeElapsed / instance.scaleFadeInOutAndOpacityFadeInOut.z, 0.0, 1.0) : 1.0;
+    float opacityOut = instance.scaleFadeInOutAndOpacityFadeInOut.w > 0.0 ? clamp(timeRemaining / instance.scaleFadeInOutAndOpacityFadeInOut.w, 0.0, 1.0) : 1.0;
+
     mat4 scale = mat4(1.0);
-    scale[0][0] = instance.size.x;
-    scale[1][1] = instance.size.y;
+    scale[0][0] = instance.size.x * scaleIn * scaleOut;
+    scale[1][1] = instance.size.y * scaleIn * scaleOut;
     scale[2][2] = 1.0;
 
 
@@ -80,8 +95,9 @@ void main()
     gl_Position = ubo.proj * viewPosition;
 
     fragWorldPos = worldPosition.xyz;
-    fragTexCoord = inTexCoord * instance.texCoordAndSize.zw + instance.texCoordAndSize.xy;
+    vec2 texCoord = instance.texCoordAndSize.xy + uvec2((instance.lifeDurationAndNumFramesAndFrameRate.x - instance.positionAndLifeTime.w) * instance.lifeDurationAndNumFramesAndFrameRate.z, 0) * instance.texCoordAndSize.zw;
+    fragTexCoord = inTexCoord * instance.texCoordAndSize.zw + texCoord;
     fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;
-    fragColor = instance.color;
+    fragColor = vec4(instance.color.rgb, instance.color.a * opacityIn * opacityOut);
 }

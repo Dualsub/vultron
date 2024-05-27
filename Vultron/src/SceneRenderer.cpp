@@ -166,6 +166,9 @@ namespace Vultron
         m_particleEmitters.push_back({
             .position = job.position,
             .lifetime = job.lifetime,
+            .lifeDuration = job.lifetime,
+            .numFrames = float(job.numFrames),
+            .framesPerSecond = job.framesPerSecond,
             .initialVelocity = job.initialVelocity,
             .gravityFactor = job.gravityFactor,
             .size = job.size,
@@ -178,6 +181,10 @@ namespace Vultron
             .numParticles = float(job.numParticles),
             .velocitySpan = job.velocitySpan,
             .texCoordSpan = job.texCoordSpan,
+            .scaleIn = job.scaleIn,
+            .scaleOut = job.scaleOut,
+            .opacityIn = job.opacityIn,
+            .opacityOut = job.opacityOut,
         });
     }
 

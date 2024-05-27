@@ -2,6 +2,7 @@
 
 layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
+layout(location = 2) in vec4 fragClipCoord;
 
 layout(location = 0) out vec4 outColor;
 
@@ -26,5 +27,12 @@ float GetOpacity(vec2 fragTexCoord) {
 
 void main() {
     float opacity = GetOpacity(fragTexCoord);
-    outColor = vec4(fragColor.rgb, fragColor.a * opacity); 
+    vec4 text = vec4(fragColor.rgb, fragColor.a * opacity);
+
+    vec2 shadowOffset = vec2(-0.001, -0.001);
+    vec4 shadowColor = vec4(0.0, 0.0, 0.0, 0.0);
+    float shadowOpacity = GetOpacity(clamp(fragTexCoord + shadowOffset, fragClipCoord.xy, fragClipCoord.zw));
+    vec4 shadow = vec4(shadowColor.rgb, shadowColor.a * shadowOpacity);
+
+    outColor = text;
 }

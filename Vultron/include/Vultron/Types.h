@@ -123,7 +123,14 @@ namespace Vultron
         glm::vec2 texSize = glm::vec2(1.0f);
         glm::vec2 texCoordSpan = glm::vec2(0.0f);
         glm::vec4 color = glm::vec4(1.0f);
+        glm::vec2 frameDelta = glm::vec2(0.0f);
+        uint32_t numFrames = 1;
+        float framesPerSecond = 0.0f;
         uint32_t numParticles = 1;
+        float scaleIn = 0.0f;
+        float scaleOut = 0.0f;
+        float opacityIn = 0.0f;
+        float opacityOut = 0.0f;
     };
 
 }

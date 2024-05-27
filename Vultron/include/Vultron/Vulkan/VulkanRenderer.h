@@ -222,6 +222,11 @@ namespace Vultron
         glm::vec3 position;
         float lifetime;
 
+        float lifeDuration;
+        float numFrames;
+        float framesPerSecond;
+        float _padding0;
+
         glm::vec3 initialVelocity;
         float gravityFactor;
 
@@ -230,7 +235,7 @@ namespace Vultron
 
         float phiSpan;
         float thetaSpan;
-        float _padding[2];
+        float _padding1[2];
 
         glm::vec2 texCoord;
         glm::vec2 texSize;
@@ -241,6 +246,11 @@ namespace Vultron
         float numParticles;
         float velocitySpan;
         glm::vec2 texCoordSpan;
+
+        float scaleIn;
+        float scaleOut;
+        float opacityIn;
+        float opacityOut;
     };
 
     static_assert(sizeof(ParticleEmitterData) % 16 == 0);
@@ -252,8 +262,13 @@ namespace Vultron
             glm::vec3 position;
             float lifetime;
 
+            float lifeDuration;
+            float numFrames;
+            float framesPerSecond;
+            float _padding0;
+
             glm::vec2 size;
-            float _padding[2];
+            float _padding1[2];
 
             glm::vec3 velocity;
             float gravityFactor;
@@ -262,6 +277,11 @@ namespace Vultron
             glm::vec2 texSize;
 
             glm::vec4 color;
+
+            float scaleIn;
+            float scaleOut;
+            float opacityIn;
+            float opacityOut;
         };
 
         uint32_t numParticles;

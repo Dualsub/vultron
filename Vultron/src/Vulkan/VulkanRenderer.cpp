@@ -2490,6 +2490,14 @@ namespace Vultron
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
 
+        // Skeletal instance buffer
+        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
+        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
+
+        // Animation instance buffer
+        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
+        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
+
         vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
 
         vkResetCommandBuffer(frame.computeCommandBuffer, 0);
@@ -2528,14 +2536,6 @@ namespace Vultron
         // Static instance buffer
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
         frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), size);
-
-        // Skeletal instance buffer
-        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
-        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
-
-        // Animation instance buffer
-        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
-        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
 
         // Sprite instance buffer
         const size_t spriteSize = sizeof(SpriteInstanceData) * renderData.spriteInstances.size();

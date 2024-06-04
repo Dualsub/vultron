@@ -48,6 +48,7 @@ namespace Vultron
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
 
+        int32_t m_boneOutputOffset = 0;
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
         std::set<RenderHandle> m_transparentMaterials;
         RenderHandle m_quadMesh = {};

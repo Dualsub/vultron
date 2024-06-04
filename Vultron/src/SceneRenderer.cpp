@@ -24,6 +24,7 @@ namespace Vultron
         m_animationInstances.clear();
         m_spriteJobs.clear();
         m_fontJobs.clear();
+        m_boneOutputOffset = 0;
     }
 
     void SceneRenderer::SubmitRenderJob(const StaticRenderJob &job)
@@ -94,7 +95,8 @@ namespace Vultron
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(job.mesh);
 
-        int32_t boneOutputOffset = instancedJob.instances.size() > 0 ? instancedJob.instances.back().boneOutputOffset + instancedJob.instances.back().boneCount : 0;
+        int32_t boneOutputOffset = m_boneOutputOffset;
+        m_boneOutputOffset += mesh.GetBoneCount();
 
         SkeletalInstanceData instance = {
             .model = job.transform,

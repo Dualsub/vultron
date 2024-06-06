@@ -31,7 +31,11 @@ namespace Vultron
     VulkanShader VulkanShader::CreateFromFile(const VulkanContext &context, const ShaderFromFileCreateInfo &createInfo)
     {
         std::ifstream file(createInfo.filepath, std::ios::ate | std::ios::binary);
-        assert(file.is_open());
+        if (!file.is_open())
+        {
+            std::cerr << "Failed to open file: " << createInfo.filepath << std::endl;
+            abort();
+        }
 
         size_t fileSize = static_cast<size_t>(file.tellg());
         std::vector<char> buffer(fileSize);

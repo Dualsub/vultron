@@ -1,6 +1,7 @@
 #include "Vultron/Vulkan/VulkanAnimation.h"
 
 #include <fstream>
+#include <iostream>
 
 namespace Vultron
 {
@@ -11,7 +12,11 @@ namespace Vultron
 
         std::ifstream file(createInfo.filepath, std::ios::ate | std::ios::binary);
 
-        assert(file.is_open() && "Failed to open file");
+        if (!file.is_open())
+        {
+            std::cerr << "Failed to open file: " << createInfo.filepath << std::endl;
+            abort();
+        }
 
         file.seekg(0);
 

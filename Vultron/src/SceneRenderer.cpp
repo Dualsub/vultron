@@ -83,7 +83,7 @@ namespace Vultron
         std::vector<AnimationInstance> animations;
         for (const auto &animation : job.animations)
         {
-            if (animation.blendFactor > 0.0f)
+            if (animation.blendFactor != 0.0f)
             {
                 animations.push_back(animation);
             }
@@ -117,10 +117,19 @@ namespace Vultron
         {
             const auto &a = rp.GetAnimation(animation.animation);
             const int32_t frameOffset = static_cast<int32_t>(a.GetFrameOffset());
+            int32_t referenceFrame = -1;
+
+            if (animation.referenceAnimation != VLT_INVALID_HANDLE)
+            {
+                const auto &referenceAnim = rp.GetAnimation(animation.referenceAnimation);
+                referenceFrame = static_cast<int32_t>(referenceAnim.GetFrameOffset()) + animation.referenceFrame;
+            }
+
             m_animationInstances.push_back({
                 .frameOffset = frameOffset,
                 .frame1 = static_cast<int32_t>(animation.frame1),
                 .frame2 = static_cast<int32_t>(animation.frame2),
+                .referenceFrame = referenceFrame,
                 .timeFactor = animation.frameBlendFactor,
                 .blendFactor = animation.blendFactor,
             });
@@ -327,6 +336,13 @@ namespace Vultron
         return fontAtlas.GetGlyph(name);
     }
 
+    float SceneRenderer::GetAnimationDuration(const RenderHandle &animation) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &anim = rp.GetAnimation(animation);
+        return anim.GetDuration();
+    }
+
     SceneRenderer::AnimationTiming SceneRenderer::GetAnimationTiming(const RenderHandle &animation, float time, bool loop) const
     {
         const auto &rp = m_backend.GetResourcePool();
@@ -386,8 +402,8 @@ namespace Vultron
         {
             float totalBlendFactor = 0.0f;
             glm::vec3 accPosition = glm::vec3(0.0f);
-            glm::quat accRotation = glm::identity<glm::quat>();
-            glm::vec3 accScale = glm::vec3(1.0f);
+            glm::quat accRotation = glm::quat(0.0f, 0.0f, 0.0f, 0.0f);
+            glm::vec3 accScale = glm::vec3(0.0f);
 
             for (uint32_t i = 0; i < animationInstances.size(); i++)
             {
@@ -396,10 +412,11 @@ namespace Vultron
                 const uint32_t frameOffset = anim.GetFrameOffset();
                 const uint32_t frame1 = instance.frame1;
                 const uint32_t frame2 = instance.frame2;
+                const int32_t referenceFrame = instance.referenceFrame;
                 const float frameBlendFactor = instance.frameBlendFactor;
                 const float blendFactor = instance.blendFactor;
 
-                if (blendFactor <= 0.0f)
+                if (blendFactor <= 0.0f || referenceFrame != -1)
                 {
                     continue;
                 }
@@ -407,20 +424,105 @@ namespace Vultron
                 uint32_t frame1Index = frameOffset + frame1 * mesh.GetBoneCount() + currBoneIndex;
                 uint32_t frame2Index = frameOffset + frame2 * mesh.GetBoneCount() + currBoneIndex;
 
+                glm::quat rotation1 = frames[frame1Index].rotation;
+                glm::quat rotation2 = frames[frame2Index].rotation;
+                if (glm::dot(rotation1, rotation2) < 0.0f)
+                {
+                    rotation1 *= -1.0f;
+                }
+
                 glm::vec3 position = glm::mix(frames[frame1Index].position, frames[frame2Index].position, frameBlendFactor);
-                glm::quat rotation = glm::slerp(frames[frame1Index].rotation, frames[frame2Index].rotation, frameBlendFactor);
+                glm::quat rotation = glm::mix(rotation1, rotation2, frameBlendFactor);
                 glm::vec3 scale = glm::mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlendFactor);
 
+                if (glm::dot(accRotation, rotation) < 0.0f)
+                {
+                    accRotation *= -1.0f;
+                }
+                accPosition += position * blendFactor;
+                accRotation += rotation * blendFactor;
+                accScale += scale * blendFactor;
                 totalBlendFactor += blendFactor;
-                float blend = blendFactor / totalBlendFactor;
-
-                accPosition = mix(accPosition, position, blend);
-                accRotation = glm::slerp(accRotation, rotation, blend);
-                accScale = mix(accScale, scale, blend);
             }
 
-            glm::mat4 localBoneTransform = glm::translate(glm::mat4(1.0f), accPosition) * glm::mat4_cast(accRotation) * glm::scale(glm::mat4(1.0f), accScale);
-            boneTransform = localBoneTransform * boneTransform;
+            accPosition /= totalBlendFactor;
+            accRotation /= totalBlendFactor;
+            accScale /= totalBlendFactor;
+            accRotation = glm::normalize(accRotation);
+
+            glm::mat4 baseMatrix = glm::translate(glm::mat4(1.0f), accPosition) * glm::mat4_cast(accRotation) * glm::scale(glm::mat4(1.0f), accScale);
+
+            // Additive pass
+            int32_t referenceFrameIndex = -1;
+            totalBlendFactor = 0.0f;
+            glm::vec3 addPosition = glm::vec3(0.0f);
+            glm::quat addRotation = glm::quat(0.0f, 0.0f, 0.0f, 0.0f);
+            glm::vec3 addScale = glm::vec3(0.0f);
+
+            for (uint32_t i = 0; i < animationInstances.size(); i++)
+            {
+                const auto &instance = animationInstances[i];
+                const auto &anim = rp.GetAnimation(instance.animation);
+                const uint32_t frameOffset = anim.GetFrameOffset();
+                const uint32_t frame1 = instance.frame1;
+                const uint32_t frame2 = instance.frame2;
+                const int32_t referenceFrame = instance.referenceFrame;
+                const float frameBlendFactor = instance.frameBlendFactor;
+                const float blendFactor = instance.blendFactor;
+
+                if (blendFactor <= 0.0f || referenceFrame == -1)
+                {
+                    continue;
+                }
+
+                const auto &refAnim = rp.GetAnimation(instance.referenceAnimation);
+                referenceFrameIndex = static_cast<int32_t>(refAnim.GetFrameOffset()) + instance.referenceFrame + currBoneIndex;
+
+                uint32_t frame1Index = frameOffset + frame1 * mesh.GetBoneCount() + currBoneIndex;
+                uint32_t frame2Index = frameOffset + frame2 * mesh.GetBoneCount() + currBoneIndex;
+
+                glm::quat rotation1 = frames[frame1Index].rotation;
+                glm::quat rotation2 = frames[frame2Index].rotation;
+                if (glm::dot(rotation1, rotation2) < 0.0f)
+                {
+                    rotation1 *= -1.0f;
+                }
+
+                glm::vec3 position = glm::mix(frames[frame1Index].position, frames[frame2Index].position, frameBlendFactor);
+                glm::quat rotation = glm::mix(rotation1, rotation2, frameBlendFactor);
+                glm::vec3 scale = glm::mix(frames[frame1Index].scale, frames[frame2Index].scale, frameBlendFactor);
+
+                if (glm::dot(addRotation, rotation) < 0.0f)
+                {
+                    addRotation *= -1.0f;
+                }
+                addPosition += position * blendFactor;
+                addRotation += rotation * blendFactor;
+                addScale += scale * blendFactor;
+                totalBlendFactor += blendFactor;
+            }
+
+            glm::mat4 additiveMatrix = glm::mat4(1.0f);
+
+            if (totalBlendFactor > 0.0f)
+            {
+                addRotation = glm::normalize(addRotation);
+                glm::mat4 refrenceMatrix = glm::inverse(
+                    glm::translate(glm::mat4(1.0f), frames[referenceFrameIndex].position) *
+                    glm::mat4_cast(frames[referenceFrameIndex].rotation) *
+                    glm::scale(glm::mat4(1.0f), frames[referenceFrameIndex].scale));
+
+                addPosition /= totalBlendFactor;
+                addRotation /= totalBlendFactor;
+                addScale /= totalBlendFactor;
+                addRotation = glm::normalize(addRotation);
+
+                additiveMatrix = refrenceMatrix * glm::translate(glm::mat4(1.0f), addPosition) * glm::mat4_cast(addRotation) * glm::scale(glm::mat4(1.0f), addScale);
+            }
+
+            glm::mat4 noAdditive = baseMatrix * boneTransform;
+            glm::mat4 withAdditive = baseMatrix * additiveMatrix * boneTransform;
+            boneTransform = (1.0f - totalBlendFactor) * noAdditive + totalBlendFactor * withAdditive;
 
             currBoneIndex = bones[currBoneIndex].parentID;
 

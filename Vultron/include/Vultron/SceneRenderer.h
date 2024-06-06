@@ -83,6 +83,7 @@ namespace Vultron
         FontGlyph GetGlyph(const RenderHandle &font, const std::string &name) const;
 
         // Animation stuff
+        float GetAnimationDuration(const RenderHandle &animation) const;
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
         // --NOTE: Expensive
         glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const;

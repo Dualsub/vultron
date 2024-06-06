@@ -60,6 +60,9 @@ namespace Vultron
         uint32_t frame2 = 0;
         float frameBlendFactor = 0.0f;
         float blendFactor = 0.0f;
+
+        RenderHandle referenceAnimation = {};
+        int32_t referenceFrame = -1;
     };
 
     struct SkeletalRenderJob

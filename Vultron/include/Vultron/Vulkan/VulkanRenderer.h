@@ -198,10 +198,10 @@ namespace Vultron
         int32_t frameOffset;
         int32_t frame1;
         int32_t frame2;
-        float _padding;
+        int32_t referenceFrame;
         float timeFactor;
         float blendFactor;
-        float _padding2[2];
+        float _padding[2];
     };
 
     static_assert(sizeof(SkeletalInstanceData) % 16 == 0);

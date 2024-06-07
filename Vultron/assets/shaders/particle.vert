@@ -54,6 +54,7 @@ void main()
 
     float timeElapsed = instance.lifeDurationAndNumFramesAndFrameRate.x - instance.positionAndLifeTime.w;
     float timeRemaining = instance.positionAndLifeTime.w;
+    float frameRate = instance.lifeDurationAndNumFramesAndFrameRate.z;
 
     float scaleIn = instance.scaleFadeInOutAndOpacityFadeInOut.x > 0.0 ? easeOutQuint(clamp(timeElapsed / instance.scaleFadeInOutAndOpacityFadeInOut.x, 0.0, 1.0)) : 1.0;
     float scaleOut = 1.0;//clamp(instance.scaleFadeInOutAndOpacityFadeInOut.y / timeRemaining, 0.0, 1.0);
@@ -94,8 +95,12 @@ void main()
     // Final position
     gl_Position = ubo.proj * viewPosition;
 
+    float numFrames = instance.lifeDurationAndNumFramesAndFrameRate.y;
+    float frameX = mod(timeElapsed * frameRate, numFrames);
+    float frameY = floor(timeElapsed * frameRate / numFrames);
+
     fragWorldPos = worldPosition.xyz;
-    vec2 texCoord = instance.texCoordAndSize.xy + uvec2((instance.lifeDurationAndNumFramesAndFrameRate.x - instance.positionAndLifeTime.w) * instance.lifeDurationAndNumFramesAndFrameRate.z, 0) * instance.texCoordAndSize.zw;
+    vec2 texCoord = instance.texCoordAndSize.xy + uvec2(frameX, frameY) * instance.texCoordAndSize.zw;
     fragTexCoord = inTexCoord * instance.texCoordAndSize.zw + texCoord;
     fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;

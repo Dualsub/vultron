@@ -1,4 +1,5 @@
 import argparse
+from io import BufferedWriter
 import struct
 import numpy as np
 import cv2 as cv
@@ -99,20 +100,22 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
             assert layers[i][j].shape == layers[0][j].shape, "All images must have the same dimensions"
             
     with open(output_file, "wb") as f:
-        f.write(struct.pack("I", layers[0][0].shape[1]))
-        f.write(struct.pack("I", layers[0][0].shape[0]))
-        f.write(struct.pack("I", channels))
-        f.write(struct.pack("I", np.dtype(image.dtype).itemsize))
-        f.write(struct.pack("I", len(layers)))
-        f.write(struct.pack("I", len(layers[0])))
-        f.write(struct.pack("I", imageType))
-        for mipmaps in layers:
-            for mipmap in mipmaps:
-                # Save width, height, channels, and the number of bytes in the datatype used, i.e. 1 for uint8
-                f.write(mipmap.tobytes())
+        write_layers(f, layers, imageType)
 
     print(f"Image packed into {output_file}")
     print(f"Generated {len(mipmaps)} mipmaps")
+
+def write_layers(f: BufferedWriter, layers, imageType: int):
+    f.write(struct.pack("I", layers[0][0].shape[1]))
+    f.write(struct.pack("I", layers[0][0].shape[0]))
+    f.write(struct.pack("I", layers[0][0].shape[2]))
+    f.write(struct.pack("I", np.dtype(layers[0][0].dtype).itemsize))
+    f.write(struct.pack("I", len(layers)))
+    f.write(struct.pack("I", len(layers[0])))
+    f.write(struct.pack("I", imageType))
+    for mipmaps in layers:
+        for mipmap in mipmaps:
+            f.write(mipmap.tobytes())
 
 def pack_all(dir):
     # dir = "C:/dev/repos/arcane-siege/assets"

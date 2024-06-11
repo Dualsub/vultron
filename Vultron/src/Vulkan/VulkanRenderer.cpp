@@ -2196,6 +2196,7 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, c_maxParticleInstances / 256, 1, 1);
         }
 
+        // TODO: Change this to a buffer barrier
         // Barrier for Particle Update
         {
             VkMemoryBarrier memoryBarrier = {};
@@ -2221,7 +2222,33 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, static_cast<uint32_t>(renderData.particleEmitters.size()), 1, 1);
         }
 
-        // Barrier for particleInstanceBuffer before copying to draw command buffer
+        // TODO: Change this to a buffer barrier
+        // Barrier for Particle Emitters
+        {
+            VkMemoryBarrier memoryBarrier = {};
+            memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                1,
+                &memoryBarrier,
+                0, nullptr,
+                0, nullptr);
+        }
+
+        // Particle Sort
+        {
+            // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipeline());
+            // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipelineLayout(), 0, 1, &frame.particleSortDescriptorSet, 0, nullptr);
+            SortParticles(commandBuffer);
+        }
+
+        // Barrier for particle instance buffer
         {
             VkBufferMemoryBarrier bufferBarrier = {};
             bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -2298,6 +2325,79 @@ namespace Vultron
         }
 
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
+    }
+
+    constexpr uint32_t c_workgroupSizeX = 256;
+    constexpr uint32_t c_workgroupCount = c_maxParticleInstances / (c_workgroupSizeX * 2);
+
+    enum class Algorithm : uint32_t
+    {
+        LocalBMS = 0U,
+        BigFlip = 1U,
+        LocalDisperse = 2U,
+        BigDisperse = 3U,
+    };
+
+    void DispatchSort(uint32_t n, uint32_t h, Algorithm algorithm, VkBuffer buffer, VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout)
+    {
+        struct PushBlock
+        {
+            uint32_t n;
+            uint32_t h;
+            Algorithm algorithm;
+        } pushBlock = {n, h, algorithm};
+
+        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushBlock), &pushBlock);
+        vkCmdDispatch(commandBuffer, c_workgroupCount, 1, 1);
+
+        // Barrier for buffer
+        {
+            VkBufferMemoryBarrier bufferBarrier = {};
+            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.buffer = buffer;
+            bufferBarrier.offset = 0;
+            bufferBarrier.size = VK_WHOLE_SIZE;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                0, nullptr,
+                1, &bufferBarrier,
+                0, nullptr);
+        }
+    }
+
+    void VulkanRenderer::SortParticles(VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer)
+    {
+        constexpr uint32_t n = c_maxParticleInstances;
+        uint32_t h = c_workgroupSizeX * 2;
+
+        DispatchSort(n, h, Algorithm::LocalBMS, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+
+        h *= 2;
+
+        for (; h <= n; h *= 2)
+        {
+            DispatchSort(n, h, Algorithm::BigFlip, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+            for (uint32_t hh = h / 2; hh > 1; hh /= 2)
+            {
+                if (hh <= c_workgroupSizeX * 2)
+                {
+                    DispatchSort(n, hh, Algorithm::LocalDisperse, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+                    break;
+                }
+                else
+                {
+                    DispatchSort(n, hh, Algorithm::BigDisperse, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+                }
+            }
+        }
     }
 
     void VulkanRenderer::WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData)
@@ -2421,7 +2521,6 @@ namespace Vultron
 
     void VulkanRenderer::DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize)
     {
-
         const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetParticleAtlasMaterial();
         if (!material.has_value())
         {

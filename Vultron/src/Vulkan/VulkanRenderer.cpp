@@ -2221,6 +2221,28 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, static_cast<uint32_t>(renderData.particleEmitters.size()), 1, 1);
         }
 
+        // Barrier for particleInstanceBuffer before copying to draw command buffer
+        {
+            VkBufferMemoryBarrier bufferBarrier = {};
+            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.buffer = frame.particleInstanceBuffer.GetBuffer();
+            bufferBarrier.offset = 0;
+            bufferBarrier.size = VK_WHOLE_SIZE;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                0, nullptr,
+                1, &bufferBarrier,
+                0, nullptr);
+        }
+
         // Copy the count from the buffer to the draw command buffer
         {
             VkBufferCopy region = {};
@@ -2257,7 +2279,7 @@ namespace Vultron
         {
             VkBufferMemoryBarrier bufferBarrier = {};
             bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
             bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
             bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -2267,7 +2289,7 @@ namespace Vultron
 
             vkCmdPipelineBarrier(
                 commandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                 0,
                 0, nullptr,

@@ -24,6 +24,7 @@ struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
     int boneOutputOffset;
+    vec4 color;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {

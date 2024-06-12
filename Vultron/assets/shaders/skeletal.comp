@@ -3,7 +3,8 @@
 struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
-    int boneOutputOffset;
+    ivec4 boneOutputOffsetAndBonesToIgnore;
+    vec4 color;
 };
 
 layout(std140, set = 0, binding = 0) readonly buffer InstanceBufferObject {
@@ -71,13 +72,13 @@ struct BonePose {
     vec3 scale;
 };
 
-mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount)
+mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount, ivec3 bonesToIgnore)
 {
     mat4 boneMatrix = mat4(1.0);
     int currBoneIndex = boneIndex;
 
     for (int b = 0; b < boneCount; b++)
-    { 
+    {
         float totalBlendFactor = 0.0;
         BonePose accPose = BonePose(vec3(0.0), vec4(0.0, 0.0, 0.0, 0.0), vec3(0.0));
         
@@ -88,6 +89,10 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             int refFrame = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2AndRef.w;
             float frameBlend = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.x;
             float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
+
+            if (currBoneIndex == bonesToIgnore.x || currBoneIndex == bonesToIgnore.y || currBoneIndex == bonesToIgnore.z) {
+                return mat4(1.0 / 0.0);
+            }
 
             if (refFrame != -1 || blendFactor <= 0.0) {
                 continue;
@@ -190,9 +195,9 @@ void main()  {
         int boneOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.x;
         int animationInstanceOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.z;
         int animationInstanceCount = instances[instanceIndex].boneAndInstanceOffsetAndCount.w;
-        int boneOutputOffset = instances[instanceIndex].boneOutputOffset;
+        int boneOutputOffset = instances[instanceIndex].boneOutputOffsetAndBonesToIgnore.x;
 
         mat4 offset = bones[boneOffset + boneIndex].offset;
-        boneOutput[boneOutputOffset + boneIndex] = GetPose(animationInstanceOffset, animationInstanceCount, boneIndex, boneOffset, boneCount) * offset;
+        boneOutput[boneOutputOffset + boneIndex] = GetPose(animationInstanceOffset, animationInstanceCount, boneIndex, boneOffset, boneCount, instances[instanceIndex].boneOutputOffsetAndBonesToIgnore.yzw) * offset;
     }
 }

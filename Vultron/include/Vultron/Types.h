@@ -71,6 +71,8 @@ namespace Vultron
         RenderHandle material = {};
         glm::mat4 transform = {};
         std::vector<AnimationInstance> animations = {};
+        std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
+        glm::vec4 color = glm::vec4(1.0f);
 
         // Compute hash of mesh and texture
         uint64_t GetHash() const

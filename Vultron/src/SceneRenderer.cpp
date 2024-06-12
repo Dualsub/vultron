@@ -109,6 +109,8 @@ namespace Vultron
             .animationInstanceCount = animationCount,
 
             .boneOutputOffset = boneOutputOffset,
+            .bonesToIgnore = job.bonesToIgnore,
+            .color = job.color,
         };
 
         instancedJob.instances.push_back(instance);

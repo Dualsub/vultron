@@ -2280,7 +2280,7 @@ namespace Vultron
         {
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipeline());
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipelineLayout(), 0, 1, &frame.particleSortDescriptorSet, 0, nullptr);
-            SortBuffer(256, commandBuffer, m_particleSortPipeline, frame.particleInstanceBuffer);
+            SortBuffer(c_maxParticleInstances, commandBuffer, m_particleSortPipeline, frame.particleInstanceBuffer);
         }
 
         // Barrier for particle instance buffer
@@ -2401,7 +2401,7 @@ namespace Vultron
 
     void VulkanRenderer::SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer)
     {
-        uint32_t workGroupSize = m_context.GetDeviceProperties().limits.maxComputeWorkGroupInvocations;
+        uint32_t workGroupSize = 128;
         uint32_t workgroupSizeX = 1;
 
         if (n < workGroupSize * 2)

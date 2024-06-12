@@ -718,6 +718,28 @@ namespace Vultron
                 },
             });
 
+        m_particleSortShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/particle_sort.comp.spv"});
+        m_particleSortPipeline = VulkanComputePipeline::Create(
+            m_context,
+            {
+                .shader = m_particleSortShader,
+                .bindings = {
+                    {
+                        // Particle instance data
+                        .binding = 0,
+                        .type = DescriptorType::StorageBuffer,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                        .offset = 0,
+                        .size = 4 * sizeof(uint32_t) + sizeof(glm::vec3),
+                    },
+                },
+            });
+
         m_particleVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/particle.vert.spv"});
         m_particlePipeline = VulkanMaterialPipeline::Create(
             m_context, m_renderPass,
@@ -1261,6 +1283,19 @@ namespace Vultron
                     },
                     {
                         .binding = 2,
+                        .type = DescriptorType::StorageBuffer,
+                        .buffer = m_frames[i].particleInstanceBuffer.GetBuffer(),
+                        .size = m_frames[i].particleInstanceBuffer.GetSize(),
+                    },
+                });
+
+            m_frames[i].particleSortDescriptorSet = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(),
+                m_descriptorPool,
+                m_particleSortPipeline.GetDescriptorSetLayout(),
+                {
+                    {
+                        .binding = 0,
                         .type = DescriptorType::StorageBuffer,
                         .buffer = m_frames[i].particleInstanceBuffer.GetBuffer(),
                         .size = m_frames[i].particleInstanceBuffer.GetSize(),
@@ -2164,7 +2199,7 @@ namespace Vultron
 
         // Clear count of particles
         {
-            vkCmdFillBuffer(commandBuffer, frame.particleInstanceBuffer.GetBuffer(), 0, sizeof(uint32_t), 0);
+            vkCmdFillBuffer(commandBuffer, frame.particleInstanceBuffer.GetBuffer(), 0, sizeof(ParticleInstanceData), 0);
         }
 
         // Barrier after clearing particle count
@@ -2243,9 +2278,9 @@ namespace Vultron
 
         // Particle Sort
         {
-            // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipeline());
-            // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipelineLayout(), 0, 1, &frame.particleSortDescriptorSet, 0, nullptr);
-            SortParticles(commandBuffer);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSortPipeline.GetPipelineLayout(), 0, 1, &frame.particleSortDescriptorSet, 0, nullptr);
+            SortBuffer(256, commandBuffer, m_particleSortPipeline, frame.particleInstanceBuffer);
         }
 
         // Barrier for particle instance buffer
@@ -2327,28 +2362,19 @@ namespace Vultron
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
-    constexpr uint32_t c_workgroupSizeX = 256;
-    constexpr uint32_t c_workgroupCount = c_maxParticleInstances / (c_workgroupSizeX * 2);
-
-    enum class Algorithm : uint32_t
+    enum class SortAlgorithmPart : uint32_t
     {
         LocalBMS = 0U,
-        BigFlip = 1U,
-        LocalDisperse = 2U,
+        LocalDisperse = 1U,
+        BigFlip = 2U,
         BigDisperse = 3U,
     };
 
-    void DispatchSort(uint32_t n, uint32_t h, Algorithm algorithm, VkBuffer buffer, VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout)
+    template <typename PushBlock>
+    void DispatchSort(const PushBlock &pushBlock, uint32_t workGroupCount, VkBuffer buffer, VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout)
     {
-        struct PushBlock
-        {
-            uint32_t n;
-            uint32_t h;
-            Algorithm algorithm;
-        } pushBlock = {n, h, algorithm};
-
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushBlock), &pushBlock);
-        vkCmdDispatch(commandBuffer, c_workgroupCount, 1, 1);
+        vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
 
         // Barrier for buffer
         {
@@ -2373,28 +2399,54 @@ namespace Vultron
         }
     }
 
-    void VulkanRenderer::SortParticles(VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer)
+    void VulkanRenderer::SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer)
     {
-        constexpr uint32_t n = c_maxParticleInstances;
-        uint32_t h = c_workgroupSizeX * 2;
+        uint32_t workGroupSize = m_context.GetDeviceProperties().limits.maxComputeWorkGroupInvocations;
+        uint32_t workgroupSizeX = 1;
 
-        DispatchSort(n, h, Algorithm::LocalBMS, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+        if (n < workGroupSize * 2)
+        {
+            workgroupSizeX = n / 2;
+        }
+        else
+        {
+            workgroupSizeX = workGroupSize;
+        }
+
+        const uint32_t workGroupCount = n / (workgroupSizeX * 2);
+        uint32_t h = workgroupSizeX * 2;
+
+        struct PushBlock
+        {
+            uint32_t h;
+            SortAlgorithmPart algorithm;
+            float _padding1[2];
+            glm::vec3 cameraPosition;
+        } pushBlock = {.h = h, .algorithm = SortAlgorithmPart::LocalBMS, .cameraPosition = m_camera.position};
+
+        DispatchSort(pushBlock, workGroupCount, buffer.GetBuffer(), commandBuffer, pipeline.GetPipelineLayout());
 
         h *= 2;
 
         for (; h <= n; h *= 2)
         {
-            DispatchSort(n, h, Algorithm::BigFlip, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+            pushBlock.h = h;
+            pushBlock.algorithm = SortAlgorithmPart::BigFlip;
+            DispatchSort(pushBlock, workGroupCount, buffer.GetBuffer(), commandBuffer, pipeline.GetPipelineLayout());
             for (uint32_t hh = h / 2; hh > 1; hh /= 2)
             {
-                if (hh <= c_workgroupSizeX * 2)
+                if (hh <= workgroupSizeX * 2)
                 {
-                    DispatchSort(n, hh, Algorithm::LocalDisperse, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+                    pushBlock.h = hh;
+                    pushBlock.algorithm = SortAlgorithmPart::LocalDisperse;
+                    DispatchSort(pushBlock, workGroupCount, buffer.GetBuffer(), commandBuffer, pipeline.GetPipelineLayout());
                     break;
                 }
                 else
                 {
-                    DispatchSort(n, hh, Algorithm::BigDisperse, buffer.GetBuffer(), commandBuffer, m_particleSortPipeline.GetPipelineLayout());
+                    pushBlock.h = hh;
+                    pushBlock.algorithm = SortAlgorithmPart::BigDisperse;
+                    DispatchSort(pushBlock, workGroupCount, buffer.GetBuffer(), commandBuffer, pipeline.GetPipelineLayout());
                 }
             }
         }
@@ -2611,6 +2663,23 @@ namespace Vultron
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
 
+        // Uniform buffer
+        UniformBufferData ubo = m_uniformBufferData;
+        // Rortate forward vector to get view direction
+        const glm::vec3 viewPos = m_camera.position;
+        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.viewPos = viewPos;
+        ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+        ubo.random = dis(gen);
+
+        m_uniformBufferData = ubo;
+
+        frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
+
         // Skeletal instance buffer
         const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
         frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
@@ -2636,23 +2705,6 @@ namespace Vultron
 
         // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
-
-        // Uniform buffer
-        UniformBufferData ubo = m_uniformBufferData;
-        // Rortate forward vector to get view direction
-        const glm::vec3 viewPos = m_camera.position;
-        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
-        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.viewPos = viewPos;
-        ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
-        ubo.random = dis(gen);
-
-        m_uniformBufferData = ubo;
-
-        frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
 
         // Static instance buffer
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
@@ -2782,6 +2834,7 @@ namespace Vultron
         m_skeletalComputeShader.Destroy(m_context);
         m_particleEmitterShader.Destroy(m_context);
         m_particleUpdateShader.Destroy(m_context);
+        m_particleSortShader.Destroy(m_context);
         m_particleVertexShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
@@ -2809,6 +2862,7 @@ namespace Vultron
         m_skeletalComputePipeline.Destroy(m_context);
         m_particleEmitterPipeline.Destroy(m_context);
         m_particleUpdatePipeline.Destroy(m_context);
+        m_particleSortPipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

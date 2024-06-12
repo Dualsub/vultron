@@ -50,11 +50,12 @@ void main()  {
 
     const float groundLevel = 10.0;
 
+    lifeTime -= deltaTime;
+    
     if (lifeTime <= 0.0) {
         return;
     }
     
-    lifeTime -= deltaTime;
     if (position.y > groundLevel)  {
         velocity.y -= 981.0 * gravityFactor * deltaTime;
         position += velocity * deltaTime;
@@ -70,5 +71,4 @@ void main()  {
 
     uint outputIndex = atomicAdd(outputBuffer.instanceCount, 1);
     outputBuffer.instances[outputIndex] = updatedInstance;
-
 }

@@ -171,6 +171,10 @@ namespace Vultron
         std::cout << m_deviceProperties.deviceName;
         std::cout << " for rendering.";
         std::cout << std::endl;
+
+        std::cout << "Max Compute Work Group Invocations: " << m_deviceProperties.limits.maxComputeWorkGroupInvocations << std::endl;
+        std::cout << "Max Compute Shared Memory Size: " << m_deviceProperties.limits.maxComputeSharedMemorySize << std::endl;
+
         return true;
     }
 

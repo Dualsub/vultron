@@ -167,6 +167,7 @@ namespace Vultron
         VulkanBuffer particleDrawCommandBuffer;
         VkDescriptorSet particleEmitterDescriptorSet;
         VkDescriptorSet particleUpdateDescriptorSet;
+        VkDescriptorSet particleSortDescriptorSet;
         VkDescriptorSet particleDescriptorSet;
     };
 
@@ -401,6 +402,8 @@ namespace Vultron
         VulkanComputePipeline m_particleEmitterPipeline;
         VulkanShader m_particleUpdateShader;
         VulkanComputePipeline m_particleUpdatePipeline;
+        VulkanShader m_particleSortShader;
+        VulkanComputePipeline m_particleSortPipeline;
         VulkanShader m_particleVertexShader;
         VulkanMaterialPipeline m_particlePipeline;
         VkDescriptorSetLayout m_particleSetLayout;
@@ -479,7 +482,7 @@ namespace Vultron
         // Command buffer
         void WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData);
         void WriteComputeCommands(VkCommandBuffer commandBuffer, const RenderData &renderData);
-        void SortParticles(VkCommandBuffer commandBuffer);
+        void SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer);
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);

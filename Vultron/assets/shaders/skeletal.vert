@@ -25,6 +25,7 @@ struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
     int boneOutputOffset;
+    vec4 color;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
@@ -67,5 +68,11 @@ void main()  {
     fragTexCoord = inTexCoord;
     fragNormal = normalize(mat3(instances[gl_InstanceIndex].model * boneMatrix) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * fragPos;
-    fragColor = vec4(1.0);
+    fragColor = instances[gl_InstanceIndex].color;
+    // for (int i = 0; i < 4; i++) {
+    //     if (inBoneIDs[i] == 47) {
+    //         fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    //         break;
+    //     }
+    // }
 }

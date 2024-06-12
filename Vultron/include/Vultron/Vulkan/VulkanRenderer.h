@@ -59,7 +59,7 @@ namespace Vultron
     constexpr uint32_t c_maxSpriteInstances = 1024;
 
     constexpr uint32_t c_maxParticleEmitters = 128;
-    constexpr uint32_t c_maxParticleInstances = 1024 * 16;
+    constexpr uint32_t c_maxParticleInstances = 4096;
 
     struct SpriteMaterial
     {
@@ -188,7 +188,8 @@ namespace Vultron
         int32_t animationInstanceOffset;
         int32_t animationInstanceCount;
         int32_t boneOutputOffset;
-        int32_t _padding[3];
+        std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
+        glm::vec4 color;
     };
 
     static_assert(sizeof(SkeletalInstanceData) % 16 == 0);

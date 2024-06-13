@@ -191,6 +191,13 @@ void main() {
 	color = Tonemap(color * exposure);
 	color = color * (1.0f / Tonemap(vec3(11.2f)));	
 	color = pow(color, vec3(1.0f / gamma));
+    
+	// float depth = gl_FragCoord.z;
+    // float near = 0.1;
+    // float far = 3200.0;
+    // float linearDepth = (2.0 * near) / (far + near - depth * (far - near));
+    // vec3 depthColor = vec3(linearDepth);
 
+    // outColor = vec4(depthColor, 1.0);
     outColor = vec4(color, texColor.a) * fragColor;
 }

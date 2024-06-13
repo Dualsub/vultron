@@ -93,7 +93,8 @@ void main()
     vec4 viewPosition = ubo.view * worldPosition;
 
     // Final position
-    gl_Position = ubo.proj * viewPosition;
+    vec4 position = ubo.proj * viewPosition;
+    gl_Position = position / position.w;
 
     float numFrames = instance.lifeDurationAndNumFramesAndFrameRate.y;
     float frameX = mod(timeElapsed * frameRate, numFrames);

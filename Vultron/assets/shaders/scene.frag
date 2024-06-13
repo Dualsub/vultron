@@ -151,7 +151,6 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 }
 
 void main() {
-	if (fragColor.a < 0.1) discard;
     vec4 texColor = texture(albedoMap, fragTexCoord);
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
     float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b);

@@ -55,12 +55,11 @@ def main():
                 np.floor(np.log2(min(atlas_width, atlas_height))) + 1)
     mipmaps = generate_mipmaps(np.array(atlas), mipmapLevels)
 
-    if args.show:
-        atlas.save("atlas.png")
-
-    with open(args.output, "wb") as f:
-        write_layers(f, [mipmaps], ImageTypes.Texture2D)
-        
+    if args.output.lower().endswith(".dat"):
+        with open(args.output, "wb") as f:
+            write_layers(f, [mipmaps], ImageTypes.Texture2D)
+    else:
+        atlas.save(args.output)
 
 
 

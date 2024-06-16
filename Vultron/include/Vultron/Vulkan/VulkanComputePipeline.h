@@ -29,6 +29,7 @@ namespace Vultron
         {
             const VulkanShader &shader;
             const std::vector<DescriptorSetLayoutBinding> &bindings;
+            const std::vector<VkPushConstantRange> &pushConstantRanges = {};
         };
         static VulkanComputePipeline Create(const VulkanContext &context, const ComputePipelineCreateInfo &createInfo);
         void Destroy(const VulkanContext &context);

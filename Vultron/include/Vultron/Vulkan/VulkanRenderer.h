@@ -167,6 +167,7 @@ namespace Vultron
         VulkanBuffer particleDrawCommandBuffer;
         VkDescriptorSet particleEmitterDescriptorSet;
         VkDescriptorSet particleUpdateDescriptorSet;
+        VkDescriptorSet particleSortDescriptorSet;
         VkDescriptorSet particleDescriptorSet;
     };
 
@@ -241,7 +242,8 @@ namespace Vultron
         glm::vec2 texCoord;
         glm::vec2 texSize;
 
-        glm::vec4 color;
+        glm::vec4 startColor;
+        glm::vec4 endColor;
 
         // We use a float here to avoid having to deal with alignment issues
         float numParticles;
@@ -277,7 +279,8 @@ namespace Vultron
             glm::vec2 texCoord;
             glm::vec2 texSize;
 
-            glm::vec4 color;
+            glm::vec4 startColor;
+            glm::vec4 endColor;
 
             float scaleIn;
             float scaleOut;
@@ -401,6 +404,8 @@ namespace Vultron
         VulkanComputePipeline m_particleEmitterPipeline;
         VulkanShader m_particleUpdateShader;
         VulkanComputePipeline m_particleUpdatePipeline;
+        VulkanShader m_particleSortShader;
+        VulkanComputePipeline m_particleSortPipeline;
         VulkanShader m_particleVertexShader;
         VulkanMaterialPipeline m_particlePipeline;
         VkDescriptorSetLayout m_particleSetLayout;
@@ -479,6 +484,7 @@ namespace Vultron
         // Command buffer
         void WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData);
         void WriteComputeCommands(VkCommandBuffer commandBuffer, const RenderData &renderData);
+        void SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer);
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);

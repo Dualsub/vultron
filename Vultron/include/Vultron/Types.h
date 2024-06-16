@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <optional>
 
 #define VLT_INVALID_HANDLE 0
 
@@ -127,8 +128,8 @@ namespace Vultron
         glm::vec2 texCoord = glm::vec2(0.0f);
         glm::vec2 texSize = glm::vec2(1.0f);
         glm::vec2 texCoordSpan = glm::vec2(0.0f);
-        glm::vec4 color = glm::vec4(1.0f);
-        glm::vec2 frameDelta = glm::vec2(0.0f);
+        glm::vec4 startColor = glm::vec4(1.0f);
+        std::optional<glm::vec4> endColor = std::nullopt;
         uint32_t numFrames = 1;
         float framesPerSecond = 0.0f;
         uint32_t numParticles = 1;

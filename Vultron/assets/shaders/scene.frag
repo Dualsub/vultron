@@ -151,7 +151,6 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 }
 
 void main() {
-	if (fragColor.a < 0.1) discard;
     vec4 texColor = texture(albedoMap, fragTexCoord);
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
     float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b);
@@ -192,6 +191,13 @@ void main() {
 	color = Tonemap(color * exposure);
 	color = color * (1.0f / Tonemap(vec3(11.2f)));	
 	color = pow(color, vec3(1.0f / gamma));
+    
+	// float depth = gl_FragCoord.z;
+    // float near = 0.1;
+    // float far = 3200.0;
+    // float linearDepth = (2.0 * near) / (far + near - depth * (far - near));
+    // vec3 depthColor = vec3(linearDepth);
 
+    // outColor = vec4(depthColor, 1.0);
     outColor = vec4(color, texColor.a) * fragColor;
 }

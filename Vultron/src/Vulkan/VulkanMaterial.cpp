@@ -25,7 +25,9 @@ namespace Vultron
                 createInfo.sceneDescriptorSetLayout,
                 createInfo.pushConstantRanges,
                 createInfo.cullMode,
-                createInfo.depthFunction))
+                createInfo.depthFunction,
+                createInfo.depthTestEnable,
+                createInfo.depthWriteEnable))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -54,7 +56,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthTestEnable)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -153,8 +155,9 @@ namespace Vultron
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthCompareOp = static_cast<VkCompareOp>(depthTestEnable);
-        if (depthTestEnable != DepthFunction::Always && depthTestEnable != DepthFunction::Never)
+        depthStencil.depthCompareOp = static_cast<VkCompareOp>(depthFunction);
+
+        if (depthTestEnable)
         {
             depthStencil.depthTestEnable = VK_TRUE;
             depthStencil.depthWriteEnable = VK_TRUE;
@@ -167,6 +170,15 @@ namespace Vultron
             depthStencil.depthWriteEnable = VK_FALSE;
             depthStencil.depthBoundsTestEnable = VK_FALSE;
             depthStencil.stencilTestEnable = VK_FALSE;
+        }
+
+        if (depthWriteEnable)
+        {
+            depthStencil.depthWriteEnable = VK_TRUE;
+        }
+        else
+        {
+            depthStencil.depthWriteEnable = VK_FALSE;
         }
 
         VK_CHECK(vkCreatePipelineLayout(context.GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout));

@@ -15,7 +15,8 @@ struct ParticleInstanceData {
     vec2 size;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
-    vec4 color;
+    vec4 startColor;
+    vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
 

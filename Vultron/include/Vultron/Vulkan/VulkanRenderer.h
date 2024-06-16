@@ -242,7 +242,8 @@ namespace Vultron
         glm::vec2 texCoord;
         glm::vec2 texSize;
 
-        glm::vec4 color;
+        glm::vec4 startColor;
+        glm::vec4 endColor;
 
         // We use a float here to avoid having to deal with alignment issues
         float numParticles;
@@ -278,7 +279,8 @@ namespace Vultron
             glm::vec2 texCoord;
             glm::vec2 texSize;
 
-            glm::vec4 color;
+            glm::vec4 startColor;
+            glm::vec4 endColor;
 
             float scaleIn;
             float scaleOut;

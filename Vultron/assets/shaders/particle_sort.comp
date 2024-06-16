@@ -23,7 +23,8 @@ struct ParticleInstanceData {
     vec2 size;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
-    vec4 color;
+    vec4 startColor;
+    vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
 
@@ -36,7 +37,7 @@ layout(std140, set = 0, binding = 0) buffer ParticleInstanceBufferObject {
 layout(push_constant) uniform Parameters {
     uint h;
     uint algorithm;
-    vec3 cameraPosition;
+    mat4 viewProjection;
 } parameters;
 
 // Workgroup local memory. We use this to minimise round-trips to global memory.
@@ -53,9 +54,14 @@ bool compare(in const ParticleInstanceData left, in const ParticleInstanceData r
     if (right.positionAndLifeTime.w == 0) {
         return false;
     }
+
+	float depthLeft = (parameters.viewProjection * vec4(left.positionAndLifeTime.xyz, 1.0)).z;
+	float depthRight = (parameters.viewProjection * vec4(right.positionAndLifeTime.xyz, 1.0)).z;
     
     // Return comparison result for distance squared to camera
-    return distance(left.positionAndLifeTime.xyz, parameters.cameraPosition) < distance(right.positionAndLifeTime.xyz, parameters.cameraPosition);
+    // return distance(left.positionAndLifeTime.xyz, parameters.cameraPosition) < distance(right.positionAndLifeTime.xyz, parameters.cameraPosition);
+	// return left.positionAndLifeTime.y > right.positionAndLifeTime.y;
+	return depthLeft < depthRight;
 }
 
 void global_compare_and_swap(ivec2 idx){

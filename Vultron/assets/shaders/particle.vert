@@ -9,6 +9,7 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
 layout(location = 4) out vec4 fragColor;
+layout(location = 5) out float debugDepth;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -25,7 +26,8 @@ struct ParticleInstanceData {
     vec2 size;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
-    vec4 color;
+    vec4 startColor;
+    vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
 
@@ -105,5 +107,7 @@ void main()
     fragTexCoord = inTexCoord * instance.texCoordAndSize.zw + texCoord;
     fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;
-    fragColor = vec4(instance.color.rgb, instance.color.a * opacityIn * opacityOut);
+    vec4 color = mix(instance.startColor, instance.endColor, clamp(timeElapsed / instance.lifeDurationAndNumFramesAndFrameRate.x, 0.0, 1.0));
+    fragColor = vec4(color.rgb, color.a * opacityIn * opacityOut);
+    debugDepth = (ubo.proj * ubo.view * vec4(instance.positionAndLifeTime.xyz, 1.0)).z;
 }

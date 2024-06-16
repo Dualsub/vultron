@@ -17,7 +17,8 @@ struct ParticleEmitterData
     vec4 sizeAndSizeSpan;
     vec2 phiThetaSpan;
     vec4 texCoordAndSize;
-    vec4 color;
+    vec4 startColor;
+    vec4 endColor;
     vec4 numParticlesAndVelocitySpanAndTexSpan;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
@@ -32,7 +33,8 @@ struct ParticleInstanceData {
     vec2 size;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
-    vec4 color;
+    vec4 startColor;
+    vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
 };
 
@@ -100,7 +102,8 @@ void main()  {
         vec2 texCoord = uvec2(vec2(random(seed.x), random(seed.y)) * emitter.numParticlesAndVelocitySpanAndTexSpan.zw) * emitter.texCoordAndSize.zw + emitter.texCoordAndSize.xy;
         instance.texCoordAndSize = vec4(texCoord, emitter.texCoordAndSize.z, emitter.texCoordAndSize.w);
         instance.size = emitter.sizeAndSizeSpan.xy + random(seed.x + 2u) * emitter.sizeAndSizeSpan.zw;
-        instance.color = emitter.color;
+        instance.startColor = emitter.startColor;
+        instance.endColor = emitter.endColor;
 
         instance.lifeDurationAndNumFramesAndFrameRate = emitter.lifeDurationAndNumFramesAndFrameRate;
         instance.scaleFadeInOutAndOpacityFadeInOut = emitter.scaleFadeInOutAndOpacityFadeInOut;

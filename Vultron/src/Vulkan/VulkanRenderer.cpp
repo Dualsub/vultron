@@ -765,6 +765,7 @@ namespace Vultron
                     },
                 },
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+                .depthWriteEnable = false,
             });
 
         return true;
@@ -2421,8 +2422,8 @@ namespace Vultron
             uint32_t h;
             SortAlgorithmPart algorithm;
             float _padding1[2];
-            glm::vec3 cameraPosition;
-        } pushBlock = {.h = h, .algorithm = SortAlgorithmPart::LocalBMS, .cameraPosition = m_camera.position};
+            glm::mat4 viewProjection;
+        } pushBlock = {.h = h, .algorithm = SortAlgorithmPart::LocalBMS, .viewProjection = m_uniformBufferData.proj * m_uniformBufferData.view};
 
         DispatchSort(pushBlock, workGroupCount, buffer.GetBuffer(), commandBuffer, pipeline.GetPipelineLayout());
 

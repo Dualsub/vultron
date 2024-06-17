@@ -10,8 +10,9 @@ def main():
     parser.add_argument("input", nargs="+", help="key=image.png")
     parser.add_argument(
         "-o", "--output", help="The output vultron image file", default="atlas.dat")
-    parser.add_argument("-s", "--size", help="Size of the atlas", default=2048)
+    parser.add_argument("-s", "--size", help="Size of the atlas", default=2048, type=int)
     parser.add_argument("--show", help="Show the atlas", action="store_true")
+    parser.add_argument("--minimize", help="Minimize the atlas", action="store_true")
     args = parser.parse_args()
 
     images = {}
@@ -32,7 +33,8 @@ def main():
         atlas_width += image.width
         atlas_height = max(atlas_height, image.height)
 
-    atlas_height = atlas_width = max(atlas_width, atlas_height)
+    if not args.minimize:
+        atlas_height = atlas_width = max(atlas_width, atlas_height)
 
     atlas = Image.new("RGBA", (atlas_width, atlas_height), (0, 0, 0, 0))
 

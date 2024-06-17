@@ -20,7 +20,7 @@ layout(local_size_x = 128) in; // Set value for local_size_x via specialization 
 struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
-    vec2 size;
+    vec3 sizeAndRotation;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
     vec4 startColor;

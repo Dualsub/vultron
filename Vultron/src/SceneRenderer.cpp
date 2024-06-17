@@ -153,6 +153,7 @@ namespace Vultron
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
+            .rotation = job.rotation,
         });
     }
 
@@ -188,6 +189,7 @@ namespace Vultron
             .sizeSpan = job.sizeSpan,
             .phiSpan = job.phiSpan,
             .thetaSpan = job.thetaSpan,
+            .rotation = job.rotation,
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .startColor = job.startColor,

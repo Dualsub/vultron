@@ -15,7 +15,7 @@ struct ParticleEmitterData
     vec3 lifeDurationAndNumFramesAndFrameRate;
     vec4 initialVelocityAndGravityFactor;
     vec4 sizeAndSizeSpan;
-    vec2 phiThetaSpan;
+    vec3 phiThetaSpanAndRotation;
     vec4 texCoordAndSize;
     vec4 startColor;
     vec4 endColor;
@@ -30,7 +30,7 @@ layout(std140, set = 0, binding = 1) readonly buffer ParticleEmitterBufferObject
 struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
-    vec2 size;
+    vec3 sizeAndRotation;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
     vec4 startColor;
@@ -82,8 +82,8 @@ void main()  {
     ParticleEmitterData emitter = emitters[emitterIndex];
     uint numParticles = uint(emitter.numParticlesAndVelocitySpanAndTexSpan.x);
 
-    float thetaSpan = emitter.phiThetaSpan.y;
-    float phiSpan = emitter.phiThetaSpan.x;
+    float thetaSpan = emitter.phiThetaSpanAndRotation.y;
+    float phiSpan = emitter.phiThetaSpanAndRotation.x;
 
     for (uint i = 0; i < numParticles; i++) {
         ParticleInstanceData instance;
@@ -101,7 +101,8 @@ void main()  {
         uvec2 seed = uvec2(instance.positionAndLifeTime.xy * 1000.0) + emitterIndex + i;
         vec2 texCoord = uvec2(vec2(random(seed.x), random(seed.y)) * emitter.numParticlesAndVelocitySpanAndTexSpan.zw) * emitter.texCoordAndSize.zw + emitter.texCoordAndSize.xy;
         instance.texCoordAndSize = vec4(texCoord, emitter.texCoordAndSize.z, emitter.texCoordAndSize.w);
-        instance.size = emitter.sizeAndSizeSpan.xy + random(seed.x + 2u) * emitter.sizeAndSizeSpan.zw;
+        instance.sizeAndRotation.xy = emitter.sizeAndSizeSpan.xy + random(seed.x + 2u) * emitter.sizeAndSizeSpan.zw;
+        instance.sizeAndRotation.z = emitter.phiThetaSpanAndRotation.z;
         instance.startColor = emitter.startColor;
         instance.endColor = emitter.endColor;
 

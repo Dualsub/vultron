@@ -215,6 +215,8 @@ namespace Vultron
         glm::vec2 texCoord;
         glm::vec2 texSize;
         glm::vec4 color;
+        float rotation;
+        float _padding[3];
     };
 
     static_assert(sizeof(SpriteInstanceData) % 16 == 0);
@@ -237,7 +239,8 @@ namespace Vultron
 
         float phiSpan;
         float thetaSpan;
-        float _padding1[2];
+        float rotation;
+        float _padding1[1];
 
         glm::vec2 texCoord;
         glm::vec2 texSize;
@@ -271,7 +274,8 @@ namespace Vultron
             float _padding0;
 
             glm::vec2 size;
-            float _padding1[2];
+            float rotation;
+            float _padding1[1];
 
             glm::vec3 velocity;
             float gravityFactor;

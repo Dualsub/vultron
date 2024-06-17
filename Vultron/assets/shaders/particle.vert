@@ -23,7 +23,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
-    vec2 size;
+    vec3 sizeAndRotation;
     vec4 velocityAndGravityFactor;
     vec4 texCoordAndSize;
     vec4 startColor;
@@ -65,8 +65,8 @@ void main()
     float opacityOut = instance.scaleFadeInOutAndOpacityFadeInOut.w > 0.0 ? clamp(timeRemaining / instance.scaleFadeInOutAndOpacityFadeInOut.w, 0.0, 1.0) : 1.0;
 
     mat4 scale = mat4(1.0);
-    scale[0][0] = instance.size.x * scaleIn * scaleOut;
-    scale[1][1] = instance.size.y * scaleIn * scaleOut;
+    scale[0][0] = instance.sizeAndRotation.x * scaleIn * scaleOut;
+    scale[1][1] = instance.sizeAndRotation.y * scaleIn * scaleOut;
     scale[2][2] = 1.0;
 
 
@@ -85,6 +85,18 @@ void main()
     rotation[2][0] = viewRotationInverse[0][2];
     rotation[2][1] = viewRotationInverse[1][2];
     rotation[2][2] = viewRotationInverse[2][2];
+
+    // Simple rotation around the z-axis
+    float angle = instance.sizeAndRotation.z;
+    float c = cos(angle);
+    float s = sin(angle);
+    mat4 rotationZ = mat4(1.0);
+    rotationZ[0][0] = c;
+    rotationZ[0][1] = s;
+    rotationZ[1][0] = -s;
+    rotationZ[1][1] = c;
+
+    rotation = rotation * rotationZ;
 
     mat4 model = translation * rotation * scale;
 
@@ -109,5 +121,4 @@ void main()
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;
     vec4 color = mix(instance.startColor, instance.endColor, clamp(timeElapsed / instance.lifeDurationAndNumFramesAndFrameRate.x, 0.0, 1.0));
     fragColor = vec4(color.rgb, color.a * opacityIn * opacityOut);
-    debugDepth = (ubo.proj * ubo.view * vec4(instance.positionAndLifeTime.xyz, 1.0)).z;
 }

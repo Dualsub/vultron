@@ -2509,8 +2509,8 @@ namespace Vultron
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
             DrawSkybox(commandBuffer, frame.skyboxDescriptorSet, viewportSize);
-            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
             DrawWithPipeline<VulkanMesh>(commandBuffer, frame.staticDescriptorSet, m_staticPipeline, renderData.staticBatches, viewportSize);
+            DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, frame.skeletalDescriptorSet, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
             DrawParticles(commandBuffer, frame.particleDrawCommandBuffer, frame.particleDescriptorSet, viewportSize);
 
             ClearDepthBuffer(commandBuffer, viewportSize);

@@ -99,5 +99,7 @@ namespace Vultron
         static VulkanMaterialInstance Create(const VulkanContext &context, VkDescriptorPool descriptorPool, const VulkanMaterialPipeline &pipeline, const MaterialInstanceCreateInfo &createInfo);
 
         VkDescriptorSet GetDescriptorSet() const { return m_descriptorSet; }
+
+        void Destroy(const VulkanContext &context) {}
     };
 }

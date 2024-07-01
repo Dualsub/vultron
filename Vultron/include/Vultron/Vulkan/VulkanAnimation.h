@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Vultron/Vulkan/VulkanContext.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -44,5 +46,7 @@ namespace Vultron
         uint32_t GetFrameCount() const { return m_animationFrameCount; }
         const std::vector<float> &GetTimes() const { return m_times; }
         float GetDuration() const { return m_duration; }
+
+        void Destroy(const VulkanContext &context) {}
     };
 }

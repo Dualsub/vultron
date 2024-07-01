@@ -735,7 +735,7 @@ namespace Vultron
                     {
                         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
                         .offset = 0,
-                        .size = 4 * sizeof(uint32_t) + sizeof(glm::vec3),
+                        .size = 4 * sizeof(uint32_t) + sizeof(glm::mat4),
                     },
                 },
             });

@@ -7,6 +7,7 @@
 #include "Vultron/Vulkan/VulkanImage.h"
 #include "Vultron/Vulkan/VulkanMaterial.h"
 #include "Vultron/Vulkan/VulkanFontAtlas.h"
+#include "Vultron/Vulkan/VulkanEnvironmentMap.h"
 
 #include <unordered_map>
 
@@ -25,7 +26,6 @@ namespace Vultron
         std::unordered_map<RenderHandle, VulkanAnimation> m_animations;
         std::unordered_map<RenderHandle, VulkanFontAtlas> m_fontAtlases;
         std::unordered_map<RenderHandle, VulkanEnvironmentMap> m_environmentMaps;
-        std::optional<VulkanMaterialInstance> m_particleAtlasMaterial;
 
     public:
         static RenderHandle CreateHandle(const std::string &input)
@@ -101,8 +101,6 @@ namespace Vultron
             return handle;
         }
 
-        void SetParticleAtlasMaterial(const VulkanMaterialInstance &materialInstance) { m_particleAtlasMaterial = materialInstance; }
-
         const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
         const VulkanSkeletalMesh &GetSkeletalMesh(RenderHandle id) const { return m_skeletalMeshes.at(id); }
         const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
@@ -110,7 +108,6 @@ namespace Vultron
         const VulkanAnimation &GetAnimation(RenderHandle id) const { return m_animations.at(id); }
         const VulkanFontAtlas &GetFontAtlas(RenderHandle id) const { return m_fontAtlases.at(id); }
         const VulkanEnvironmentMap &GetEnvironmentMap(RenderHandle id) const { return m_environmentMaps.at(id); }
-        const std::optional<VulkanMaterialInstance> &GetParticleAtlasMaterial() const { return m_particleAtlasMaterial; }
 
         template <typename T>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const

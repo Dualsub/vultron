@@ -1838,7 +1838,10 @@ namespace Vultron
                 DrawSkybox(commandBuffer, {frame.skyboxDescriptorSet, environmentMap.GetSkyboxDescriptorSet()}, viewportSize);
                 DrawWithPipeline<VulkanMesh>(commandBuffer, {frame.staticDescriptorSet, environmentDescriptorSet}, m_staticPipeline, renderData.staticBatches, viewportSize);
                 DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, {frame.skeletalDescriptorSet, environmentDescriptorSet}, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
-                DrawParticles(commandBuffer, frame.particleDrawCommandBuffer, {frame.particleDescriptorSet, environmentDescriptorSet}, viewportSize);
+                if (renderData.particleAtlasMaterial.has_value())
+                {
+                    DrawParticles(commandBuffer, frame.particleDrawCommandBuffer, {frame.particleDescriptorSet, environmentDescriptorSet}, renderData.particleAtlasMaterial.value(), viewportSize);
+                }
             }
 
             ClearDepthBuffer(commandBuffer, viewportSize);
@@ -1909,9 +1912,9 @@ namespace Vultron
         }
     }
 
-    void VulkanRenderer::DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize)
+    void VulkanRenderer::DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize)
     {
-        const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetParticleAtlasMaterial();
+        const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetMaterialInstance(particleAtlasMaterial);
         if (!material.has_value())
         {
             return;

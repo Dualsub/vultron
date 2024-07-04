@@ -333,6 +333,7 @@ namespace Vultron
         const std::vector<SpriteInstanceData> &spriteInstances;
         const std::vector<ParticleEmitterData> &particleEmitters;
         const std::optional<RenderHandle> environmentMap;
+        const std::optional<RenderHandle> particleAtlasMaterial;
     };
 
     class VulkanRenderer
@@ -494,7 +495,7 @@ namespace Vultron
         template <typename MeshType>
         void DrawWithPipeline(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
-        void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
+        void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
 
         template <typename MeshType>
@@ -575,17 +576,6 @@ namespace Vultron
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
-        }
-
-        template <typename T>
-        void SetParticleAtlasMaterial(const T &materialCreateInfo)
-        {
-            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
-            m_resourcePool.SetParticleAtlasMaterial(VulkanMaterialInstance::Create(
-                m_context, m_descriptorPool, m_particlePipeline,
-                {
-                    bindings,
-                }));
         }
     };
 

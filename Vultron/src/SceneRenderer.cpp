@@ -138,11 +138,6 @@ namespace Vultron
         }
     }
 
-    void SceneRenderer::SubmitRenderJob(const EnvironmentMapRenderJob &job)
-    {
-        m_environmentMap = job.environmentMap;
-    }
-
     void SceneRenderer::SubmitRenderJob(const SpriteRenderJob &job)
     {
         uint64_t hash = job.GetHash();
@@ -312,6 +307,7 @@ namespace Vultron
             .spriteInstances = spriteInstances,
             .particleEmitters = m_particleEmitters,
             .environmentMap = m_environmentMap,
+            .particleAtlasMaterial = m_particleAtlasMaterial,
         });
 
         m_particleEmitters.clear();

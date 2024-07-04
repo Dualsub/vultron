@@ -48,6 +48,7 @@ namespace Vultron
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
         std::optional<RenderHandle> m_environmentMap;
+        std::optional<RenderHandle> m_particleAtlasMaterial;
 
         int32_t m_boneOutputOffset = 0;
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
@@ -61,10 +62,11 @@ namespace Vultron
         bool Initialize(const Window &window);
         void PostInitialize();
         void BeginFrame();
+        void SetEnvironmentMap(const RenderHandle &environmentMap) { m_environmentMap = environmentMap; }
+        void SetParticleAtlasMaterial(const RenderHandle &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
-        void SubmitRenderJob(const EnvironmentMapRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
         void SubmitRenderJob(const AnimationInstance &job);
@@ -128,12 +130,6 @@ namespace Vultron
                 m_transparentMaterials.insert(handle);
             }
             return handle;
-        }
-
-        template <typename T>
-        void SetParticleAtlasMaterial(const T &materialInstance)
-        {
-            m_backend.SetParticleAtlasMaterial(materialInstance);
         }
     };
 

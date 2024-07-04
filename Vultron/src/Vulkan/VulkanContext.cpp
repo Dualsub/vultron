@@ -172,9 +172,6 @@ namespace Vultron
         std::cout << " for rendering.";
         std::cout << std::endl;
 
-        std::cout << "Max Compute Work Group Invocations: " << m_deviceProperties.limits.maxComputeWorkGroupInvocations << std::endl;
-        std::cout << "Max Compute Shared Memory Size: " << m_deviceProperties.limits.maxComputeSharedMemorySize << std::endl;
-
         return true;
     }
 
@@ -183,16 +180,16 @@ namespace Vultron
         VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = {families.graphicsFamily.value(), families.presentFamily.value()};
+        std::set<uint32_t> uniqueQueueFamilies = {families.graphicsFamily.value(), families.presentFamily.value(), families.computeFamily.value(), families.transferFamily.value()};
 
-        float queuePriority = 1.0f;
+        float queuePriority[] = {1.0f, 1.0f, 1.0f};
         for (uint32_t queueFamily : uniqueQueueFamilies)
         {
             VkDeviceQueueCreateInfo queueCreateInfo{};
             queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfo.queueCount = 3;
+            queueCreateInfo.pQueuePriorities = queuePriority;
             queueCreateInfos.push_back(queueCreateInfo);
         }
 
@@ -240,8 +237,9 @@ namespace Vultron
         assert(families.graphicsFamily.has_value() && "No graphics family index.");
 
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
+        vkGetDeviceQueue(m_device, families.computeFamily.value(), 1, &m_computeQueue);
+        vkGetDeviceQueue(m_device, families.transferFamily.value(), 2, &m_transferQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
-        vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_computeQueue);
 
         return true;
     }

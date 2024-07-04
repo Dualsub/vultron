@@ -24,6 +24,7 @@ namespace Vultron
         std::unordered_map<RenderHandle, VulkanMaterialInstance> m_materialInstances;
         std::unordered_map<RenderHandle, VulkanAnimation> m_animations;
         std::unordered_map<RenderHandle, VulkanFontAtlas> m_fontAtlases;
+        std::unordered_map<RenderHandle, VulkanEnvironmentMap> m_environmentMaps;
         std::optional<VulkanMaterialInstance> m_particleAtlasMaterial;
 
     public:
@@ -92,6 +93,14 @@ namespace Vultron
             return handle;
         }
 
+        RenderHandle AddEnvironmentMap(const std::string &name, const VulkanEnvironmentMap &environmentMap)
+        {
+            RenderHandle handle = CreateHandle(name);
+            assert(m_environmentMaps.find(handle) == m_environmentMaps.end() && "Environment map already exists");
+            m_environmentMaps.insert({handle, environmentMap});
+            return handle;
+        }
+
         void SetParticleAtlasMaterial(const VulkanMaterialInstance &materialInstance) { m_particleAtlasMaterial = materialInstance; }
 
         const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
@@ -100,6 +109,7 @@ namespace Vultron
         const VulkanMaterialInstance &GetMaterialInstance(RenderHandle id) const { return m_materialInstances.at(id); }
         const VulkanAnimation &GetAnimation(RenderHandle id) const { return m_animations.at(id); }
         const VulkanFontAtlas &GetFontAtlas(RenderHandle id) const { return m_fontAtlases.at(id); }
+        const VulkanEnvironmentMap &GetEnvironmentMap(RenderHandle id) const { return m_environmentMaps.at(id); }
         const std::optional<VulkanMaterialInstance> &GetParticleAtlasMaterial() const { return m_particleAtlasMaterial; }
 
         template <typename T>
@@ -153,6 +163,13 @@ namespace Vultron
             }
 
             m_fontAtlases.clear();
+
+            for (auto &environmentMap : m_environmentMaps)
+            {
+                environmentMap.second.Destroy(context);
+            }
+
+            m_environmentMaps.clear();
 
             m_animations.clear();
         }

@@ -19,12 +19,14 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
-layout(set = 0, binding = 4) uniform samplerCube irradianceMap;
-layout(set = 0, binding = 5) uniform samplerCube prefilterMap;
 
-layout(set = 1, binding = 0) uniform sampler2D albedoMap;
-layout(set = 1, binding = 1) uniform sampler2D normalMap;
-layout(set = 1, binding = 2) uniform sampler2D metallicRoughnessAoMap;
+layout(set = 1, binding = 0) uniform samplerCube irradianceMap;
+layout(set = 1, binding = 1) uniform samplerCube prefilterMap;
+
+layout(set = 2, binding = 0) uniform sampler2D albedoMap;
+layout(set = 2, binding = 1) uniform sampler2D normalMap;
+layout(set = 2, binding = 2) uniform sampler2D metallicRoughnessAoMap;
+
 
 const float PI = 3.14159265359;
 

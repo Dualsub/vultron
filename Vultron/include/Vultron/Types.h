@@ -141,4 +141,9 @@ namespace Vultron
         float opacityOut = 0.0f;
     };
 
+    struct EnvironmentMapRenderJob
+    {
+        RenderHandle environmentMap = {};
+    };
+
 }

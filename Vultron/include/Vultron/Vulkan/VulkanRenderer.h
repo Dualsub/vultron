@@ -30,6 +30,7 @@
 #include "Vultron/Vulkan/VulkanShader.h"
 #include "Vultron/Vulkan/VulkanSprite.h"
 #include "Vultron/Vulkan/VulkanSwapchain.h"
+#include "Vultron/Vulkan/VulkanEnvironmentMap.h"
 
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
@@ -331,12 +332,17 @@ namespace Vultron
         const std::vector<RenderBatch> &sdfBatches;
         const std::vector<SpriteInstanceData> &spriteInstances;
         const std::vector<ParticleEmitterData> &particleEmitters;
+        const std::optional<RenderHandle> environmentMap;
     };
 
     class VulkanRenderer
     {
     private:
         VulkanContext m_context;
+
+        // Transfer operations
+        VkFence m_transferFence;
+        VkCommandPool m_transferCommandPool;
 
         // Swap chain
         VulkanSwapchain m_swapchain;
@@ -393,15 +399,13 @@ namespace Vultron
 
         // Skybox
         VkSampler m_cubemapSampler;
-        VulkanImage m_skyboxImage;
         VkDescriptorSetLayout m_skyboxSetLayout;
+        VkDescriptorSetLayout m_environmentSetLayout;
         VulkanMaterialPipeline m_skyboxPipeline;
         VulkanShader m_skyboxVertexShader;
         VulkanShader m_skyboxFragmentShader;
         VulkanMesh m_skyboxMesh;
         VulkanImage m_brdfLUT;
-        VulkanImage m_irradianceMap;
-        VulkanImage m_prefilteredMap;
 
         // Particle pipeline
         VulkanShader m_particleEmitterShader;
@@ -456,7 +460,7 @@ namespace Vultron
         bool InitializeParticleBuffers();
 
         // Command pool
-        bool InitializeCommandPool();
+        bool InitializeCommandPools();
         bool InitializeCommandBuffer();
 
         bool InitializeSyncObjects();
@@ -476,8 +480,6 @@ namespace Vultron
 
         bool InitializeEnvironmentMap();
         VulkanImage GenerateBRDFLUT();
-        VulkanImage GenerateIrradianceMap();
-        VulkanImage GeneratePrefilteredMap();
 
         // Swapchain
         void RecreateSwapchain(uint32_t width, uint32_t height);
@@ -490,9 +492,9 @@ namespace Vultron
         void WriteComputeCommands(VkCommandBuffer commandBuffer, const RenderData &renderData);
         void SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer);
         template <typename MeshType>
-        void DrawWithPipeline(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
-        void DrawSkybox(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
-        void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, VkDescriptorSet descriptorSet, glm::uvec2 viewportSize);
+        void DrawWithPipeline(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
+        void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
+        void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
 
         template <typename MeshType>
@@ -532,6 +534,7 @@ namespace Vultron
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
         RenderHandle LoadFontAtlas(const std::string &filepath);
+        RenderHandle LoadEnvironmentMap(const std::string &filepath);
 
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 

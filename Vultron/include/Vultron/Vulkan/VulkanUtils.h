@@ -24,6 +24,8 @@ namespace Vultron::VkUtil
     struct QueueFamilies
     {
         std::optional<uint32_t> graphicsFamily;
+        std::optional<uint32_t> computeFamily;
+        std::optional<uint32_t> transferFamily;
         std::optional<uint32_t> presentFamily;
 
         QueueFamilies() = default;
@@ -31,7 +33,7 @@ namespace Vultron::VkUtil
 
         bool IsComplete()
         {
-            return graphicsFamily.has_value() && presentFamily.has_value();
+            return graphicsFamily.has_value() && computeFamily.has_value() && transferFamily.has_value() && presentFamily.has_value();
         }
     };
 

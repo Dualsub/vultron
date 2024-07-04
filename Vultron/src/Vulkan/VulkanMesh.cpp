@@ -81,11 +81,11 @@ namespace Vultron
     {
         const size_t verticesSize = sizeof(createInfo.vertices[0]) * createInfo.vertices.size();
         auto vertexBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = verticesSize});
-        vertexBuffer.UploadStaged(context.GetDevice(), commandPool, context.GetGraphicsQueue(), context.GetAllocator(), createInfo.vertices.data(), verticesSize, VMA_MEMORY_USAGE_GPU_ONLY);
+        vertexBuffer.UploadStaged(context.GetDevice(), commandPool, context.GetTransferQueue(), context.GetAllocator(), createInfo.vertices.data(), verticesSize, VMA_MEMORY_USAGE_GPU_ONLY);
 
         const size_t indiciesSize = sizeof(createInfo.indices[0]) * createInfo.indices.size();
         auto indexBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = indiciesSize, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
-        indexBuffer.UploadStaged(context.GetDevice(), commandPool, context.GetGraphicsQueue(), context.GetAllocator(), createInfo.indices.data(), indiciesSize);
+        indexBuffer.UploadStaged(context.GetDevice(), commandPool, context.GetTransferQueue(), context.GetAllocator(), createInfo.indices.data(), indiciesSize);
 
         return VulkanSkeletalMesh(vertexBuffer, indexBuffer, createInfo.boneOffset, createInfo.boneCount);
     }

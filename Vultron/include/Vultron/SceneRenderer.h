@@ -47,6 +47,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
+        std::optional<RenderHandle> m_environmentMap;
 
         int32_t m_boneOutputOffset = 0;
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
@@ -63,8 +64,10 @@ namespace Vultron
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
+        void SubmitRenderJob(const EnvironmentMapRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
+        void SubmitRenderJob(const AnimationInstance &job);
         void EndFrame();
         void Shutdown();
 
@@ -100,6 +103,7 @@ namespace Vultron
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path);
         RenderHandle LoadFontAtlas(const std::string &path);
+        RenderHandle LoadEnvironmentMap(const std::string &path);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)

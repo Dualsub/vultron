@@ -35,7 +35,7 @@ namespace Vultron
         VulkanImage image = VulkanImage::Create(
             {.device = context.GetDevice(),
              .commandPool = commandPool,
-             .queue = context.GetGraphicsQueue(),
+             .queue = context.GetTransferQueue(),
              .allocator = context.GetAllocator(),
              .info = {
                  .width = static_cast<uint32_t>(header.width),
@@ -43,7 +43,7 @@ namespace Vultron
                  .mipLevels = static_cast<uint32_t>(header.numMipLevels),
                  .format = createInfo.format}});
 
-        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetGraphicsQueue(), header.numChannels * header.numBytesPerChannel, layers);
+        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetTransferQueue(), header.numChannels * header.numBytesPerChannel, layers);
 
         GlyphMap glpyhs;
 

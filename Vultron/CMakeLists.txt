@@ -22,6 +22,7 @@ add_library(Vultron STATIC
     src/Vulkan/VulkanSprite.cpp
     src/Vulkan/VulkanFontAtlas.cpp
     src/Vulkan/VulkanComputePipeline.cpp
+    src/Vulkan/VulkanEnvironmentMap.cpp
 )
 
 target_include_directories(Vultron PUBLIC include)

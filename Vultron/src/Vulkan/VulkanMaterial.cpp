@@ -22,7 +22,7 @@ namespace Vultron
         if (!material.InitializeGraphicsPipeline(
                 context, renderPass,
                 createInfo.vertexDescription,
-                createInfo.sceneDescriptorSetLayout,
+                createInfo.descriptorSetLayouts,
                 createInfo.pushConstantRanges,
                 createInfo.cullMode,
                 createInfo.depthFunction,
@@ -56,7 +56,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, VkDescriptorSetLayout sceneDescriptorSetLayout, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -144,7 +144,7 @@ namespace Vultron
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-        std::vector<VkDescriptorSetLayout> layouts = {sceneDescriptorSetLayout};
+        std::vector<VkDescriptorSetLayout> layouts = descriptorSetLayouts;
         if (m_descriptorSetLayout != VK_NULL_HANDLE)
             layouts.push_back(m_descriptorSetLayout);
 

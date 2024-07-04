@@ -17,9 +17,15 @@ namespace Vultron::VkUtil
         int i = 0;
         for (const auto &queueFamily : queueFamilies)
         {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
+            if (
+                queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT &&
+                queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT &&
+                queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT &&
+                queueFamily.queueCount >= 3)
             {
                 families.graphicsFamily = i;
+                families.computeFamily = i;
+                families.transferFamily = i;
             }
 
             VkBool32 presentSupport = false;

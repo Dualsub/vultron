@@ -138,6 +138,11 @@ namespace Vultron
         }
     }
 
+    void SceneRenderer::SubmitRenderJob(const EnvironmentMapRenderJob &job)
+    {
+        m_environmentMap = job.environmentMap;
+    }
+
     void SceneRenderer::SubmitRenderJob(const SpriteRenderJob &job)
     {
         uint64_t hash = job.GetHash();
@@ -306,6 +311,7 @@ namespace Vultron
             .sdfBatches = sdfBatches,
             .spriteInstances = spriteInstances,
             .particleEmitters = m_particleEmitters,
+            .environmentMap = m_environmentMap,
         });
 
         m_particleEmitters.clear();
@@ -573,6 +579,11 @@ namespace Vultron
     RenderHandle SceneRenderer::LoadFontAtlas(const std::string &path)
     {
         return m_backend.LoadFontAtlas(path);
+    }
+
+    RenderHandle SceneRenderer::LoadEnvironmentMap(const std::string &path)
+    {
+        return m_backend.LoadEnvironmentMap(path);
     }
 
     RenderHandle SceneRenderer::LoadAnimation(const std::string &path)

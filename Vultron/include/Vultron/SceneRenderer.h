@@ -62,8 +62,8 @@ namespace Vultron
         bool Initialize(const Window &window);
         void PostInitialize();
         void BeginFrame();
-        void SetEnvironmentMap(const RenderHandle &environmentMap) { m_environmentMap = environmentMap; }
-        void SetParticleAtlasMaterial(const RenderHandle &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
+        void SetEnvironmentMap(const std::optional<RenderHandle> &environmentMap) { m_environmentMap = environmentMap; }
+        void SetParticleAtlasMaterial(const std::optional<RenderHandle> &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);

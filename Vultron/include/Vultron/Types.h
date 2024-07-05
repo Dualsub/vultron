@@ -16,9 +16,11 @@
 
 namespace Vultron
 {
-
-    // TODO: Make indecies instead of pointers in the future
     using RenderHandle = uint64_t;
+    using PoolHandle = uint32_t;
+
+    constexpr RenderHandle c_invalidHandle = 0;
+    constexpr PoolHandle c_invalidPoolHandle = 0;
 
     struct RenderBatch
     {

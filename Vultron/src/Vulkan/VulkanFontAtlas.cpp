@@ -33,17 +33,17 @@ namespace Vultron
         layers.push_back(std::move(mips));
 
         VulkanImage image = VulkanImage::Create(
-            {.device = context.GetDevice(),
-             .commandPool = commandPool,
-             .queue = context.GetTransferQueue(),
-             .allocator = context.GetAllocator(),
-             .info = {
-                 .width = static_cast<uint32_t>(header.width),
-                 .height = static_cast<uint32_t>(header.height),
-                 .mipLevels = static_cast<uint32_t>(header.numMipLevels),
-                 .format = createInfo.format}});
+            context,
+            {
+                .info = {
+                    .width = static_cast<uint32_t>(header.width),
+                    .height = static_cast<uint32_t>(header.height),
+                    .mipLevels = static_cast<uint32_t>(header.numMipLevels),
+                    .format = createInfo.format,
+                },
+            });
 
-        image.UploadData(context.GetDevice(), context.GetAllocator(), commandPool, context.GetTransferQueue(), header.numChannels * header.numBytesPerChannel, layers);
+        image.UploadData(context, commandPool, createInfo.imageTransitionQueue, header.numChannels * header.numBytesPerChannel, layers);
 
         GlyphMap glpyhs;
 

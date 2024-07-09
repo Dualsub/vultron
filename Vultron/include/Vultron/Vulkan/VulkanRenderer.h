@@ -14,6 +14,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Core/Queue.h"
 #include "Vultron/Types.h"
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanTypes.h"
@@ -436,6 +437,9 @@ namespace Vultron
         VulkanShader m_skeletalVertexShader;
         VulkanShader m_fragmentShader;
 
+        // Image transition queue
+        ImageTransitionQueue m_imageTransitionQueue = {};
+
         // Permanent resources
         ResourcePool m_resourcePool;
 
@@ -537,6 +541,9 @@ namespace Vultron
         RenderHandle LoadFontAtlas(const std::string &filepath);
         RenderHandle LoadEnvironmentMap(const std::string &filepath);
 
+        void ProcessImageTransitions(uint32_t timeout = 16);
+        void WaitForImageTransitionQueue();
+
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 
         template <typename T>
@@ -577,6 +584,7 @@ namespace Vultron
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
-    };
 
+        void Destroy(RenderHandle id) { m_resourcePool.AddToDeletionQueue(id, (m_currentFrameIndex + 1) % c_frameOverlap); }
+    };
 }

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Vultron/Core/Core.h"
 #include "Vultron/Window.h"
+#include "Vultron/Core/Core.h"
+#include "Vultron/Vulkan/VulkanTypes.h"
 
 #include "vulkan/vulkan.h"
 #include "vk_mem_alloc.h"
@@ -32,7 +33,7 @@ namespace Vultron
         VkPhysicalDevice m_physicalDevice;
         VkPhysicalDeviceProperties m_deviceProperties;
         VkDevice m_device;
-        uint32_t m_graphicsQueueFamily;
+        QueueFamilies m_queueFamilies;
         VkQueue m_graphicsQueue;
         VkQueue m_presentQueue;
         VkQueue m_computeQueue;
@@ -61,7 +62,10 @@ namespace Vultron
         inline VkPhysicalDevice GetPhysicalDevice() const { return m_physicalDevice; }
         inline VkPhysicalDeviceProperties GetDeviceProperties() const { return m_deviceProperties; }
         inline VkDevice GetDevice() const { return m_device; }
-        inline uint32_t GetGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
+        inline uint32_t GetGraphicsQueueFamily() const { return m_queueFamilies.graphicsFamily.value_or(0); }
+        inline uint32_t GetPresentQueueFamily() const { return m_queueFamilies.presentFamily.value_or(0); }
+        inline uint32_t GetComputeQueueFamily() const { return m_queueFamilies.computeFamily.value_or(0); }
+        inline uint32_t GetTransferQueueFamily() const { return m_queueFamilies.transferFamily.value_or(0); }
         inline VkQueue GetGraphicsQueue() const { return m_graphicsQueue; }
         inline VkQueue GetPresentQueue() const { return m_presentQueue; }
         inline VkQueue GetComputeQueue() const { return m_computeQueue; }

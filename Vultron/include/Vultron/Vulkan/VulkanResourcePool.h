@@ -15,17 +15,15 @@
 
 namespace Vultron
 {
+    // Font atlas is making the size of the resource repository 120 bytes vs 80 bytes without it.
+    // We could remove the image from the font atlas and make it a separate image resource. Might be better.
+    using VulkanResource = std::variant<VulkanMesh, VulkanSkeletalMesh, VulkanImage, VulkanMaterialInstance, VulkanAnimation, VulkanFontAtlas, VulkanEnvironmentMap>;
+
     class ResourceRepository
     {
     private:
-        // Font atlas is making the size of the resource repository 120 bytes vs 80 bytes without it.
-        // We could remove the image from the font atlas and make it a separate image resource. Might be better.
-        using VulkanResource = std::variant<VulkanMesh, VulkanSkeletalMesh, VulkanImage, VulkanMaterialInstance, VulkanAnimation, VulkanFontAtlas>;
-
         std::unordered_map<PoolHandle, std::set<RenderHandle>> m_poolResources;
         std::unordered_map<RenderHandle, VulkanResource> m_resources;
-        // TODO: Not sure if this is the best way to handle this
-        std::optional<VulkanMaterialInstance> m_particleAtlasMaterial;
 
     public:
         static RenderHandle CreateHandle(const std::string &input)
@@ -55,8 +53,6 @@ namespace Vultron
             return handle;
         }
 
-        void SetParticleAtlasMaterial(const VulkanMaterialInstance &materialInstance) { m_particleAtlasMaterial = materialInstance; }
-
         template <typename T>
         const T &GetResource(RenderHandle id) const
         {
@@ -84,8 +80,6 @@ namespace Vultron
 
             m_poolResources.erase(poolHandle);
         }
-
-        const std::optional<VulkanMaterialInstance> &GetParticleAtlasMaterial() const { return m_particleAtlasMaterial; }
 
         template <typename T>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
@@ -122,13 +116,8 @@ namespace Vultron
     class ResourcePool
     {
     private:
-        std::unordered_map<RenderHandle, VulkanMesh> m_meshes;
-        std::unordered_map<RenderHandle, VulkanSkeletalMesh> m_skeletalMeshes;
-        std::unordered_map<RenderHandle, VulkanImage> m_images;
-        std::unordered_map<RenderHandle, VulkanMaterialInstance> m_materialInstances;
-        std::unordered_map<RenderHandle, VulkanAnimation> m_animations;
-        std::unordered_map<RenderHandle, VulkanFontAtlas> m_fontAtlases;
-        std::unordered_map<RenderHandle, VulkanEnvironmentMap> m_environmentMaps;
+        std::unordered_map<RenderHandle, VulkanResource> m_resources;
+        std::array<std::vector<RenderHandle>, 2> m_deletionQueue;
 
     public:
         static RenderHandle CreateHandle(const std::string &input)
@@ -148,69 +137,65 @@ namespace Vultron
         ResourcePool() = default;
         ~ResourcePool() = default;
 
-        RenderHandle AddMesh(const std::string &name, const VulkanMesh &mesh)
+        RenderHandle AddResource(const std::string &name, const VulkanResource &resource)
         {
             RenderHandle handle = CreateHandle(name);
-            assert(m_meshes.find(handle) == m_meshes.end() && "Mesh already exists");
-            m_meshes.insert({handle, mesh});
+            assert(m_resources.find(handle) == m_resources.end() && "Resource already exists");
+            m_resources.insert({handle, resource});
             return handle;
+        }
+
+        template <typename T>
+        const T &GetResource(RenderHandle id) const
+        {
+            assert(m_resources.find(id) != m_resources.end() && "Resource does not exist");
+            assert(std::holds_alternative<T>(m_resources.at(id)) && "Invalid type");
+            const T &resource = std::get<T>(m_resources.at(id));
+            return resource;
+        }
+
+        RenderHandle AddMesh(const std::string &name, const VulkanMesh &mesh)
+        {
+            return AddResource(name, mesh);
         }
 
         RenderHandle AddSkeletalMesh(const std::string &name, const VulkanSkeletalMesh &skeletalMesh)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_skeletalMeshes.find(handle) == m_skeletalMeshes.end() && "Skeletal mesh already exists");
-            m_skeletalMeshes.insert({handle, skeletalMesh});
-            return handle;
+            return AddResource(name, skeletalMesh);
         }
 
         RenderHandle AddImage(const std::string &name, const VulkanImage &image)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_images.find(handle) == m_images.end() && "Image already exists");
-            m_images.insert({handle, image});
-            return handle;
+            return AddResource(name, image);
         }
 
         RenderHandle AddMaterialInstance(const std::string &name, const VulkanMaterialInstance &materialInstance)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_materialInstances.find(handle) == m_materialInstances.end() && "Material instance already exists");
-            m_materialInstances.insert({handle, materialInstance});
-            return handle;
+            return AddResource(name, materialInstance);
         }
 
         RenderHandle AddAnimation(const std::string &name, const VulkanAnimation &animation)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_animations.find(handle) == m_animations.end() && "Animation already exists");
-            m_animations.insert({handle, animation});
-            return handle;
+            return AddResource(name, animation);
         }
 
         RenderHandle AddFontAtlas(const std::string &name, const VulkanFontAtlas &fontAtlas)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_fontAtlases.find(handle) == m_fontAtlases.end() && "Font atlas already exists");
-            m_fontAtlases.insert({handle, fontAtlas});
-            return handle;
+            return AddResource(name, fontAtlas);
         }
 
         RenderHandle AddEnvironmentMap(const std::string &name, const VulkanEnvironmentMap &environmentMap)
         {
-            RenderHandle handle = CreateHandle(name);
-            assert(m_environmentMaps.find(handle) == m_environmentMaps.end() && "Environment map already exists");
-            m_environmentMaps.insert({handle, environmentMap});
-            return handle;
+            return AddResource(name, environmentMap);
         }
 
-        const VulkanMesh &GetMesh(RenderHandle id) const { return m_meshes.at(id); }
-        const VulkanSkeletalMesh &GetSkeletalMesh(RenderHandle id) const { return m_skeletalMeshes.at(id); }
-        const VulkanImage &GetImage(RenderHandle id) const { return m_images.at(id); }
-        const VulkanMaterialInstance &GetMaterialInstance(RenderHandle id) const { return m_materialInstances.at(id); }
-        const VulkanAnimation &GetAnimation(RenderHandle id) const { return m_animations.at(id); }
-        const VulkanFontAtlas &GetFontAtlas(RenderHandle id) const { return m_fontAtlases.at(id); }
-        const VulkanEnvironmentMap &GetEnvironmentMap(RenderHandle id) const { return m_environmentMaps.at(id); }
+        const VulkanMesh &GetMesh(RenderHandle id) const { return GetResource<VulkanMesh>(id); }
+        const VulkanSkeletalMesh &GetSkeletalMesh(RenderHandle id) const { return GetResource<VulkanSkeletalMesh>(id); }
+        const VulkanImage &GetImage(RenderHandle id) const { return GetResource<VulkanImage>(id); }
+        const VulkanMaterialInstance &GetMaterialInstance(RenderHandle id) const { return GetResource<VulkanMaterialInstance>(id); }
+        const VulkanAnimation &GetAnimation(RenderHandle id) const { return GetResource<VulkanAnimation>(id); }
+        const VulkanFontAtlas &GetFontAtlas(RenderHandle id) const { return GetResource<VulkanFontAtlas>(id); }
+        const VulkanEnvironmentMap &GetEnvironmentMap(RenderHandle id) const { return GetResource<VulkanEnvironmentMap>(id); }
 
         template <typename T>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
@@ -222,56 +207,47 @@ namespace Vultron
         template <>
         MeshDrawInfo GetMeshDrawInfo<VulkanMesh>(RenderHandle id) const
         {
-            return m_meshes.at(id).GetDrawInfo();
+            return GetMesh(id).GetDrawInfo();
         }
 
         template <>
         MeshDrawInfo GetMeshDrawInfo<VulkanSkeletalMesh>(RenderHandle id) const
         {
-            return m_skeletalMeshes.at(id).GetDrawInfo();
+            return GetSkeletalMesh(id).GetDrawInfo();
+        }
+
+        void AddToDeletionQueue(RenderHandle id, uint32_t frameIndex)
+        {
+            m_deletionQueue[frameIndex].push_back(id);
+        }
+
+        void ProcessDeletionQueue(const VulkanContext &context, uint32_t frameIndex)
+        {
+            for (auto &id : m_deletionQueue[frameIndex])
+            {
+                Destroy(id, context);
+            }
+
+            m_deletionQueue[frameIndex].clear();
+        }
+
+        void Destroy(RenderHandle id, const VulkanContext &context)
+        {
+            assert(m_resources.find(id) != m_resources.end() && "Resource does not exist");
+            std::visit([&context](auto &&arg)
+                       { arg.Destroy(context); }, m_resources.at(id));
+            m_resources.erase(id);
         }
 
         void Destroy(const VulkanContext &context)
         {
-            // Descritor sets are destroyed when the pool is destroyed so we don't need to destroy them here
-            m_materialInstances.clear();
-
-            for (auto &mesh : m_meshes)
+            for (auto &resource : m_resources)
             {
-                mesh.second.Destroy(context);
+                std::visit([&context](auto &&arg)
+                           { arg.Destroy(context); }, resource.second);
             }
 
-            m_meshes.clear();
-
-            for (auto &skeletalMesh : m_skeletalMeshes)
-            {
-                skeletalMesh.second.Destroy(context);
-            }
-
-            m_skeletalMeshes.clear();
-
-            for (auto &image : m_images)
-            {
-                image.second.Destroy(context);
-            }
-
-            m_images.clear();
-
-            for (auto &fontAtlas : m_fontAtlases)
-            {
-                fontAtlas.second.Destroy(context);
-            }
-
-            m_fontAtlases.clear();
-
-            for (auto &environmentMap : m_environmentMaps)
-            {
-                environmentMap.second.Destroy(context);
-            }
-
-            m_environmentMaps.clear();
-
-            m_animations.clear();
+            m_resources.clear();
         }
     };
 }

@@ -1,6 +1,10 @@
 #pragma once
 
+#include "Vultron/Core/Queue.h"
+
 #include "vulkan/vulkan.h"
+
+#include <optional>
 
 namespace Vultron
 {
@@ -31,6 +35,32 @@ namespace Vultron
         // Buffer
         VkBuffer buffer = VK_NULL_HANDLE;
         size_t size = 0;
+    };
+
+    struct ImageTransition
+    {
+        VkImageMemoryBarrier barrier;
+        VkPipelineStageFlags srcStage;
+        VkPipelineStageFlags dstStage;
+        VkSemaphore semaphore;
+    };
+
+    using ImageTransitionQueue = Queue<ImageTransition, 512>;
+
+    struct QueueFamilies
+    {
+        std::optional<uint32_t> graphicsFamily;
+        std::optional<uint32_t> computeFamily;
+        std::optional<uint32_t> transferFamily;
+        std::optional<uint32_t> presentFamily;
+
+        QueueFamilies() = default;
+        ~QueueFamilies() = default;
+
+        bool IsComplete()
+        {
+            return graphicsFamily.has_value() && computeFamily.has_value() && transferFamily.has_value() && presentFamily.has_value();
+        }
     };
 
 }

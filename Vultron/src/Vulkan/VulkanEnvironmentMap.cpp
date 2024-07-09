@@ -19,17 +19,16 @@ namespace Vultron
     VulkanEnvironmentMap VulkanEnvironmentMap::CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info)
     {
         auto image = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .filepath = info.filepath,
             });
-        VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(context, commandPool, descriptorPool, skyboxMesh, image);
-        VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(context, commandPool, descriptorPool, skyboxMesh, image);
 
-        VulkanEnvironmentMap environmentMap(image, irradiance, prefiltered);
+        // VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(context, commandPool, descriptorPool, skyboxMesh, image);
+        // VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(context, commandPool, descriptorPool, skyboxMesh, image);
+
+        VulkanEnvironmentMap environmentMap(image, image, image);
         if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, skyboxLayout, sampler))
         {
             std::cerr << "Failed to initialize descriptor sets for environment map" << std::endl;
@@ -106,11 +105,8 @@ namespace Vultron
 
         // Image
         VulkanImage image = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -162,11 +158,8 @@ namespace Vultron
             });
 
         VulkanImage offscreenImage = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -405,11 +398,8 @@ namespace Vultron
 
         // Image
         VulkanImage image = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -461,11 +451,8 @@ namespace Vultron
             });
 
         VulkanImage offscreenImage = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,

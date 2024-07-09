@@ -19,6 +19,7 @@
 #include <set>
 #include <string>
 #include <random>
+#include <thread>
 
 namespace Vultron
 {
@@ -779,11 +780,8 @@ namespace Vultron
     bool VulkanRenderer::InitializeShadowMap()
     {
         m_shadowMap = VulkanImage::Create(
+            m_context,
             {
-                .device = m_context.GetDevice(),
-                .commandPool = m_commandPool,
-                .queue = m_context.GetGraphicsQueue(),
-                .allocator = m_context.GetAllocator(),
                 .info = {
                     .width = 2048 * 2,
                     .height = 2048 * 2,
@@ -811,16 +809,14 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeCommandPools()
     {
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_context.GetPhysicalDevice(), m_context.GetSurface());
-
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-        poolInfo.queueFamilyIndex = families.transferFamily.value();
+        poolInfo.queueFamilyIndex = m_context.GetTransferQueueFamily();
         VK_CHECK(vkCreateCommandPool(m_context.GetDevice(), &poolInfo, nullptr, &m_transferCommandPool));
 
-        poolInfo.queueFamilyIndex = families.graphicsFamily.value();
+        poolInfo.queueFamilyIndex = m_context.GetGraphicsQueueFamily();
         VK_CHECK(vkCreateCommandPool(m_context.GetDevice(), &poolInfo, nullptr, &m_commandPool));
 
         return true;
@@ -940,18 +936,17 @@ namespace Vultron
         VkFormat depthFormat = VkUtil::FindDepthFormat(m_context.GetPhysicalDevice());
 
         m_depthImage = VulkanImage::Create(
-            {.device = m_context.GetDevice(),
-             .commandPool = m_commandPool,
-             .queue = m_context.GetGraphicsQueue(),
-             .allocator = m_context.GetAllocator(),
-             .info = {
-                 .width = m_swapchain.GetExtent().width,
-                 .height = m_swapchain.GetExtent().height,
-                 .depth = 1,
-                 .format = depthFormat,
-             },
-             .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-             .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT});
+            m_context,
+            {
+                .info = {
+                    .width = m_swapchain.GetExtent().width,
+                    .height = m_swapchain.GetExtent().height,
+                    .depth = 1,
+                    .format = depthFormat,
+                },
+                .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            });
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
@@ -1333,11 +1328,8 @@ namespace Vultron
 
         // Image
         VulkanImage image = VulkanImage::Create(
+            m_context,
             {
-                .device = m_context.GetDevice(),
-                .commandPool = m_commandPool,
-                .queue = m_context.GetGraphicsQueue(),
-                .allocator = m_context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -2016,8 +2008,8 @@ namespace Vultron
     void VulkanRenderer::Draw(const RenderData &renderData)
     {
         constexpr uint32_t timeout = (std::numeric_limits<uint32_t>::max)();
-        const uint32_t currentFrame = m_currentFrameIndex;
-        const FrameData &frame = m_frames[currentFrame];
+        const uint32_t currentFrameIndex = m_currentFrameIndex;
+        const FrameData &frame = m_frames[currentFrameIndex];
 
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
@@ -2064,6 +2056,9 @@ namespace Vultron
 
         // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
+
+        ProcessImageTransitions();
+        m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
 
         // Static instance buffer
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
@@ -2120,7 +2115,7 @@ namespace Vultron
 
         VK_CHECK(vkQueuePresentKHR(m_context.GetPresentQueue(), &presentInfo));
 
-        m_currentFrameIndex = (currentFrame + 1) % c_frameOverlap;
+        m_currentFrameIndex = (currentFrameIndex + 1) % c_frameOverlap;
     }
 
     void VulkanRenderer::Shutdown()
@@ -2287,18 +2282,25 @@ namespace Vultron
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
-            {.device = m_context.GetDevice(),
-             .commandPool = m_transferCommandPool,
-             .queue = m_context.GetTransferQueue(),
-             .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+            m_context, m_transferCommandPool,
+            {
+                .filepath = filepath,
+                .imageTransitionQueue = &m_imageTransitionQueue,
+            });
 
         return m_resourcePool.AddImage(filepath, std::move(image));
     }
 
     RenderHandle VulkanRenderer::LoadFontAtlas(const std::string &filepath)
     {
-        return m_resourcePool.AddFontAtlas(filepath, VulkanFontAtlas::CreateFromFile(m_context, m_transferCommandPool, {.filepath = filepath}));
+        auto fontAtlas = VulkanFontAtlas::CreateFromFile(
+            m_context, m_transferCommandPool,
+            {
+                .filepath = filepath,
+                .imageTransitionQueue = &m_imageTransitionQueue,
+            });
+
+        return m_resourcePool.AddFontAtlas(filepath, std::move(fontAtlas));
     }
 
     RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &filepath)
@@ -2312,5 +2314,42 @@ namespace Vultron
             {.filepath = filepath});
 
         return m_resourcePool.AddEnvironmentMap(filepath, std::move(environmentMap));
+    }
+
+    void VulkanRenderer::ProcessImageTransitions(uint32_t timeout)
+    {
+        const std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
+        const VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
+        ImageTransition transition;
+        while (m_imageTransitionQueue.Pop(transition))
+        {
+            // Not the most efficient way to do this, but it's fine for now
+            VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(m_context.GetDevice(), m_commandPool);
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                transition.srcStage,
+                transition.dstStage,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &transition.barrier);
+
+            VkUtil::EndSingleTimeCommands(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), commandBuffer, VK_NULL_HANDLE, transition.semaphore, waitDstStageMask);
+
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count() > timeout)
+            {
+                break;
+            }
+        }
+    }
+
+    void VulkanRenderer::WaitForImageTransitionQueue()
+    {
+        while (!m_imageTransitionQueue.IsEmpty())
+        {
+            std::this_thread::yield();
+        }
     }
 }

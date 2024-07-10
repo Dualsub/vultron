@@ -23,6 +23,7 @@ namespace Vultron
             commandPool,
             {
                 .filepath = info.filepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
             });
 
         // VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(context, commandPool, descriptorPool, skyboxMesh, image);
@@ -74,8 +75,8 @@ namespace Vultron
     void VulkanEnvironmentMap::Destroy(const VulkanContext &context)
     {
         m_image.Destroy(context);
-        m_irradiance.Destroy(context);
-        m_prefiltered.Destroy(context);
+        // m_irradiance.Destroy(context);
+        // m_prefiltered.Destroy(context);
     }
 
     VulkanImage VulkanEnvironmentMap::GenerateIrradianceMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap)

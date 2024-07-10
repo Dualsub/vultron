@@ -22,7 +22,7 @@ namespace Vultron
             uint32_t tail = m_tail.load(std::memory_order_relaxed);
             uint32_t nextTail = (tail + 1) % N;
 
-            if (nextTail != m_head.load(std::memory_order_acquire))
+            if (!IsFull())
             {
                 m_data[tail] = data;
                 m_tail.store(nextTail, std::memory_order_release);
@@ -37,7 +37,7 @@ namespace Vultron
         {
             uint32_t head = m_head.load(std::memory_order_relaxed);
 
-            if (head == m_tail.load(std::memory_order_acquire))
+            if (IsEmpty())
             {
                 // Queue is empty
                 return false;
@@ -47,6 +47,31 @@ namespace Vultron
             m_head.store((head + 1) % N, std::memory_order_release);
 
             return true;
+        }
+
+        bool Peek(T &data)
+        {
+            uint32_t head = m_head.load(std::memory_order_relaxed);
+
+            if (IsEmpty())
+            {
+                // Queue is empty
+                return false;
+            }
+
+            data = m_data[head];
+
+            return true;
+        }
+
+        void Dequeue()
+        {
+            if (IsEmpty())
+            {
+                return;
+            }
+
+            m_head.store((m_head.load(std::memory_order_relaxed) + 1) % N, std::memory_order_release);
         }
 
         void Clear()

@@ -31,6 +31,7 @@ namespace Vultron
         struct EnvironmentMapCreateInfo
         {
             const std::string &filepath;
+            ImageTransitionQueue *imageTransitionQueue;
         };
 
         static VulkanEnvironmentMap CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info);

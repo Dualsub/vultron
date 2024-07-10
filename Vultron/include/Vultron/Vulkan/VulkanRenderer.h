@@ -63,6 +63,8 @@ namespace Vultron
     constexpr uint32_t c_maxParticleEmitters = 128;
     constexpr uint32_t c_maxParticleInstances = 4096;
 
+    constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
+
     struct SpriteMaterial
     {
         RenderHandle texture;
@@ -144,8 +146,12 @@ namespace Vultron
         VkSemaphore computeFinishedSemaphore;
         VkFence computeInFlightFence;
 
+        VkFence transferFence;
+        VkSemaphore imageTransitionFinishedSemaphores[c_maxImageTransitionsPerFrame];
+
         VkCommandBuffer commandBuffer;
         VkCommandBuffer computeCommandBuffer;
+        VkCommandBuffer transferCommandBuffer;
 
         // Global scene data resources
         VulkanBuffer uniformBuffer;
@@ -541,8 +547,8 @@ namespace Vultron
         RenderHandle LoadFontAtlas(const std::string &filepath);
         RenderHandle LoadEnvironmentMap(const std::string &filepath);
 
-        void ProcessImageTransitions(uint32_t timeout = 16);
-        void WaitForImageTransitionQueue();
+        uint32_t ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout = 16);
+        void WaitAndResetImageTransitionQueue();
 
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 

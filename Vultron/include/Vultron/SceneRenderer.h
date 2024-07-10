@@ -100,7 +100,7 @@ namespace Vultron
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
 
-        void WaitForImageTransitionQueue() { m_backend.WaitForImageTransitionQueue(); }
+        void WaitAndResetImageTransitionQueue() { m_backend.WaitAndResetImageTransitionQueue(); }
 
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);

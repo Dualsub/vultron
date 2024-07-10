@@ -172,12 +172,10 @@ namespace Vultron
         // the transfer queue and the final transition on the graphics queue,
         // otherwise we will do everything on the graphics queue.
 
-        VkQueue queue = context.GetTransferQueue();
-
         VkUtil::TransitionImageLayout(
             context.GetDevice(),
             commandPool,
-            queue,
+            context.GetTransferQueue(),
             m_image,
             m_info.format,
             VK_IMAGE_LAYOUT_UNDEFINED,
@@ -185,7 +183,7 @@ namespace Vultron
             mipLevels,
             layersCount);
 
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
 
         for (uint32_t i = 0; i < layers.size(); i++)
         {
@@ -198,10 +196,10 @@ namespace Vultron
                 VkUtil::CopyBufferToImage(
                     context.GetDevice(),
                     commandPool,
-                    queue,
+                    context.GetTransferQueue(),
                     stagingBuffer.GetBuffer(),
                     m_image,
-                    {{.width = mip.width, .height = mip.height, .mipLevel = j, .layer = i}});
+                    { {.width = mip.width, .height = mip.height, .mipLevel = j, .layer = i} });
             }
         }
 
@@ -224,24 +222,32 @@ namespace Vultron
 
             VK_CHECK(vkCreateSemaphore(context.GetDevice(), &semaphoreInfo, nullptr, &transitionForGraphics.semaphore));
 
-            // transitionForGraphics.barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            // transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            // transitionForGraphics.barrier.dstAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
-            // transitionForGraphics.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            transitionForGraphics.barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            transitionForGraphics.barrier.dstAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
+            transitionForGraphics.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
         }
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
 
         VkUtil::TransitionImageLayout(
             context.GetDevice(),
-            commandPool,
-            queue,
+            commandBuffer,
             transitionForGraphics);
+
+        VkUtil::EndSingleTimeCommands(
+            context.GetDevice(),
+            commandPool,
+            context.GetTransferQueue(),
+            commandBuffer,
+            transitionForGraphics.semaphore);
 
         if (imageTransitionQueue)
         {
-            // transitionForGraphics.barrier.srcAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
-            // transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            // transitionForGraphics.barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            // transitionForGraphics.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            transitionForGraphics.barrier.srcAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
+            transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            transitionForGraphics.barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            transitionForGraphics.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             imageTransitionQueue->Push(transitionForGraphics);
         }
     }

@@ -229,12 +229,12 @@ namespace Vultron
 
         if (bones.size() > 0)
         {
-            m_boneBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
+            m_boneBuffer.UploadStaged(m_context.GetDevice(), m_transferCommandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
         }
 
         if (m_animationFrames.size() > 0)
         {
-            m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
+            m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_transferCommandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
         }
     }
 
@@ -830,12 +830,13 @@ namespace Vultron
             allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             allocInfo.commandPool = m_commandPool;
             allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocInfo.commandBufferCount = 2;
-            VkCommandBuffer buffers[2];
+            allocInfo.commandBufferCount = 3;
+            VkCommandBuffer buffers[3];
             VK_CHECK(vkAllocateCommandBuffers(m_context.GetDevice(), &allocInfo, buffers));
 
             m_frames[i].commandBuffer = buffers[0];
             m_frames[i].computeCommandBuffer = buffers[1];
+            m_frames[i].transferCommandBuffer = buffers[2];
         }
 
         return true;
@@ -844,23 +845,27 @@ namespace Vultron
     bool VulkanRenderer::InitializeSyncObjects()
     {
 
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
         VkFenceCreateInfo fenceInfo{};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-        // VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_transferFence));
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (size_t i = 0; i < c_frameOverlap; i++)
         {
-            VkSemaphoreCreateInfo semaphoreInfo{};
-            semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
             VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].imageAvailableSemaphore));
             VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].renderFinishedSemaphore));
             VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].computeFinishedSemaphore));
+            for (size_t j = 0; j < c_maxImageTransitionsPerFrame; j++)
+            {
+                VK_CHECK(vkCreateSemaphore(m_context.GetDevice(), &semaphoreInfo, nullptr, &m_frames[i].imageTransitionFinishedSemaphores[j]));
+            }
 
-            fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
             VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].inFlightFence));
             VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].computeInFlightFence));
+            VK_CHECK(vkCreateFence(m_context.GetDevice(), &fenceInfo, nullptr, &m_frames[i].transferFence));
         }
 
         return true;
@@ -2011,6 +2016,15 @@ namespace Vultron
         const uint32_t currentFrameIndex = m_currentFrameIndex;
         const FrameData &frame = m_frames[currentFrameIndex];
 
+        std::vector<VkSemaphore> renderWaitSemaphores = { frame.imageAvailableSemaphore, frame.computeFinishedSemaphore };
+        std::vector<VkPipelineStageFlags> renderWaitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+        uint32_t imageTransitionCount = ProcessImageTransitions(frame.transferCommandBuffer, frame.transferFence, frame.imageTransitionFinishedSemaphores);
+        for (uint32_t i = 0; i < imageTransitionCount; i++)
+        {
+            renderWaitSemaphores.push_back(frame.imageTransitionFinishedSemaphores[i]);
+            renderWaitStages.push_back(VK_PIPELINE_STAGE_TRANSFER_BIT);
+        }
+
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
 
@@ -2057,7 +2071,6 @@ namespace Vultron
         // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
 
-        ProcessImageTransitions();
         m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
 
         // Static instance buffer
@@ -2083,15 +2096,9 @@ namespace Vultron
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {
-            frame.computeFinishedSemaphore,
-            frame.imageAvailableSemaphore};
-        VkPipelineStageFlags waitStages[] = {
-            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 2;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.waitSemaphoreCount = static_cast<uint32_t>(renderWaitSemaphores.size());
+        submitInfo.pWaitSemaphores = renderWaitSemaphores.data();
+        submitInfo.pWaitDstStageMask = renderWaitStages.data();
 
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &frame.commandBuffer;
@@ -2130,10 +2137,17 @@ namespace Vultron
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].imageAvailableSemaphore, nullptr);
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].renderFinishedSemaphore, nullptr);
             vkDestroySemaphore(m_context.GetDevice(), m_frames[i].computeFinishedSemaphore, nullptr);
+            for (uint32_t j = 0; j < c_maxImageTransitionsPerFrame; j++)
+            {
+                vkDestroySemaphore(m_context.GetDevice(), m_frames[i].imageTransitionFinishedSemaphores[j], nullptr);
+            }
             vkDestroyFence(m_context.GetDevice(), m_frames[i].inFlightFence, nullptr);
             vkDestroyFence(m_context.GetDevice(), m_frames[i].computeInFlightFence, nullptr);
+            vkDestroyFence(m_context.GetDevice(), m_frames[i].transferFence, nullptr);
 
             vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &m_frames[i].commandBuffer);
+            vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &m_frames[i].computeCommandBuffer);
+            vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &m_frames[i].transferCommandBuffer);
 
             m_frames[i].uniformBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].uniformBuffer.Destroy(m_context.GetAllocator());
@@ -2311,45 +2325,79 @@ namespace Vultron
             m_skyboxMesh,
             m_environmentSetLayout, m_skyboxPipeline.GetDescriptorSetLayout(),
             m_cubemapSampler,
-            {.filepath = filepath});
+            {
+                .filepath = filepath,
+                .imageTransitionQueue = &m_imageTransitionQueue,
+            });
 
         return m_resourcePool.AddEnvironmentMap(filepath, std::move(environmentMap));
     }
 
-    void VulkanRenderer::ProcessImageTransitions(uint32_t timeout)
+    uint32_t VulkanRenderer::ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout)
     {
+        if (m_imageTransitionQueue.IsEmpty())
+        {
+            return 0;
+        }
+
         const std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
-        const VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        const VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+        vkResetFences(m_context.GetDevice(), 1, &fence);
+
+        uint32_t imageCount = 0;
 
         ImageTransition transition;
-        while (m_imageTransitionQueue.Pop(transition))
+        while (m_imageTransitionQueue.Peek(transition) && imageCount < c_maxImageTransitionsPerFrame)
         {
-            // Not the most efficient way to do this, but it's fine for now
-            VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(m_context.GetDevice(), m_commandPool);
 
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                transition.srcStage,
-                transition.dstStage,
-                0,
-                0, nullptr,
-                0, nullptr,
-                1, &transition.barrier);
+            VkCommandBufferBeginInfo beginInfo{};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-            VkUtil::EndSingleTimeCommands(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), commandBuffer, VK_NULL_HANDLE, transition.semaphore, waitDstStageMask);
+            VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+            vkCmdPipelineBarrier(commandBuffer, transition.srcStage, transition.dstStage, 0, 0, nullptr, 0, nullptr, 1, &transition.barrier);
+
+            vkEndCommandBuffer(commandBuffer);
+
+            VkSubmitInfo submitInfo{};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffer;
+
+            submitInfo.waitSemaphoreCount = 1;
+            submitInfo.pWaitSemaphores = &transition.semaphore;
+            submitInfo.pWaitDstStageMask = &waitDstStageMask;
+
+            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.pSignalSemaphores = &imageTransitionFinishedSemaphores[imageCount];
+
+            vkQueueSubmit(m_context.GetGraphicsQueue(), 1, &submitInfo, fence);
+            vkWaitForFences(m_context.GetDevice(), 1, &fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(m_context.GetDevice(), 1, &fence);
+            vkResetCommandBuffer(commandBuffer, 0);
+
+            vkDestroySemaphore(m_context.GetDevice(), transition.semaphore, nullptr);
+            imageCount++;
+
+            m_imageTransitionQueue.Dequeue();
 
             if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count() > timeout)
             {
                 break;
             }
         }
+
+        return imageCount;
     }
 
-    void VulkanRenderer::WaitForImageTransitionQueue()
+    void VulkanRenderer::WaitAndResetImageTransitionQueue()
     {
         while (!m_imageTransitionQueue.IsEmpty())
         {
             std::this_thread::yield();
         }
+
+        m_imageTransitionQueue.Clear();
     }
 }

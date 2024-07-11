@@ -114,5 +114,7 @@ namespace Vultron
         const VkImageView &GetImageView() const { return m_imageView; }
 
         const ImageInfo &GetInfo() const { return m_info; }
+
+        static void SaveImageToFile(const VulkanContext& context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
     };
 }

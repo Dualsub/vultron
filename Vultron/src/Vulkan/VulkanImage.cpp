@@ -172,10 +172,12 @@ namespace Vultron
         // the transfer queue and the final transition on the graphics queue,
         // otherwise we will do everything on the graphics queue.
 
+        VkQueue queue = imageTransitionQueue ? context.GetTransferQueue() : context.GetGraphicsQueue();
+
         VkUtil::TransitionImageLayout(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            queue,
             m_image,
             m_info.format,
             VK_IMAGE_LAYOUT_UNDEFINED,
@@ -183,7 +185,7 @@ namespace Vultron
             mipLevels,
             layersCount);
 
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU });
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU  });
 
         for (uint32_t i = 0; i < layers.size(); i++)
         {
@@ -196,7 +198,7 @@ namespace Vultron
                 VkUtil::CopyBufferToImage(
                     context.GetDevice(),
                     commandPool,
-                    context.GetTransferQueue(),
+                    queue,
                     stagingBuffer.GetBuffer(),
                     m_image,
                     { {.width = mip.width, .height = mip.height, .mipLevel = j, .layer = i} });
@@ -238,7 +240,7 @@ namespace Vultron
         VkUtil::EndSingleTimeCommands(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            queue,
             commandBuffer,
             transitionForGraphics.semaphore);
 
@@ -266,5 +268,101 @@ namespace Vultron
     {
         vkDestroyImageView(context.GetDevice(), m_imageView, nullptr);
         vmaDestroyImage(context.GetAllocator(), m_image, m_allocation);
+    }
+
+    void VulkanImage::SaveImageToFile(const VulkanContext& context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath)
+    {
+        std::fstream file(filepath, std::ios::out | std::ios::binary);
+
+        ImageFileHeader header;
+        header.width = image.m_info.width;
+        header.height = image.m_info.height;
+        header.numMipLevels = image.m_info.mipLevels;
+        header.numLayers = image.m_info.layers;
+        header.numChannels = 4;
+        header.numBytesPerChannel = 4;
+        header.type = ImageType::Cubemap;
+
+        file.write(reinterpret_cast<char *>(&header), sizeof(header));
+
+        ImageTransition transition = VkInit::CreateImageTransitionBarrier(
+            image.GetImage(),
+            image.m_info.format,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            image.m_info.mipLevels,
+            image.m_info.layers);
+
+        VkUtil::TransitionImageLayout(
+            context.GetDevice(),
+            commandPool,
+            context.GetGraphicsQueue(),
+            transition);
+
+        // Copy image to buffer
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = image.m_info.width * image.m_info.height * header.numChannels * header.numBytesPerChannel, .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU });
+
+        const char* data;
+        vmaMapMemory(context.GetAllocator(), stagingBuffer.GetAllocation(), (void**)&data);
+        for (uint32_t i = 0; i < header.numLayers; i++)
+        {
+            for (uint32_t j = 0; j < header.numMipLevels; j++)
+            {
+                size_t mipWidth = header.width >> j;
+                size_t mipHeight = header.height >> j;
+                size_t mipSize = mipWidth * mipHeight * header.numChannels * header.numBytesPerChannel;
+
+                VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
+
+                VkBufferImageCopy region{};
+                region.bufferOffset = 0;
+                region.bufferRowLength = 0;
+                region.bufferImageHeight = 0;
+
+                region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                region.imageSubresource.mipLevel = j;
+                region.imageSubresource.baseArrayLayer = i;
+                region.imageSubresource.layerCount = 1;
+
+                region.imageOffset = {0, 0, 0};
+                region.imageExtent = {static_cast<uint32_t>(mipWidth), static_cast<uint32_t>(mipHeight), 1};
+
+                vkCmdCopyImageToBuffer(commandBuffer, 
+                image.GetImage(), 
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+                stagingBuffer.GetBuffer(),
+                1,
+                &region);
+
+                VkUtil::EndSingleTimeCommands(
+                    context.GetDevice(),
+                    commandPool,
+                    context.GetGraphicsQueue(),
+                    commandBuffer);
+
+                file.write(data, mipSize);
+            }
+        }
+
+        file.close();
+
+        vmaUnmapMemory(context.GetAllocator(), stagingBuffer.GetAllocation());
+
+        transition = VkInit::CreateImageTransitionBarrier(
+            image.m_image,
+            image.m_info.format,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            image.m_info.mipLevels,
+            image.m_info.layers);
+
+        VkUtil::TransitionImageLayout(
+            context.GetDevice(),
+            commandPool,
+            context.GetGraphicsQueue(),
+            transition);
+
+
+        std::cout << "Saved image to " << filepath << std::endl;
     }
 }

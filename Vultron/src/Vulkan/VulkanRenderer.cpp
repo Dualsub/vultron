@@ -2317,7 +2317,7 @@ namespace Vultron
         return m_resourcePool.AddFontAtlas(filepath, std::move(fontAtlas));
     }
 
-    RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &filepath)
+    RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath)
     {
         VulkanEnvironmentMap environmentMap = VulkanEnvironmentMap::CreateFromFile(
             m_context,
@@ -2327,10 +2327,34 @@ namespace Vultron
             m_cubemapSampler,
             {
                 .filepath = filepath,
+                .irradianceFilepath = irradianceFilepath,
+                .prefilteredFilepath = prefilteredFilepath,
                 .imageTransitionQueue = &m_imageTransitionQueue,
             });
 
         return m_resourcePool.AddEnvironmentMap(filepath, std::move(environmentMap));
+    }
+    
+    RenderHandle VulkanRenderer::GenerateIrradianceMap(RenderHandle environmentImage, const std::string& name)
+    {
+        VulkanImage environment = m_resourcePool.GetImage(environmentImage);
+        VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, environment);
+        
+        return m_resourcePool.AddImage(name, std::move(irradiance));
+    }
+    
+    RenderHandle VulkanRenderer::GeneratePrefilteredMap(RenderHandle environmentImage, const std::string& name)
+    {
+        VulkanImage environment = m_resourcePool.GetImage(environmentImage);
+        VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, environment);
+        
+        return m_resourcePool.AddImage(name, std::move(prefiltered));
+    }
+
+    void VulkanRenderer::SaveImage(RenderHandle imageHandle, const std::string &filepath)
+    {
+        VulkanImage image = m_resourcePool.GetImage(imageHandle);
+        VulkanImage::SaveImageToFile(m_context, m_commandPool, image, filepath);
     }
 
     uint32_t VulkanRenderer::ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout)

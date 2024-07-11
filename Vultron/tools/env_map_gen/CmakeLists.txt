@@ -1,0 +1,7 @@
+add_executable(env_map_gen main.cpp)
+target_link_libraries(env_map_gen PRIVATE Vultron)
+
+# Copy executable to the directory of this CMakeLists.txt
+add_custom_command(TARGET env_map_gen POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:env_map_gen> ${CMAKE_CURRENT_LIST_DIR}
+)

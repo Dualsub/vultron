@@ -26,10 +26,24 @@ namespace Vultron
                 .imageTransitionQueue = info.imageTransitionQueue,
             });
 
-        // VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(context, commandPool, descriptorPool, skyboxMesh, image);
-        // VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(context, commandPool, descriptorPool, skyboxMesh, image);
+        auto irradiance = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
+            {
+                .filepath = info.irradianceFilepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
+            });
 
-        VulkanEnvironmentMap environmentMap(image, image, image);
+        auto prefiltered = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
+            {
+                .filepath = info.prefilteredFilepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
+            });
+
+
+        VulkanEnvironmentMap environmentMap(image, irradiance, prefiltered);
         if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, skyboxLayout, sampler))
         {
             std::cerr << "Failed to initialize descriptor sets for environment map" << std::endl;
@@ -75,8 +89,8 @@ namespace Vultron
     void VulkanEnvironmentMap::Destroy(const VulkanContext &context)
     {
         m_image.Destroy(context);
-        // m_irradiance.Destroy(context);
-        // m_prefiltered.Destroy(context);
+        m_irradiance.Destroy(context);
+        m_prefiltered.Destroy(context);
     }
 
     VulkanImage VulkanEnvironmentMap::GenerateIrradianceMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap)
@@ -187,7 +201,7 @@ namespace Vultron
         offscreenImage.TransitionLayout(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -284,7 +298,7 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -317,7 +331,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
@@ -341,7 +355,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             }
@@ -350,11 +364,11 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetTransferQueue(), commandBuffer);
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
 
         vkDestroySampler(context.GetDevice(), sampler, nullptr);
         offscreenImage.Destroy(context);
@@ -480,7 +494,7 @@ namespace Vultron
         offscreenImage.TransitionLayout(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -577,7 +591,7 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -611,7 +625,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
@@ -635,7 +649,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             }
@@ -644,11 +658,11 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetTransferQueue(), commandBuffer);
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
 
         vkDestroySampler(context.GetDevice(), sampler, nullptr);
         offscreenImage.Destroy(context);

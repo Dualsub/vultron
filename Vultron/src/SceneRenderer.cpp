@@ -577,9 +577,9 @@ namespace Vultron
         return m_backend.LoadFontAtlas(path);
     }
 
-    RenderHandle SceneRenderer::LoadEnvironmentMap(const std::string &path)
+    RenderHandle SceneRenderer::LoadEnvironmentMap(const std::string &path, const std::string &irradiancePath, const std::string &prefilteredPath)
     {
-        return m_backend.LoadEnvironmentMap(path);
+        return m_backend.LoadEnvironmentMap(path, irradiancePath, prefilteredPath);
     }
 
     RenderHandle SceneRenderer::LoadAnimation(const std::string &path)

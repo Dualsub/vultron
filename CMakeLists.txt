@@ -8,3 +8,4 @@ project(Vultron)
 
 add_subdirectory(Vultron)
 add_subdirectory(Testbed)
+add_subdirectory(Vultron/tools/env_map_gen)

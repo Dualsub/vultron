@@ -107,7 +107,7 @@ namespace Vultron
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path);
         RenderHandle LoadFontAtlas(const std::string &path);
-        RenderHandle LoadEnvironmentMap(const std::string &path);
+        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)

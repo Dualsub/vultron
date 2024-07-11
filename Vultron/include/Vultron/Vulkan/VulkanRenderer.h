@@ -545,7 +545,11 @@ namespace Vultron
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
         RenderHandle LoadFontAtlas(const std::string &filepath);
-        RenderHandle LoadEnvironmentMap(const std::string &filepath);
+        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
+
+        RenderHandle GenerateIrradianceMap(RenderHandle environmentImage, const std::string& name);
+        RenderHandle GeneratePrefilteredMap(RenderHandle environmentImage, const std::string& name);
+        void SaveImage(RenderHandle image, const std::string &filepath);
 
         uint32_t ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout = 16);
         void WaitAndResetImageTransitionQueue();

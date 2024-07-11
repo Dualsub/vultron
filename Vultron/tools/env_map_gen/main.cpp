@@ -8,13 +8,13 @@
 
 using namespace Vultron;
 
-int main(int argc, char** argv) 
-{    
+int main(int argc, char **argv)
+{
     std::vector<std::string> args(argv, argv + argc);
 
     if (std::find(args.begin(), args.end(), "-h") != args.end() ||
         std::find(args.begin(), args.end(), "--help") != args.end() ||
-        std::find(args.begin(), args.end(), "help") != args.end()) 
+        std::find(args.begin(), args.end(), "help") != args.end())
     {
         std::cout << "Usage: env_map_gen [options] <type> <input_file> <output_file>" << std::endl;
         std::cout << "Options:" << std::endl;
@@ -22,7 +22,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    if (args.size() != 3) 
+    if (args.size() != 4)
     {
         std::cerr << "Invalid number of arguments. Use -h for help." << std::endl;
         return 1;
@@ -32,35 +32,35 @@ int main(int argc, char** argv)
     std::string input_file = args[2];
     std::string output_file = args[3];
 
-    if (!std::filesystem::exists(input_file)) 
+    if (!std::filesystem::exists(input_file))
     {
         std::cerr << "Input file does not exist." << std::endl;
         return 1;
     }
 
     Window window;
-    window.Initialize({.title="Environment Map Generator"});
+    window.Initialize({.title = "Environment Map Generator"});
 
     VulkanRenderer renderer;
     renderer.Initialize(window);
 
     RenderHandle skybox = renderer.LoadImage(input_file);
-    
+
     RenderHandle outputImage;
-    if (type == "irradiance") 
+    if (type == "irradiance")
     {
         outputImage = renderer.GenerateIrradianceMap(skybox, output_file);
-    } 
-    else if (type == "prefilter") 
+    }
+    else if (type == "prefilter")
     {
         outputImage = renderer.GeneratePrefilteredMap(skybox, output_file);
-    } 
-    else 
+    }
+    else
     {
         std::cerr << "Invalid type. Use -h for help." << std::endl;
         return 1;
-    } 
-    
+    }
+
     renderer.SaveImage(outputImage, output_file);
 
     renderer.Shutdown();

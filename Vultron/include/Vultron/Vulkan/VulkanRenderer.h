@@ -14,6 +14,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Core/Queue.h"
 #include "Vultron/Types.h"
 #include "Vultron/Window.h"
 #include "Vultron/Vulkan/VulkanTypes.h"
@@ -61,6 +62,8 @@ namespace Vultron
 
     constexpr uint32_t c_maxParticleEmitters = 128;
     constexpr uint32_t c_maxParticleInstances = 4096;
+
+    constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
 
     struct SpriteMaterial
     {
@@ -143,8 +146,12 @@ namespace Vultron
         VkSemaphore computeFinishedSemaphore;
         VkFence computeInFlightFence;
 
+        VkFence transferFence;
+        VkSemaphore imageTransitionFinishedSemaphores[c_maxImageTransitionsPerFrame];
+
         VkCommandBuffer commandBuffer;
         VkCommandBuffer computeCommandBuffer;
+        VkCommandBuffer transferCommandBuffer;
 
         // Global scene data resources
         VulkanBuffer uniformBuffer;
@@ -436,6 +443,9 @@ namespace Vultron
         VulkanShader m_skeletalVertexShader;
         VulkanShader m_fragmentShader;
 
+        // Image transition queue
+        ImageTransitionQueue m_imageTransitionQueue = {};
+
         // Permanent resources
         ResourcePool m_resourcePool;
 
@@ -535,7 +545,14 @@ namespace Vultron
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath);
         RenderHandle LoadFontAtlas(const std::string &filepath);
-        RenderHandle LoadEnvironmentMap(const std::string &filepath);
+        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
+
+        RenderHandle GenerateIrradianceMap(RenderHandle environmentImage, const std::string& name);
+        RenderHandle GeneratePrefilteredMap(RenderHandle environmentImage, const std::string& name);
+        void SaveImage(RenderHandle image, const std::string &filepath);
+
+        uint32_t ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout = 16);
+        void WaitAndResetImageTransitionQueue();
 
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
 
@@ -577,6 +594,7 @@ namespace Vultron
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
-    };
 
+        void Destroy(RenderHandle id) { m_resourcePool.AddToDeletionQueue(id, (m_currentFrameIndex + 1) % c_frameOverlap); }
+    };
 }

@@ -102,7 +102,7 @@ namespace Vultron
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(context.GetPhysicalDevice(), context.GetSurface());
+        QueueFamilies families = VkUtil::QueryQueueFamilies(context.GetPhysicalDevice(), context.GetSurface());
         uint32_t queueFamilyIndices[] = {families.graphicsFamily.value(), families.presentFamily.value()};
 
         if (families.graphicsFamily != families.presentFamily)

@@ -19,15 +19,29 @@ namespace Vultron
     VulkanEnvironmentMap VulkanEnvironmentMap::CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info)
     {
         auto image = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .filepath = info.filepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
             });
-        VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(context, commandPool, descriptorPool, skyboxMesh, image);
-        VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(context, commandPool, descriptorPool, skyboxMesh, image);
+
+        auto irradiance = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
+            {
+                .filepath = info.irradianceFilepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
+            });
+
+        auto prefiltered = VulkanImage::CreateFromFile(
+            context,
+            commandPool,
+            {
+                .filepath = info.prefilteredFilepath,
+                .imageTransitionQueue = info.imageTransitionQueue,
+            });
+
 
         VulkanEnvironmentMap environmentMap(image, irradiance, prefiltered);
         if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, skyboxLayout, sampler))
@@ -106,11 +120,8 @@ namespace Vultron
 
         // Image
         VulkanImage image = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -162,11 +173,8 @@ namespace Vultron
             });
 
         VulkanImage offscreenImage = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -193,7 +201,7 @@ namespace Vultron
         offscreenImage.TransitionLayout(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -290,7 +298,7 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -323,7 +331,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
@@ -347,7 +355,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             }
@@ -356,11 +364,11 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetTransferQueue(), commandBuffer);
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
 
         vkDestroySampler(context.GetDevice(), sampler, nullptr);
         offscreenImage.Destroy(context);
@@ -405,11 +413,8 @@ namespace Vultron
 
         // Image
         VulkanImage image = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -461,11 +466,8 @@ namespace Vultron
             });
 
         VulkanImage offscreenImage = VulkanImage::Create(
+            context,
             {
-                .device = context.GetDevice(),
-                .commandPool = commandPool,
-                .queue = context.GetTransferQueue(),
-                .allocator = context.GetAllocator(),
                 .info = {
                     .width = dim,
                     .height = dim,
@@ -492,7 +494,7 @@ namespace Vultron
         offscreenImage.TransitionLayout(
             context.GetDevice(),
             commandPool,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -589,7 +591,7 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -623,7 +625,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
@@ -647,7 +649,7 @@ namespace Vultron
                 offscreenImage.TransitionLayout(
                     context.GetDevice(),
                     commandBuffer,
-                    context.GetTransferQueue(),
+                    context.GetGraphicsQueue(),
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             }
@@ -656,11 +658,11 @@ namespace Vultron
         image.TransitionLayout(
             context.GetDevice(),
             commandBuffer,
-            context.GetTransferQueue(),
+            context.GetGraphicsQueue(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetTransferQueue(), commandBuffer);
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
 
         vkDestroySampler(context.GetDevice(), sampler, nullptr);
         offscreenImage.Destroy(context);

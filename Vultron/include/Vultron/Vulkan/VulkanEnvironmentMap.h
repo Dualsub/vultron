@@ -16,9 +16,6 @@ namespace Vultron
         VkDescriptorSet m_environmentSet;
         VkDescriptorSet m_skyboxSet;
 
-        static VulkanImage GenerateIrradianceMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap);
-        static VulkanImage GeneratePrefilteredMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap);
-
         bool InitializeDescriptorSets(const VulkanContext &context, VkDescriptorPool descriptorPool, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler);
 
     public:
@@ -31,7 +28,13 @@ namespace Vultron
         struct EnvironmentMapCreateInfo
         {
             const std::string &filepath;
+            const std::string &irradianceFilepath;
+            const std::string &prefilteredFilepath;
+            ImageTransitionQueue *imageTransitionQueue;
         };
+
+        static VulkanImage GenerateIrradianceMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap);
+        static VulkanImage GeneratePrefilteredMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap);
 
         static VulkanEnvironmentMap CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info);
         void Destroy(const VulkanContext &context);

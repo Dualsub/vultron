@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vultron/Core/Core.h"
+#include "Vultron/Vulkan/VulkanTypes.h"
 #include "Vultron/Vulkan/VulkanContext.h"
 
 #include "vk_mem_alloc.h"
@@ -84,10 +85,6 @@ namespace Vultron
 
         struct ImageCreateInfo
         {
-            VkDevice device = VK_NULL_HANDLE;
-            VkCommandPool commandPool = VK_NULL_HANDLE;
-            VkQueue queue = VK_NULL_HANDLE;
-            VmaAllocator allocator = VK_NULL_HANDLE;
             ImageInfo info = {};
             ImageType type = ImageType::Texture2D;
             VkImageCreateFlags createFlags = 0;
@@ -95,24 +92,19 @@ namespace Vultron
             VkImageUsageFlags additionalUsageFlags = 0;
         };
 
-        static VulkanImage Create(const ImageCreateInfo &createInfo);
-        static Ptr<VulkanImage> CreatePtr(const ImageCreateInfo &createInfo);
+        static VulkanImage Create(const VulkanContext &context, const ImageCreateInfo &createInfo);
 
         struct ImageFromFileCreateInfo
         {
-            VkDevice device = VK_NULL_HANDLE;
-            VkCommandPool commandPool = VK_NULL_HANDLE;
-            VkQueue queue = VK_NULL_HANDLE;
-            VmaAllocator allocator = VK_NULL_HANDLE;
             ImageType type = ImageType::Texture2D;
             VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
             const std::string &filepath;
+            ImageTransitionQueue *imageTransitionQueue = nullptr;
         };
 
-        static VulkanImage CreateFromFile(const ImageFromFileCreateInfo &createInfo);
-        static Ptr<VulkanImage> CreatePtrFromFile(const ImageFromFileCreateInfo &createInfo);
+        static VulkanImage CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, const ImageFromFileCreateInfo &createInfo);
 
-        void UploadData(VkDevice device, VmaAllocator allocator, VkCommandPool commandPool, VkQueue queue, uint32_t bytesPerPixel, const std::vector<std::vector<MipInfo>> &layers);
+        void UploadData(const VulkanContext &context, VkCommandPool commandPool, ImageTransitionQueue *imageTransitionQueue, uint32_t bytesPerPixel, const std::vector<std::vector<MipInfo>> &layers);
         void TransitionLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
         void TransitionLayout(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImageLayout oldLayout, VkImageLayout newLayout);
 
@@ -122,5 +114,7 @@ namespace Vultron
         const VkImageView &GetImageView() const { return m_imageView; }
 
         const ImageInfo &GetInfo() const { return m_info; }
+
+        static void SaveImageToFile(const VulkanContext& context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
     };
 }

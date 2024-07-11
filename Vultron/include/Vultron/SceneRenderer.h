@@ -100,12 +100,14 @@ namespace Vultron
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
 
+        void WaitAndResetImageTransitionQueue() { m_backend.WaitAndResetImageTransitionQueue(); }
+
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path);
         RenderHandle LoadFontAtlas(const std::string &path);
-        RenderHandle LoadEnvironmentMap(const std::string &path);
+        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
@@ -131,6 +133,8 @@ namespace Vultron
             }
             return handle;
         }
+
+        void Destroy(const RenderHandle &handle) { m_backend.Destroy(handle); }
     };
 
 }

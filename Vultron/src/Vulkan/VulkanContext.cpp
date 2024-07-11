@@ -133,7 +133,7 @@ namespace Vultron
             vkGetPhysicalDeviceFeatures2(device, &allFeatures);
             VkPhysicalDeviceFeatures &deviceFeatures = allFeatures.features;
 
-            VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(device, m_surface);
+            QueueFamilies families = VkUtil::QueryQueueFamilies(device, m_surface);
 
             bool allowed = families.IsComplete() && CheckDeviceExtensionSupport(device);
             allowed &= (deviceFeatures.samplerAnisotropy == VK_TRUE);
@@ -177,7 +177,7 @@ namespace Vultron
 
     bool VulkanContext::InitializeLogicalDevice()
     {
-        VkUtil::QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
+        QueueFamilies families = VkUtil::QueryQueueFamilies(m_physicalDevice, m_surface);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         std::set<uint32_t> uniqueQueueFamilies = {families.graphicsFamily.value(), families.presentFamily.value(), families.computeFamily.value(), families.transferFamily.value()};
@@ -188,7 +188,7 @@ namespace Vultron
             VkDeviceQueueCreateInfo queueCreateInfo{};
             queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 3;
+            queueCreateInfo.queueCount = 2;
             queueCreateInfo.pQueuePriorities = queuePriority;
             queueCreateInfos.push_back(queueCreateInfo);
         }
@@ -235,11 +235,16 @@ namespace Vultron
         VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device));
 
         assert(families.graphicsFamily.has_value() && "No graphics family index.");
+        assert(families.presentFamily.has_value() && "No present family index.");
+        assert(families.computeFamily.has_value() && "No compute family index.");
+        assert(families.transferFamily.has_value() && "No transfer family index.");
 
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
         vkGetDeviceQueue(m_device, families.computeFamily.value(), 1, &m_computeQueue);
-        vkGetDeviceQueue(m_device, families.transferFamily.value(), 2, &m_transferQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
+        vkGetDeviceQueue(m_device, families.transferFamily.value(), 0, &m_transferQueue);
+
+        m_queueFamilies = families;
 
         return true;
     }

@@ -1319,7 +1319,11 @@ namespace Vultron
                 .filepath = std::string(VLT_ASSETS_DIR) + "/meshes/skybox.dat",
             });
 
-        m_brdfLUT = GenerateBRDFLUT();
+        m_brdfLUT = VulkanImage::CreateFromFile(
+            m_context, m_commandPool,
+            {
+                .filepath = std::string(VLT_ASSETS_DIR) + "/textures/brdf.dat",
+            });
 
         return true;
     }
@@ -2016,8 +2020,8 @@ namespace Vultron
         const uint32_t currentFrameIndex = m_currentFrameIndex;
         const FrameData &frame = m_frames[currentFrameIndex];
 
-        std::vector<VkSemaphore> renderWaitSemaphores = { frame.imageAvailableSemaphore, frame.computeFinishedSemaphore };
-        std::vector<VkPipelineStageFlags> renderWaitStages = { VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+        std::vector<VkSemaphore> renderWaitSemaphores = {frame.imageAvailableSemaphore, frame.computeFinishedSemaphore};
+        std::vector<VkPipelineStageFlags> renderWaitStages = {VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
         uint32_t imageTransitionCount = ProcessImageTransitions(frame.transferCommandBuffer, frame.transferFence, frame.imageTransitionFinishedSemaphores);
         for (uint32_t i = 0; i < imageTransitionCount; i++)
         {
@@ -2334,20 +2338,20 @@ namespace Vultron
 
         return m_resourcePool.AddEnvironmentMap(filepath, std::move(environmentMap));
     }
-    
-    RenderHandle VulkanRenderer::GenerateIrradianceMap(RenderHandle environmentImage, const std::string& name)
+
+    RenderHandle VulkanRenderer::GenerateIrradianceMap(RenderHandle environmentImage, const std::string &name)
     {
         VulkanImage environment = m_resourcePool.GetImage(environmentImage);
         VulkanImage irradiance = VulkanEnvironmentMap::GenerateIrradianceMap(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, environment);
-        
+
         return m_resourcePool.AddImage(name, std::move(irradiance));
     }
-    
-    RenderHandle VulkanRenderer::GeneratePrefilteredMap(RenderHandle environmentImage, const std::string& name)
+
+    RenderHandle VulkanRenderer::GeneratePrefilteredMap(RenderHandle environmentImage, const std::string &name)
     {
         VulkanImage environment = m_resourcePool.GetImage(environmentImage);
         VulkanImage prefiltered = VulkanEnvironmentMap::GeneratePrefilteredMap(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, environment);
-        
+
         return m_resourcePool.AddImage(name, std::move(prefiltered));
     }
 

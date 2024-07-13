@@ -42,7 +42,6 @@ namespace Vultron
                 .imageTransitionQueue = info.imageTransitionQueue,
             });
 
-
         VulkanEnvironmentMap environmentMap(image, irradiance, prefiltered);
         if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, skyboxLayout, sampler))
         {

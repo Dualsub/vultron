@@ -131,6 +131,13 @@ namespace Vultron
                 format = VK_FORMAT_R32G32B32_SFLOAT;
             else if (header.numChannels == 4)
                 format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            else if (header.numChannels == 2)
+                format = VK_FORMAT_R32G32_SFLOAT;
+        }
+        else if (header.numBytesPerChannel == 2)
+        {
+            if (header.numChannels == 2)
+                format = VK_FORMAT_R16G16_SFLOAT;
         }
 
         VulkanImage image = VulkanImage::Create(
@@ -185,7 +192,7 @@ namespace Vultron
             mipLevels,
             layersCount);
 
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU  });
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .size = width * height * bytesPerPixel, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
 
         for (uint32_t i = 0; i < layers.size(); i++)
         {
@@ -201,7 +208,7 @@ namespace Vultron
                     queue,
                     stagingBuffer.GetBuffer(),
                     m_image,
-                    { {.width = mip.width, .height = mip.height, .mipLevel = j, .layer = i} });
+                    {{.width = mip.width, .height = mip.height, .mipLevel = j, .layer = i}});
             }
         }
 
@@ -270,7 +277,7 @@ namespace Vultron
         vmaDestroyImage(context.GetAllocator(), m_image, m_allocation);
     }
 
-    void VulkanImage::SaveImageToFile(const VulkanContext& context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath)
+    void VulkanImage::SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath)
     {
         std::fstream file(filepath, std::ios::out | std::ios::binary);
 
@@ -279,9 +286,35 @@ namespace Vultron
         header.height = image.m_info.height;
         header.numMipLevels = image.m_info.mipLevels;
         header.numLayers = image.m_info.layers;
-        header.numChannels = 4;
-        header.numBytesPerChannel = 4;
-        header.type = ImageType::Cubemap;
+
+        switch (image.m_info.format)
+        {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            header.numChannels = 4;
+            header.numBytesPerChannel = 1;
+            break;
+        case VK_FORMAT_R32G32B32_SFLOAT:
+            header.numChannels = 3;
+            header.numBytesPerChannel = 4;
+            break;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            header.numChannels = 4;
+            header.numBytesPerChannel = 4;
+            break;
+        case VK_FORMAT_R32G32_SFLOAT:
+            header.numChannels = 2;
+            header.numBytesPerChannel = 4;
+            break;
+        case VK_FORMAT_R16G16_SFLOAT:
+            header.numChannels = 2;
+            header.numBytesPerChannel = 2;
+            break;
+        default:
+            header.numChannels = 4;
+            header.numBytesPerChannel = 1;
+            break;
+        }
+        header.type = image.m_info.layers == 6 ? ImageType::Cubemap : ImageType::Texture2D;
 
         file.write(reinterpret_cast<char *>(&header), sizeof(header));
 
@@ -300,10 +333,10 @@ namespace Vultron
             transition);
 
         // Copy image to buffer
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({ .allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = image.m_info.width * image.m_info.height * header.numChannels * header.numBytesPerChannel, .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU });
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = image.m_info.width * image.m_info.height * header.numChannels * header.numBytesPerChannel, .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU});
 
-        const char* data;
-        vmaMapMemory(context.GetAllocator(), stagingBuffer.GetAllocation(), (void**)&data);
+        const char *data;
+        vmaMapMemory(context.GetAllocator(), stagingBuffer.GetAllocation(), (void **)&data);
         for (uint32_t i = 0; i < header.numLayers; i++)
         {
             for (uint32_t j = 0; j < header.numMipLevels; j++)
@@ -327,12 +360,12 @@ namespace Vultron
                 region.imageOffset = {0, 0, 0};
                 region.imageExtent = {static_cast<uint32_t>(mipWidth), static_cast<uint32_t>(mipHeight), 1};
 
-                vkCmdCopyImageToBuffer(commandBuffer, 
-                image.GetImage(), 
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-                stagingBuffer.GetBuffer(),
-                1,
-                &region);
+                vkCmdCopyImageToBuffer(commandBuffer,
+                                       image.GetImage(),
+                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                       stagingBuffer.GetBuffer(),
+                                       1,
+                                       &region);
 
                 VkUtil::EndSingleTimeCommands(
                     context.GetDevice(),
@@ -348,6 +381,8 @@ namespace Vultron
 
         vmaUnmapMemory(context.GetAllocator(), stagingBuffer.GetAllocation());
 
+        stagingBuffer.Destroy(context.GetAllocator());
+
         transition = VkInit::CreateImageTransitionBarrier(
             image.m_image,
             image.m_info.format,
@@ -361,7 +396,6 @@ namespace Vultron
             commandPool,
             context.GetGraphicsQueue(),
             transition);
-
 
         std::cout << "Saved image to " << filepath << std::endl;
     }

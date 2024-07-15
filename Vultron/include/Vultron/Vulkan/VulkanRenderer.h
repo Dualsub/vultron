@@ -313,6 +313,13 @@ namespace Vultron
         glm::quat rotation;
     };
 
+    struct PointLightData
+    {
+        glm::vec3 position = glm::vec3(0.0f);
+        float radius = 0.0f;
+        glm::vec4 color = glm::vec4(1.0f);
+    };
+
     struct UniformBufferData
     {
         glm::mat4 view = glm::mat4(1.0f);
@@ -324,6 +331,7 @@ namespace Vultron
         glm::vec3 lightColor = glm::vec3(1.0f);
         float _padding2;
         glm::mat4 lightViewProjection = glm::mat4(1.0f);
+        std::array<PointLightData, 4> pointLights = {};
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
@@ -341,6 +349,7 @@ namespace Vultron
         const std::vector<ParticleEmitterData> &particleEmitters;
         const std::optional<RenderHandle> environmentMap;
         const std::optional<RenderHandle> particleAtlasMaterial;
+        const std::array<PointLightData, 4> &pointLights;
     };
 
     class VulkanRenderer
@@ -547,8 +556,8 @@ namespace Vultron
         RenderHandle LoadFontAtlas(const std::string &filepath);
         RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
 
-        RenderHandle GenerateIrradianceMap(RenderHandle environmentImage, const std::string& name);
-        RenderHandle GeneratePrefilteredMap(RenderHandle environmentImage, const std::string& name);
+        RenderHandle GenerateIrradianceMap(RenderHandle environmentImage, const std::string &name);
+        RenderHandle GeneratePrefilteredMap(RenderHandle environmentImage, const std::string &name);
         void SaveImage(RenderHandle image, const std::string &filepath);
 
         uint32_t ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout = 16);

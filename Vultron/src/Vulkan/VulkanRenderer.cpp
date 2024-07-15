@@ -2044,6 +2044,7 @@ namespace Vultron
         static std::mt19937 gen(rd());
         static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
         ubo.random = dis(gen);
+        ubo.pointLights = renderData.pointLights;
 
         m_uniformBufferData = ubo;
 

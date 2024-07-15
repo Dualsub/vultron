@@ -8,6 +8,11 @@ layout(location = 4) in vec4 fragColor;
 
 layout(location = 0) out vec4 outColor;
 
+struct PointLight {
+	vec4 positionAndRadius;
+	vec4 color;
+};
+
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
@@ -15,6 +20,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 lightDir;
     vec3 lightColor;
     mat4 lightSpaceMatrix;
+	PointLight pointLights[4];
 } ubo;
 
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
@@ -129,15 +135,13 @@ vec3 PrefilteredReflection(vec3 R, float roughness)
 	return mix(a, b, lod - lodf);
 }
 
-
-vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float metallic, float roughness)
+vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float metallic, float roughness, vec3 lightColor)
 {
 	vec3 H = normalize (V + L);
 	float dotNH = clamp(dot(N, H), 0.0, 1.0);
 	float dotNV = clamp(dot(N, V), 0.0, 1.0);
 	float dotNL = clamp(dot(N, L), 0.0, 1.0);
 
-	vec3 lightColor = ubo.lightColor;
 	vec3 color = vec3(0.0);
 
 	if (dotNL > 0.0) {
@@ -167,9 +171,21 @@ void main() {
 
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
-	           
+	
     vec3 L = normalize(-ubo.lightDir);
-    vec3 Lo = SpecularContribution(L, V, N, F0, albedo, metallic, roughness);
+    vec3 Lo = vec3(0.0);
+    Lo += SpecularContribution(L, V, N, F0, albedo, metallic, roughness, ubo.lightColor);
+
+	for (int i = 0; i < 4; i++)
+	{
+		vec3 lightPos = ubo.pointLights[i].positionAndRadius.xyz;
+		float lightRadius = ubo.pointLights[i].positionAndRadius.w;
+		vec3 lightColor = ubo.pointLights[i].color.rgb;
+		vec3 L = normalize(lightPos - fragWorldPos);
+		float attenuation = lightRadius > 0.0 ? 1.0 - length(lightPos - fragWorldPos) / lightRadius : 0.0;
+		if (attenuation > 0.0)
+			Lo += SpecularContribution(L, V, N, F0, albedo, metallic, roughness, lightColor) * attenuation;
+	}
 
     vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
 	vec3 reflection = PrefilteredReflection(R, roughness);

@@ -49,6 +49,7 @@ namespace Vultron
         std::vector<AnimationInstanceData> m_animationInstances;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
+        std::array<PointLightData, 4> m_pointLights;
 
         int32_t m_boneOutputOffset = 0;
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
@@ -64,6 +65,7 @@ namespace Vultron
         void BeginFrame();
         void SetEnvironmentMap(const std::optional<RenderHandle> &environmentMap) { m_environmentMap = environmentMap; }
         void SetParticleAtlasMaterial(const std::optional<RenderHandle> &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
+        void SetPointLights(const std::array<PointLightData, 4> &pointLights) { m_pointLights = pointLights; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);

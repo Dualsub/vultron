@@ -308,6 +308,7 @@ namespace Vultron
             .particleEmitters = m_particleEmitters,
             .environmentMap = m_environmentMap,
             .particleAtlasMaterial = m_particleAtlasMaterial,
+            .pointLights = m_pointLights,
         });
 
         m_particleEmitters.clear();

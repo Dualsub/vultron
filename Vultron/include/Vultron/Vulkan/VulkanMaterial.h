@@ -82,10 +82,11 @@ namespace Vultron
     {
     private:
         VkDescriptorSet m_descriptorSet;
+        std::vector<char> m_materialData;
 
     public:
-        VulkanMaterialInstance(VkDescriptorSet descriptorSet)
-            : m_descriptorSet(descriptorSet)
+        VulkanMaterialInstance(VkDescriptorSet descriptorSet, const std::vector<char> &materialData)
+            : m_descriptorSet(descriptorSet), m_materialData(materialData)
         {
         }
         VulkanMaterialInstance() = default;
@@ -94,11 +95,13 @@ namespace Vultron
         struct MaterialInstanceCreateInfo
         {
             const std::vector<DescriptorSetBinding> &bindings;
+            const std::vector<char> &materialData;
         };
 
         static VulkanMaterialInstance Create(const VulkanContext &context, VkDescriptorPool descriptorPool, const VulkanMaterialPipeline &pipeline, const MaterialInstanceCreateInfo &createInfo);
 
         VkDescriptorSet GetDescriptorSet() const { return m_descriptorSet; }
+        const std::vector<char> &GetMaterialData() const { return m_materialData; }
 
         void Destroy(const VulkanContext &context) {}
     };

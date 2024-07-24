@@ -568,9 +568,9 @@ namespace Vultron
         return m_backend.LoadSkeletalMesh(path);
     }
 
-    RenderHandle SceneRenderer::LoadImage(const std::string &path)
+    RenderHandle SceneRenderer::LoadImage(const std::string &path, ImageType type)
     {
-        return m_backend.LoadImage(path);
+        return m_backend.LoadImage(path, type);
     }
 
     RenderHandle SceneRenderer::LoadFontAtlas(const std::string &path)

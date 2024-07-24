@@ -82,6 +82,11 @@ namespace Vultron
                 },
             };
         }
+
+        std::vector<char> GetMaterialData() const
+        {
+            return {};
+        }
     };
 
     struct FontSpriteMaterial
@@ -100,13 +105,22 @@ namespace Vultron
                 },
             };
         }
+
+        std::vector<char> GetMaterialData() const
+        {
+            return {};
+        }
     };
 
     struct PBRMaterial
     {
         RenderHandle albedo;
+        glm::vec4 albedoColor = glm::vec4(1.0f);
         RenderHandle normal;
         RenderHandle metallicRoughnessAO;
+        float metallic = 1.0f;
+        float roughness = 1.0f;
+        float ao = 1.0f;
         bool transparent = false;
 
         std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
@@ -134,6 +148,28 @@ namespace Vultron
                     .sampler = sampler,
                 },
             };
+        }
+
+        std::vector<char> GetMaterialData() const
+        {
+            struct
+            {
+                glm::vec4 albedoColor;
+                float metallic;
+                float roughness;
+                float ao;
+            } materialData = {
+                .albedoColor = albedoColor,
+                .metallic = metallic,
+                .roughness = roughness,
+                .ao = ao,
+            };
+
+            std::vector<char> data;
+            data.resize(sizeof(materialData));
+            std::memcpy(data.data(), &materialData, sizeof(materialData));
+
+            return data;
         }
     };
 
@@ -552,7 +588,7 @@ namespace Vultron
         RenderHandle LoadQuad(const std::string &name);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
-        RenderHandle LoadImage(const std::string &filepath);
+        RenderHandle LoadImage(const std::string &filepath, ImageType type = ImageType::None);
         RenderHandle LoadFontAtlas(const std::string &filepath);
         RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
 
@@ -569,10 +605,12 @@ namespace Vultron
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            std::vector<char> materialData = materialCreateInfo.GetMaterialData();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_staticPipeline,
                 {
                     bindings,
+                    materialData,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
@@ -582,10 +620,12 @@ namespace Vultron
         RenderHandle CreateMaterial(const std::string &name, const SpriteMaterial &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            std::vector<char> materialData = materialCreateInfo.GetMaterialData();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_spritePipeline,
                 {
                     bindings,
+                    materialData,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
@@ -595,10 +635,12 @@ namespace Vultron
         RenderHandle CreateMaterial(const std::string &name, const FontSpriteMaterial &materialCreateInfo)
         {
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            std::vector<char> materialData = materialCreateInfo.GetMaterialData();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_spritePipeline,
                 {
                     bindings,
+                    materialData,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);

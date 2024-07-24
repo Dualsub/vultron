@@ -7,6 +7,7 @@ import numpy as np
 import glm
 import re
 import glob
+import os
 
 NUM_COMPONENTS = 12
 DEFAULT_COMPONENTS = [
@@ -168,8 +169,13 @@ def main():
             print("Aborting")
             return
 
+        if not os.path.exists(args.output):
+            os.makedirs(args.output)
+
         for file in files:
-            pack_animation(file, file.split(".")[0] + ".dat", skeleton_data, id_to_name)
+            # output will be old file name inside output folder with .dat extension
+            output_file = os.path.join(args.output, os.path.basename(file).split(".")[0] + ".dat")
+            pack_animation(file, output_file, skeleton_data, id_to_name)
     else:
         pack_animation(args.input, args.output, skeleton_data, id_to_name)
 

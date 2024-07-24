@@ -141,7 +141,7 @@ namespace Vultron
     {
         glm::vec3 position;
         glm::vec3 normal;
-        glm::vec2 texCoord;
+        glm::vec3 texCoord;
         int32_t boneIDs[4];
         float boneWeights[4];
 
@@ -171,7 +171,7 @@ namespace Vultron
 
             attributeDescriptions[2].binding = 0;
             attributeDescriptions[2].location = 2;
-            attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
             attributeDescriptions[2].offset = offsetof(StaticMeshVertex, texCoord);
 
             attributeDescriptions[3].binding = 0;

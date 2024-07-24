@@ -85,6 +85,9 @@ namespace Vultron
         case ImageType::Cubemap:
             viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
             break;
+        case ImageType::Texture2DArray:
+            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            break;
         default:
             viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
             break;
@@ -150,7 +153,7 @@ namespace Vultron
                     .format = format,
                     .layers = static_cast<uint32_t>(header.numLayers),
                 },
-                .type = header.type,
+                .type = createInfo.type == ImageType::None ? header.type : createInfo.type,
             });
 
         std::vector<std::vector<MipInfo>> layers;

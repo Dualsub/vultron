@@ -103,6 +103,7 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
         write_layers(f, layers, imageType)
 
     print(f"Image packed into {output_file}")
+    print(f"Generated {len(layers)} layers")
     print(f"Generated {len(mipmaps)} mipmaps")
 
 def write_layers(f: BufferedWriter, layers, imageType: int):

@@ -1,12 +1,18 @@
 #version 460
 
 layout(location = 0) in vec3 fragWorldPos;
-layout(location = 1) in vec2 fragTexCoord;
+layout(location = 1) in vec3 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec4 fragLightSpacePos;
 layout(location = 4) in vec4 fragColor;
 
 layout(location = 0) out vec4 outColor;
+
+// Push Constants
+layout(push_constant) uniform PushConstants {
+	vec4 albedoColor;
+	vec3 metallicRoughnessAo;
+} materialParams;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -29,9 +35,9 @@ layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 layout(set = 1, binding = 0) uniform samplerCube irradianceMap;
 layout(set = 1, binding = 1) uniform samplerCube prefilterMap;
 
-layout(set = 2, binding = 0) uniform sampler2D albedoMap;
-layout(set = 2, binding = 1) uniform sampler2D normalMap;
-layout(set = 2, binding = 2) uniform sampler2D metallicRoughnessAoMap;
+layout(set = 2, binding = 0) uniform sampler2DArray albedoMap;
+layout(set = 2, binding = 1) uniform sampler2DArray normalMap;
+layout(set = 2, binding = 2) uniform sampler2DArray metallicRoughnessAoMap;
 
 
 const float PI = 3.14159265359;
@@ -79,8 +85,8 @@ vec3 GetNormalFromMap()
 
 	vec3 Q1 = dFdx(fragWorldPos);
 	vec3 Q2 = dFdy(fragWorldPos);
-	vec2 st1 = dFdx(fragTexCoord);
-	vec2 st2 = dFdy(fragTexCoord);
+	vec2 st1 = dFdx(fragTexCoord.xy);
+	vec2 st2 = dFdy(fragTexCoord.xy);
 
 	vec3 N = normalize(fragNormal);
 	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
@@ -157,11 +163,11 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 }
 
 void main() {
-    vec4 texColor = texture(albedoMap, fragTexCoord);
+    vec4 texColor = texture(albedoMap, fragTexCoord) * materialParams.albedoColor;
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
-    float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b);
-    float roughness = mix(0.01, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g);
-    float ao = texture(metallicRoughnessAoMap, fragTexCoord).r;
+    float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b) * materialParams.metallicRoughnessAo.x;
+    float roughness = mix(0.01, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g) * materialParams.metallicRoughnessAo.y;
+    float ao = texture(metallicRoughnessAoMap, fragTexCoord).r * materialParams.metallicRoughnessAo.z;
 
     float shadow = GetShadow(fragLightSpacePos / fragLightSpacePos.w);
 

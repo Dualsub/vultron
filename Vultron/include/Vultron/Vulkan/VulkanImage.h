@@ -16,6 +16,7 @@ namespace Vultron
     {
         Texture2D = 0,
         Cubemap = 1,
+        Texture2DArray = 2,
 
         // These must be last
         MaxImageTypes,
@@ -96,7 +97,7 @@ namespace Vultron
 
         struct ImageFromFileCreateInfo
         {
-            ImageType type = ImageType::Texture2D;
+            ImageType type = ImageType::None;
             VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
             const std::string &filepath;
             ImageTransitionQueue *imageTransitionQueue = nullptr;
@@ -115,6 +116,6 @@ namespace Vultron
 
         const ImageInfo &GetInfo() const { return m_info; }
 
-        static void SaveImageToFile(const VulkanContext& context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
+        static void SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
     };
 }

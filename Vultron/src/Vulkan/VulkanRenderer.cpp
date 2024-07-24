@@ -227,9 +227,23 @@ namespace Vultron
             bones.push_back({.offset = glm::transpose(m_bones[i].offset), .parentID = m_bones[i].parentID});
         }
 
+        if (bones.size() > c_maxBones)
+        {
+            std::cerr << "Too many bones in the scene. Max supported bones: " << c_maxBones << std::endl;
+            std::cerr << "Current bones: " << bones.size() << std::endl;
+            return;
+        }
+
         if (bones.size() > 0)
         {
             m_boneBuffer.UploadStaged(m_context.GetDevice(), m_transferCommandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
+        }
+
+        if (m_animationFrames.size() > c_maxAnimationFrames)
+        {
+            std::cerr << "Too many animation frames in the scene. Max supported frames: " << c_maxAnimationFrames << std::endl;
+            std::cerr << "Current frames: " << m_animationFrames.size() << std::endl;
+            return;
         }
 
         if (m_animationFrames.size() > 0)
@@ -465,6 +479,12 @@ namespace Vultron
             },
         };
 
+        VkPushConstantRange materialParameters = {
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .offset = 0,
+            .size = sizeof(glm::vec4) + sizeof(float) * 3,
+        };
+
         m_staticPipeline = VulkanMaterialPipeline::Create(
             m_context, m_renderPass,
             {
@@ -472,6 +492,7 @@ namespace Vultron
                 .fragmentShader = m_fragmentShader,
                 .descriptorSetLayouts = {m_staticSetLayout, m_environmentSetLayout},
                 .bindings = materialBindings,
+                .pushConstantRanges = {materialParameters},
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
             });
 
@@ -482,6 +503,7 @@ namespace Vultron
                 .fragmentShader = m_fragmentShader,
                 .descriptorSetLayouts = {m_skeletalSetLayout, m_environmentSetLayout},
                 .bindings = materialBindings,
+                .pushConstantRanges = {materialParameters},
                 .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
             });
 
@@ -735,6 +757,13 @@ namespace Vultron
                         .binding = 2,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .offset = 0,
+                        .size = sizeof(glm::vec4) + sizeof(float) * 3,
                     },
                 },
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
@@ -1907,6 +1936,12 @@ namespace Vultron
             {
                 VkDescriptorSet descriptorSets[] = {material.GetDescriptorSet()};
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), numDescriptorSets, 1, descriptorSets, 0, nullptr);
+
+                std::vector<char> materialData = material.GetMaterialData();
+                if (!materialData.empty())
+                {
+                    vkCmdPushConstants(commandBuffer, pipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
+                }
             }
 
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indexCount), batch.instanceCount, 0, 0, firstInstance);
@@ -1949,6 +1984,12 @@ namespace Vultron
             }
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline.GetPipelineLayout(), i, 1, &descriptorSetsCopy[i], 0, nullptr);
+        }
+
+        std::vector<char> materialData = material->GetMaterialData();
+        if (!materialData.empty())
+        {
+            vkCmdPushConstants(commandBuffer, m_particlePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
         }
 
         static RenderHandle quadMesh = ResourcePool::CreateHandle("quad");
@@ -2298,11 +2339,12 @@ namespace Vultron
         return m_resourcePool.AddAnimation(filepath, VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
-    RenderHandle VulkanRenderer::LoadImage(const std::string &filepath)
+    RenderHandle VulkanRenderer::LoadImage(const std::string &filepath, ImageType type)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
             m_context, m_transferCommandPool,
             {
+                .type = type,
                 .filepath = filepath,
                 .imageTransitionQueue = &m_imageTransitionQueue,
             });

@@ -998,8 +998,7 @@ namespace Vultron
             uniformBuffer.Map(m_context.GetAllocator());
         }
 
-        m_uniformBufferData.proj = glm::perspective(glm::radians(45.0f), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 3200.0f);
-        m_uniformBufferData.proj[1][1] *= -1;
+        CalculateProjectionMatrix();
 
         m_uniformBufferData.lightDir = glm::normalize(glm::vec3(1.0f, -1.0f, 1.0f));
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 4.0f;
@@ -2053,6 +2052,12 @@ namespace Vultron
         clearRect.layerCount = 1;
 
         vkCmdClearAttachments(commandBuffer, 1, &clearAttachment, 1, &clearRect);
+    }
+
+    void VulkanRenderer::CalculateProjectionMatrix()
+    {
+        m_uniformBufferData.proj = glm::perspective(glm::radians(m_camera.fov), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 3200.0f);
+        m_uniformBufferData.proj[1][1] *= -1;
     }
 
     void VulkanRenderer::Draw(const RenderData &renderData)

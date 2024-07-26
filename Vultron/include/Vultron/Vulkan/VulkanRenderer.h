@@ -347,6 +347,7 @@ namespace Vultron
     {
         glm::vec3 position;
         glm::quat rotation;
+        float fov = 45.0f;
     };
 
     struct PointLightData
@@ -552,6 +553,7 @@ namespace Vultron
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
+        void CalculateProjectionMatrix();
 
         template <typename MeshType>
         MeshDrawInfo GetMeshDrawInfo(RenderHandle id) const
@@ -574,7 +576,15 @@ namespace Vultron
         void Draw(const RenderData &renderData);
         void Shutdown();
 
-        void SetCamera(const Camera &camera) { m_camera = camera; }
+        void SetCamera(const Camera &camera)
+        {
+            bool isProjectionDirty = camera.fov != m_camera.fov;
+            m_camera = camera;
+            if (isProjectionDirty)
+            {
+                CalculateProjectionMatrix();
+            }
+        }
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
         void SetDeltaTime(float deltaTime) { m_uniformBufferData.deltaTime = deltaTime; }
 

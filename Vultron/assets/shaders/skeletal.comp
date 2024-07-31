@@ -172,7 +172,7 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             additiveMatrix = refMatrix * ToMatrix(addPose.position, addPose.rotation, vec3(1.0));
         }
 
-        boneMatrix = MixMatrices(baseMatrix, baseMatrix * additiveMatrix, 1.0) * boneMatrix;
+        boneMatrix = MixMatrices(baseMatrix, baseMatrix * additiveMatrix, totalBlendFactor) * boneMatrix;
         currBoneIndex = bones[boneOffset + currBoneIndex].parent;
 
         if (currBoneIndex == -1)

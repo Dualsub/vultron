@@ -137,6 +137,18 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeLineBuffers())
+        {
+            std::cerr << "Faild to initialize line buffers." << std::endl;
+            return false;
+        }
+
+        if (!InitializeLinePipeline())
+        {
+            std::cerr << "Faild to initialize line pipeline." << std::endl;
+            return false;
+        }
+
         if (!InitializeCommandPools())
         {
             std::cerr << "Faild to initialize command pool." << std::endl;
@@ -775,6 +787,38 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeParticleBuffers()
     {
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeLineBuffers()
+    {
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            m_frames[i].lineVertexBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(LineVertex) * 2 * c_maxLines, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            m_frames[i].lineVertexBuffer.Map(m_context.GetAllocator());
+        }
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeLinePipeline()
+    {
+        m_lineVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/line.vert.spv"});
+        m_lineFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/line.frag.spv"});
+
+        m_linePipeline = VulkanMaterialPipeline::Create(
+            m_context, m_renderPass,
+            {
+                .vertexShader = m_lineVertexShader,
+                .fragmentShader = m_lineFragmentShader,
+                .descriptorSetLayouts = {m_skyboxSetLayout},
+                .bindings = {},
+                .vertexDescription = LineVertex::GetVertexDescription(),
+                .cullMode = CullMode::None,
+                .depthWriteEnable = false,
+                .topology = Topology::LineList,
+            });
 
         return true;
     }
@@ -1875,6 +1919,7 @@ namespace Vultron
 
             ClearDepthBuffer(commandBuffer, viewportSize);
 
+            DrawLines(commandBuffer, {frame.skyboxDescriptorSet}, frame.lineVertexBuffer, static_cast<uint32_t>(renderData.lines.size()), viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_spritePipeline, renderData.spriteBatches, viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_sdfPipeline, renderData.sdfBatches, viewportSize);
 
@@ -1999,6 +2044,41 @@ namespace Vultron
         vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer.GetBuffer(), 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+    }
+
+    void VulkanRenderer::DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize)
+    {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_linePipeline.GetPipeline());
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)viewportSize.x;
+        viewport.height = (float)viewportSize.y;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = {viewportSize.x, viewportSize.y};
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSets.size());
+        for (uint32_t i = 0; i < numDescriptorSets; i++)
+        {
+            if (descriptorSets[i] == VK_NULL_HANDLE)
+            {
+                continue;
+            }
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline.GetPipelineLayout(), i, 1, &descriptorSets[i], 0, nullptr);
+        }
+
+        VkBuffer vertexBuffers[] = {lineVertexBuffer.GetBuffer()};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdDraw(commandBuffer, lineCount * 2, 1, 0, 0);
     }
 
     void VulkanRenderer::DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize)
@@ -2136,6 +2216,10 @@ namespace Vultron
         const size_t emitterSize = sizeof(ParticleEmitterData) * renderData.particleEmitters.size();
         frame.particleEmitterBuffer.CopyData(renderData.particleEmitters.data(), emitterSize);
 
+        // Line vertex buffer
+        const size_t lineSize = sizeof(LineData) * renderData.lines.size();
+        frame.lineVertexBuffer.CopyData(renderData.lines.data(), lineSize);
+
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
 
@@ -2226,6 +2310,9 @@ namespace Vultron
 
             m_frames[i].particleDrawCommandBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].particleDrawCommandBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].lineVertexBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].lineVertexBuffer.Destroy(m_context.GetAllocator());
         }
 
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
@@ -2252,6 +2339,8 @@ namespace Vultron
         m_particleUpdateShader.Destroy(m_context);
         m_particleSortShader.Destroy(m_context);
         m_particleVertexShader.Destroy(m_context);
+        m_lineVertexShader.Destroy(m_context);
+        m_lineFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
         vkDestroyCommandPool(m_context.GetDevice(), m_transferCommandPool, nullptr);
@@ -2281,6 +2370,7 @@ namespace Vultron
         m_particleEmitterPipeline.Destroy(m_context);
         m_particleUpdatePipeline.Destroy(m_context);
         m_particleSortPipeline.Destroy(m_context);
+        m_linePipeline.Destroy(m_context);
 
         m_renderPass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);

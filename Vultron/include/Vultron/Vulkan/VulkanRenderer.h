@@ -63,6 +63,8 @@ namespace Vultron
     constexpr uint32_t c_maxParticleEmitters = 128;
     constexpr uint32_t c_maxParticleInstances = 4096;
 
+    constexpr uint32_t c_maxLines = 1024;
+
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
 
     struct SpriteMaterial
@@ -213,6 +215,8 @@ namespace Vultron
         VkDescriptorSet particleUpdateDescriptorSet;
         VkDescriptorSet particleSortDescriptorSet;
         VkDescriptorSet particleDescriptorSet;
+
+        VulkanBuffer lineVertexBuffer;
     };
 
     struct StaticInstanceData
@@ -357,6 +361,14 @@ namespace Vultron
         glm::vec4 color = glm::vec4(1.0f);
     };
 
+    struct LineData
+    {
+        glm::vec3 start;
+        glm::vec4 startColor;
+        glm::vec3 end;
+        glm::vec4 endColor;
+    };
+
     struct UniformBufferData
     {
         glm::mat4 view = glm::mat4(1.0f);
@@ -387,6 +399,7 @@ namespace Vultron
         const std::optional<RenderHandle> environmentMap;
         const std::optional<RenderHandle> particleAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
+        const std::vector<LineData> &lines;
     };
 
     class VulkanRenderer
@@ -477,6 +490,11 @@ namespace Vultron
         VulkanImage m_depthImage;
         VkSampler m_textureSampler;
 
+        // Line rendering
+        VulkanMaterialPipeline m_linePipeline;
+        VulkanShader m_lineVertexShader;
+        VulkanShader m_lineFragmentShader;
+
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;
 
@@ -516,6 +534,10 @@ namespace Vultron
         bool InitializeParticlePipeline();
         bool InitializeParticleBuffers();
 
+        // Line pipeline
+        bool InitializeLinePipeline();
+        bool InitializeLineBuffers();
+
         // Command pool
         bool InitializeCommandPools();
         bool InitializeCommandBuffer();
@@ -552,6 +574,7 @@ namespace Vultron
         void DrawWithPipeline(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
+        void DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
         void CalculateProjectionMatrix();
 

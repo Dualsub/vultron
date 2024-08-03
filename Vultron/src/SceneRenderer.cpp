@@ -22,6 +22,7 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
+        m_lines.clear();
         m_spriteJobs.clear();
         m_fontJobs.clear();
         m_boneOutputOffset = 0;
@@ -204,6 +205,16 @@ namespace Vultron
         });
     }
 
+    void SceneRenderer::SubmitRenderJob(const LineRenderJob &job)
+    {
+        m_lines.push_back({
+            .start = job.start,
+            .startColor = job.color,
+            .end = job.end,
+            .endColor = job.color,
+        });
+    }
+
     void SceneRenderer::EndFrame()
     {
         std::vector<StaticInstanceData> staticInstances;
@@ -309,6 +320,7 @@ namespace Vultron
             .environmentMap = m_environmentMap,
             .particleAtlasMaterial = m_particleAtlasMaterial,
             .pointLights = m_pointLights,
+            .lines = m_lines,
         });
 
         m_particleEmitters.clear();

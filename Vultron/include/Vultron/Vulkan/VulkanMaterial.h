@@ -31,6 +31,12 @@ namespace Vultron
         Always = VK_COMPARE_OP_ALWAYS,
     };
 
+    enum class Topology
+    {
+        TriangleList = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        LineList = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+    };
+
     class VulkanMaterialPipeline
     {
     private:
@@ -41,7 +47,7 @@ namespace Vultron
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -64,6 +70,7 @@ namespace Vultron
             DepthFunction depthFunction = DepthFunction::Less;
             bool depthTestEnable = true;
             bool depthWriteEnable = true;
+            Topology topology = Topology::TriangleList;
         };
 
         static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);

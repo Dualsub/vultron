@@ -47,6 +47,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
+        std::vector<LineData> m_lines;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
         std::array<PointLightData, 4> m_pointLights;
@@ -72,6 +73,7 @@ namespace Vultron
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
         void SubmitRenderJob(const AnimationInstance &job);
+        void SubmitRenderJob(const LineRenderJob &job);
         void EndFrame();
         void Shutdown();
 

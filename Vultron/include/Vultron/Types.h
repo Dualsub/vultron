@@ -148,4 +148,11 @@ namespace Vultron
         RenderHandle environmentMap = {};
     };
 
+    struct LineRenderJob
+    {
+        glm::vec3 start = {};
+        glm::vec3 end = {};
+        glm::vec4 color = glm::vec4(1.0f);
+    };
+
 }

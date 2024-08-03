@@ -27,7 +27,8 @@ namespace Vultron
                 createInfo.cullMode,
                 createInfo.depthFunction,
                 createInfo.depthTestEnable,
-                createInfo.depthWriteEnable))
+                createInfo.depthWriteEnable,
+                createInfo.topology))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -56,7 +57,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -92,7 +93,7 @@ namespace Vultron
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.topology = static_cast<VkPrimitiveTopology>(topology);
         inputAssembly.primitiveRestartEnable = VK_FALSE;
 
         const std::array<VkDynamicState, 2> dynamicStates = {

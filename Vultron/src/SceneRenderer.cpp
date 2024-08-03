@@ -544,7 +544,7 @@ namespace Vultron
             glm::mat4 withAdditive = baseMatrix * additiveMatrix * boneTransform;
             boneTransform = (1.0f - totalBlendFactor) * noAdditive + totalBlendFactor * withAdditive;
 
-            currBoneIndex = bones[currBoneIndex].parentID;
+            currBoneIndex = bones[mesh.GetBoneOffset() + currBoneIndex].parentID;
 
             if (currBoneIndex == -1)
             {
@@ -553,6 +553,13 @@ namespace Vultron
         }
 
         return boneTransform;
+    }
+
+    uint32_t SceneRenderer::GetBoneCount(RenderHandle skeletalMesh) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &mesh = rp.GetSkeletalMesh(skeletalMesh);
+        return mesh.GetBoneCount();
     }
 
     void SceneRenderer::Shutdown()

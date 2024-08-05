@@ -63,7 +63,7 @@ namespace Vultron
     constexpr uint32_t c_maxParticleEmitters = 128;
     constexpr uint32_t c_maxParticleInstances = 4096;
 
-    constexpr uint32_t c_maxLines = 1024;
+    constexpr uint32_t c_maxLines = 4096;
 
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
 

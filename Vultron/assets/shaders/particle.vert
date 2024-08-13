@@ -29,7 +29,8 @@ struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
     vec3 sizeAndRotation;
-    vec4 velocityAndGravityFactor;
+    vec3 velocity;
+    vec3 acceleration;
     vec4 texCoordAndSize;
     vec4 startColor;
     vec4 endColor;
@@ -74,22 +75,43 @@ void main()
     scale[1][1] = instance.sizeAndRotation.y * scaleIn * scaleOut;
     scale[2][2] = 1.0;
 
-
-    mat3 viewRotation = mat3(ubo.view);
-    mat3 viewRotationInverse = viewRotation;
-
     mat4 rotation = mat4(1.0);
-    rotation[0][0] = viewRotationInverse[0][0];
-    rotation[0][1] = viewRotationInverse[1][0];
-    rotation[0][2] = viewRotationInverse[2][0];
 
-    rotation[1][0] = viewRotationInverse[0][1];
-    rotation[1][1] = viewRotationInverse[1][1];
-    rotation[1][2] = viewRotationInverse[2][1];
+    if (instance.positionAndLifeTime.y > 10.0) {
+        mat3 viewRotation = mat3(ubo.view);
 
-    rotation[2][0] = viewRotationInverse[0][2];
-    rotation[2][1] = viewRotationInverse[1][2];
-    rotation[2][2] = viewRotationInverse[2][2];
+        rotation[0][0] = viewRotation[0][0];
+        rotation[0][1] = viewRotation[1][0];
+        rotation[0][2] = viewRotation[2][0];
+
+        rotation[1][0] = viewRotation[0][1];
+        rotation[1][1] = viewRotation[1][1];
+        rotation[1][2] = viewRotation[2][1];
+
+        rotation[2][0] = viewRotation[0][2];
+        rotation[2][1] = viewRotation[1][2];
+        rotation[2][2] = viewRotation[2][2];
+    }
+    else
+    {
+        // Emulate lying on floor by pointing z-axis up
+        vec3 up = vec3(0.0, 0.0, 1.0);
+        vec3 forward = vec3(0.0, 1.0, 0.0);
+        vec3 right = cross(up, forward);
+        up = cross(forward, right);
+
+        rotation[0][0] = right.x;
+        rotation[0][1] = right.y;
+        rotation[0][2] = right.z;
+
+        rotation[1][0] = up.x;
+        rotation[1][1] = up.y;
+        rotation[1][2] = up.z;
+
+        rotation[2][0] = forward.x;
+        rotation[2][1] = forward.y;
+        rotation[2][2] = forward.z;
+    }
 
     // Simple rotation around the z-axis
     float angle = instance.sizeAndRotation.z;

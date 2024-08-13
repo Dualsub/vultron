@@ -13,7 +13,8 @@ struct ParticleEmitterData
 {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
-    vec4 initialVelocityAndGravityFactor;
+    vec3 initialVelocity;
+    vec3 acceleration;
     vec4 sizeAndSizeSpan;
     vec3 phiThetaSpanAndRotation;
     vec4 texCoordAndSize;
@@ -31,7 +32,8 @@ struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
     vec3 sizeAndRotation;
-    vec4 velocityAndGravityFactor;
+    vec3 velocity;
+    vec3 acceleration;
     vec4 texCoordAndSize;
     vec4 startColor;
     vec4 endColor;
@@ -89,14 +91,16 @@ void main()  {
         ParticleInstanceData instance;
         instance.positionAndLifeTime = emitter.positionAndLifeTime;
 
-        if (emitter.initialVelocityAndGravityFactor.xyz != vec3(0.0)) {  
-            vec3 velocityDirection = normalize(emitter.initialVelocityAndGravityFactor.xyz);
+        if (emitter.initialVelocity != vec3(0.0)) {  
+            vec3 velocityDirection = normalize(emitter.initialVelocity);
             velocityDirection = randomDirectionInCone(velocityDirection, thetaSpan, phiSpan, instanceCount);
-            vec3 velocity = normalize(velocityDirection) * (length(emitter.initialVelocityAndGravityFactor.xyz) + random(emitterIndex + i) * emitter.numParticlesAndVelocitySpanAndTexSpan.y);
-            instance.velocityAndGravityFactor = vec4(velocity, emitter.initialVelocityAndGravityFactor.w);
+            vec3 velocity = normalize(velocityDirection) * (length(emitter.initialVelocity) + random(emitterIndex + i) * emitter.numParticlesAndVelocitySpanAndTexSpan.y);
+            instance.velocity = velocity;
         } else {
-            instance.velocityAndGravityFactor = vec4(0.0, 0.0, 0.0, emitter.initialVelocityAndGravityFactor.w);
+            instance.velocity = emitter.initialVelocity;
         }
+
+        instance.acceleration = emitter.acceleration;
 
         uvec2 seed = uvec2(instance.positionAndLifeTime.xy * 1000.0) + emitterIndex + i;
         vec2 texCoord = uvec2(vec2(random(seed.x), random(seed.y)) * emitter.numParticlesAndVelocitySpanAndTexSpan.zw) * emitter.texCoordAndSize.zw + emitter.texCoordAndSize.xy;

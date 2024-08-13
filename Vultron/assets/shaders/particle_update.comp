@@ -13,7 +13,8 @@ struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
     vec3 sizeAndRotation;
-    vec4 velocityAndGravityFactor;
+    vec3 velocity;
+    vec3 acceleration;
     vec4 texCoordAndSize;
     vec4 startColor;
     vec4 endColor;
@@ -44,8 +45,8 @@ void main()  {
 
     vec3 position = instance.positionAndLifeTime.xyz;
     float lifeTime = instance.positionAndLifeTime.w;
-    vec3 velocity = instance.velocityAndGravityFactor.xyz;
-    float gravityFactor = instance.velocityAndGravityFactor.w;
+    vec3 velocity = instance.velocity;
+    vec3 acceleration = instance.acceleration;
     vec2 texCoord = instance.texCoordAndSize.xy;
     vec2 size = instance.texCoordAndSize.zw;
 
@@ -58,7 +59,7 @@ void main()  {
     }
     
     if (position.y > groundLevel)  {
-        velocity.y -= 981.0 * gravityFactor * deltaTime;
+        velocity += acceleration * deltaTime;
         position += velocity * deltaTime;
     }
     else {
@@ -68,7 +69,7 @@ void main()  {
     
     ParticleInstanceData updatedInstance = instance;
     updatedInstance.positionAndLifeTime = vec4(position, lifeTime);
-    updatedInstance.velocityAndGravityFactor = vec4(velocity, gravityFactor);
+    updatedInstance.velocity = velocity;
 
     uint outputIndex = atomicAdd(outputBuffer.instanceCount, 1);
     outputBuffer.instances[outputIndex] = updatedInstance;

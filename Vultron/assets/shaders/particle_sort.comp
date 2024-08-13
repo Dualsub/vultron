@@ -21,7 +21,8 @@ struct ParticleInstanceData {
     vec4 positionAndLifeTime;
     vec3 lifeDurationAndNumFramesAndFrameRate;
     vec3 sizeAndRotation;
-    vec4 velocityAndGravityFactor;
+    vec3 velocity;
+	vec3 acceleration;
     vec4 texCoordAndSize;
     vec4 startColor;
     vec4 endColor;

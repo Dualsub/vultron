@@ -163,7 +163,7 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 }
 
 void main() {
-    vec4 texColor = texture(albedoMap, fragTexCoord) * materialParams.albedoColor;
+    vec4 texColor = texture(albedoMap, fragTexCoord) * materialParams.albedoColor * fragColor;
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
     float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b) * materialParams.metallicRoughnessAo.x;
     float roughness = mix(0.01, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g) * materialParams.metallicRoughnessAo.y;
@@ -223,5 +223,5 @@ void main() {
     // vec3 depthColor = vec3(linearDepth);
 
     // outColor = vec4(depthColor, 1.0);
-    outColor = vec4(color, texColor.a) * fragColor;
+    outColor = vec4(color, texColor.a);
 }

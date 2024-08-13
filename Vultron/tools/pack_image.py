@@ -35,7 +35,7 @@ class ImageTypes:
     Texture2D = 0
     Cubemap = 1
 
-def pack_image(image_files, output_file, mips, flip, invert, cubemap):
+def pack_image(image_files, output_file, mips, flip, flip_horizontal, invert, cubemap):
     
     inputs = [*image_files]
     
@@ -81,6 +81,10 @@ def pack_image(image_files, output_file, mips, flip, invert, cubemap):
         if flip:
             print("Flipping image vertically")
             image = cv.flip(image, 0)
+
+        if flip_horizontal:
+            print("Flipping image horizontally")
+            image = cv.flip(image, 1)
 
         assert input != output_file, "Input and output file cannot be the same"
 
@@ -154,6 +158,8 @@ def main():
     parser.add_argument(
         "-f", "--flip", help="Flip the image vertically", action="store_true")
     parser.add_argument(
+        "-fh", "--flip_horizontal", help="Flip the image horizontally", action="store_true")
+    parser.add_argument(
         "-i", "--invert", help="Invert the image", action="store_true")
     parser.add_argument(
         "-c", "--cubemap", help="Pack the image as a cubemap", action="store_true")
@@ -168,9 +174,9 @@ def main():
         sides = ["px", "nx", "py", "ny", "pz", "nz"]
         base_path = args.input[0]
         paths = [base_path.replace("*", side) for side in sides]
-        pack_image(paths, args.output, args.mips, args.flip, args.invert, args.cubemap)
+        pack_image(paths, args.output, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
     else:
-        pack_image(args.input, args.output, args.mips, args.flip, args.invert, args.cubemap)
+        pack_image(args.input, args.output, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
 
 if __name__ == "__main__":
     main()

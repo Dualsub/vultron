@@ -2402,10 +2402,10 @@ namespace Vultron
     RenderHandle VulkanRenderer::LoadQuad(const std::string &name)
     {
         std::vector<StaticMeshVertex> vertices = {
-            {.position = {-1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
-            {.position = {1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 0.0f}},
-            {.position = {1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 1.0f}},
-            {.position = {-1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 1.0f}},
+            {.position = {-1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 0.0f, 0.0f}},
+            {.position = {1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 0.0f, 0.0f}},
+            {.position = {1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 1.0f, 0.0f}},
+            {.position = {-1.0f, 1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 1.0f, 0.0f}},
         };
 
         std::vector<uint32_t> indices = {0, 1, 2, 2, 3, 0};

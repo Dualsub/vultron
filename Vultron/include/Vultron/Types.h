@@ -126,6 +126,7 @@ namespace Vultron
         float lifetime = 1.0f;
         glm::vec3 initialVelocity = glm::vec3(0.0f, 1.0f, 0.0f);
         float velocitySpan = 0.0f;
+        glm::vec3 acceleration = glm::vec3(0.0f);
         float gravityFactor = 1.0f;
         float phiSpan = 0.0f;
         float thetaSpan = 0.0f;

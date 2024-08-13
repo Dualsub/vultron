@@ -280,7 +280,9 @@ namespace Vultron
         float _padding0;
 
         glm::vec3 initialVelocity;
-        float gravityFactor;
+        float _padding1[1];
+        glm::vec3 acceleration;
+        float _padding2[1];
 
         glm::vec2 size;
         glm::vec2 sizeSpan;
@@ -288,7 +290,7 @@ namespace Vultron
         float phiSpan;
         float thetaSpan;
         float rotation;
-        float _padding1[1];
+        float _padding3[1];
 
         glm::vec2 texCoord;
         glm::vec2 texSize;
@@ -326,7 +328,9 @@ namespace Vultron
             float _padding1[1];
 
             glm::vec3 velocity;
-            float gravityFactor;
+            float _padding2[1];
+            glm::vec3 acceleration;
+            float _padding3[1];
 
             glm::vec2 texCoord;
             glm::vec2 texSize;

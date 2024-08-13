@@ -185,7 +185,7 @@ namespace Vultron
             .numFrames = float(job.numFrames),
             .framesPerSecond = job.framesPerSecond,
             .initialVelocity = job.initialVelocity,
-            .gravityFactor = job.gravityFactor,
+            .acceleration = job.acceleration + glm::vec3(0.0f, -job.gravityFactor * 981.0f, 0.0f),
             .size = job.size,
             .sizeSpan = job.sizeSpan,
             .phiSpan = job.phiSpan,

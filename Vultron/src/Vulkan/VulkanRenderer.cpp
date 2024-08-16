@@ -266,24 +266,51 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeRenderPass()
     {
-        m_renderPass = VulkanRenderPass::Create(
+        m_scenePass = VulkanRenderPass::Create(
             m_context,
-            {.attachments = {
-                 // Color attachment
-                 {
-                     .format = m_swapchain.GetImageFormat(),
-                 },
-                 // Depth attachment
-                 {
-                     .type = VulkanRenderPass::AttachmentType::Depth,
-                     .format = VK_FORMAT_D32_SFLOAT,
-                     .samples = VK_SAMPLE_COUNT_1_BIT,
-                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
+            {
+                .attachments = {
+                    // Color attachment
+                    {
+                        // HDR format
+                        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                        // Layout for texture used by composite pass
+                        .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    // Depth attachment
+                    {
+                        .type = VulkanRenderPass::AttachmentType::Depth,
+                        .format = VK_FORMAT_D32_SFLOAT,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    },
+                },
+                .dependencies = {
+                    {
+                        .srcSubpass = VK_SUBPASS_EXTERNAL,
+                        .dstSubpass = 0,
+                        .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                    {
+                        .srcSubpass = 0,
+                        .dstSubpass = VK_SUBPASS_EXTERNAL,
+                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                },
+            });
 
         m_shadowPass = VulkanRenderPass::Create(
             m_context,
@@ -320,6 +347,17 @@ namespace Vultron
                         .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
                         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                },
+            });
+
+        m_compositePass = VulkanRenderPass::Create(
+            m_context,
+            {
+                .attachments = {
+                    // Color attachment
+                    {
+                        .format = m_swapchain.GetImageFormat(),
                     },
                 },
             });
@@ -460,6 +498,17 @@ namespace Vultron
                 },
             });
 
+        m_compositeSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Scene data
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+            });
+
         return true;
     }
 
@@ -498,7 +547,7 @@ namespace Vultron
         };
 
         m_staticPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_staticVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -509,7 +558,7 @@ namespace Vultron
             });
 
         m_skeletalPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_skeletalVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -552,7 +601,7 @@ namespace Vultron
         m_spriteFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.frag.spv"});
 
         m_spritePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_spriteVertexShader,
                 .fragmentShader = m_spriteFragmentShader,
@@ -573,7 +622,7 @@ namespace Vultron
         m_sdfFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sdf.frag.spv"});
 
         m_sdfPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_spriteVertexShader,
                 .fragmentShader = m_sdfFragmentShader,
@@ -595,7 +644,7 @@ namespace Vultron
         m_skyboxFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
 
         m_skyboxPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_skyboxVertexShader,
                 .fragmentShader = m_skyboxFragmentShader,
@@ -610,6 +659,23 @@ namespace Vultron
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::LessOrEqual,
+            });
+
+        // Composite
+        m_compositeVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/composite.vert.spv"});
+        m_compositeFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/composite.frag.spv"});
+
+        m_compositePipeline = VulkanMaterialPipeline::Create(
+            m_context, m_compositePass,
+            {
+                .vertexShader = m_compositeVertexShader,
+                .fragmentShader = m_compositeFragmentShader,
+                .descriptorSetLayouts = {m_compositeSetLayout},
+                .bindings = {},
+                .vertexDescription = {},
+                .cullMode = CullMode::Front,
+                .blendEnable = false,
+                .depthFunction = DepthFunction::Always,
             });
 
         return true;
@@ -749,7 +815,7 @@ namespace Vultron
 
         m_particleVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/particle.vert.spv"});
         m_particlePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_particleVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -808,7 +874,7 @@ namespace Vultron
         m_lineFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/line.frag.spv"});
 
         m_linePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_lineVertexShader,
                 .fragmentShader = m_lineFragmentShader,
@@ -831,13 +897,11 @@ namespace Vultron
 
         for (size_t i = 0; i < imageViews.size(); i++)
         {
-            std::array<VkImageView, 2> attachments = {
-                imageViews[i],
-                m_depthImage.GetImageView()};
+            std::array<VkImageView, 1> attachments = {imageViews[i]};
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = m_renderPass.GetRenderPass();
+            framebufferInfo.renderPass = m_compositePass.GetRenderPass();
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = m_swapchain.GetExtent().width;
@@ -846,6 +910,33 @@ namespace Vultron
 
             VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &framebuffers[i]));
         }
+
+        m_sceneImage = VulkanImage::Create(
+            m_context,
+            {
+                .info = {
+                    .width = m_swapchain.GetExtent().width,
+                    .height = m_swapchain.GetExtent().height,
+                    .depth = 1,
+                    .mipLevels = 1,
+                    .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                },
+                .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            });
+
+        std::array<VkImageView, 2> attachments = {m_sceneImage.GetImageView(), m_depthImage.GetImageView()};
+
+        VkFramebufferCreateInfo sceneFramebufferInfo{};
+        sceneFramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        sceneFramebufferInfo.renderPass = m_scenePass.GetRenderPass();
+        sceneFramebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        sceneFramebufferInfo.pAttachments = attachments.data();
+        sceneFramebufferInfo.width = m_swapchain.GetExtent().width;
+        sceneFramebufferInfo.height = m_swapchain.GetExtent().height;
+        sceneFramebufferInfo.layers = 1;
+
+        VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &sceneFramebufferInfo, nullptr, &m_sceneFramebuffer));
 
         return true;
     }
@@ -1353,6 +1444,20 @@ namespace Vultron
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
                 });
+
+            m_frames[i].compositeDescriptorSet = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(),
+                m_descriptorPool,
+                m_compositeSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_sceneImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                });
         }
 
         return true;
@@ -1558,7 +1663,7 @@ namespace Vultron
 
         // vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
         // vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        // vkDestroyRenderPass(m_context.GetDevice(), m_renderPass.GetRenderPass(), nullptr);
+        // vkDestroyRenderPass(m_context.GetDevice(), m_scenePass.GetRenderPass(), nullptr);
 
         // for (auto imageView : m_swapChainImageViews)
         // {
@@ -1887,8 +1992,8 @@ namespace Vultron
         { // Render pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = m_renderPass.GetRenderPass();
-            renderPassInfo.framebuffer = m_swapchain.GetFramebuffer(imageIndex);
+            renderPassInfo.renderPass = m_scenePass.GetRenderPass();
+            renderPassInfo.framebuffer = m_sceneFramebuffer;
 
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
@@ -1922,6 +2027,47 @@ namespace Vultron
             DrawLines(commandBuffer, {frame.skyboxDescriptorSet}, frame.lineVertexBuffer, static_cast<uint32_t>(renderData.lines.size()), viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_spritePipeline, renderData.spriteBatches, viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_sdfPipeline, renderData.sdfBatches, viewportSize);
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
+
+        { // Composite pass, draw the scene image to the swapchain as a fullscreen quad
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = m_compositePass.GetRenderPass();
+            renderPassInfo.framebuffer = m_swapchain.GetFramebuffer(imageIndex);
+
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
+            glm::uvec2 viewportSize = {m_swapchain.GetExtent().width, m_swapchain.GetExtent().height};
+
+            std::array<VkClearValue, 1> clearValues{};
+            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
+
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipeline());
+
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = (float)viewportSize.x;
+            viewport.height = (float)viewportSize.y;
+
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = {viewportSize.x, viewportSize.y};
+
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+            VkDescriptorSet descriptorSets[] = {frame.compositeDescriptorSet};
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
             vkCmdEndRenderPass(commandBuffer);
         }
@@ -2322,6 +2468,7 @@ namespace Vultron
         m_depthImage.Destroy(m_context);
         m_shadowMap.Destroy(m_context);
         m_brdfLUT.Destroy(m_context);
+        m_sceneImage.Destroy(m_context);
         m_resourcePool.Destroy(m_context);
         m_staticVertexShader.Destroy(m_context);
         m_skeletalVertexShader.Destroy(m_context);
@@ -2341,6 +2488,8 @@ namespace Vultron
         m_particleVertexShader.Destroy(m_context);
         m_lineVertexShader.Destroy(m_context);
         m_lineFragmentShader.Destroy(m_context);
+        m_compositeVertexShader.Destroy(m_context);
+        m_compositeFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
         vkDestroyCommandPool(m_context.GetDevice(), m_transferCommandPool, nullptr);
@@ -2352,6 +2501,7 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_environmentSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_particleSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_compositeSetLayout, nullptr);
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
@@ -2371,11 +2521,14 @@ namespace Vultron
         m_particleUpdatePipeline.Destroy(m_context);
         m_particleSortPipeline.Destroy(m_context);
         m_linePipeline.Destroy(m_context);
+        m_compositePipeline.Destroy(m_context);
 
-        m_renderPass.Destroy(m_context);
+        m_scenePass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);
+        m_compositePass.Destroy(m_context);
 
         vkDestroyFramebuffer(m_context.GetDevice(), m_shadowFramebuffer, nullptr);
+        vkDestroyFramebuffer(m_context.GetDevice(), m_sceneFramebuffer, nullptr);
 
         m_swapchain.Destroy(m_context);
 

@@ -217,6 +217,8 @@ namespace Vultron
         VkDescriptorSet particleDescriptorSet;
 
         VulkanBuffer lineVertexBuffer;
+
+        VkDescriptorSet compositeDescriptorSet;
     };
 
     struct StaticInstanceData
@@ -425,7 +427,14 @@ namespace Vultron
 
         // Render passes
         VulkanRenderPass m_shadowPass;
-        VulkanRenderPass m_renderPass;
+        VulkanRenderPass m_scenePass;
+        VulkanRenderPass m_compositePass;
+
+        // Scene
+        VulkanImage m_sceneImage;
+        VulkanImage m_depthImage;
+        VkFramebuffer m_sceneFramebuffer;
+
 
         // Pools
         VkCommandPool m_commandPool;
@@ -489,15 +498,20 @@ namespace Vultron
         VulkanMaterialPipeline m_particlePipeline;
         VkDescriptorSetLayout m_particleSetLayout;
 
-        // Material instance resources
-        UniformBufferData m_uniformBufferData{};
-        VulkanImage m_depthImage;
-        VkSampler m_textureSampler;
-
-        // Line rendering
+        // Line pipeline
         VulkanMaterialPipeline m_linePipeline;
         VulkanShader m_lineVertexShader;
         VulkanShader m_lineFragmentShader;
+
+        // Composite pipeline
+        VulkanMaterialPipeline m_compositePipeline;
+        VulkanShader m_compositeVertexShader;
+        VulkanShader m_compositeFragmentShader;
+        VkDescriptorSetLayout m_compositeSetLayout;
+
+        // Material instance resources
+        UniformBufferData m_uniformBufferData{};
+        VkSampler m_textureSampler;
 
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;

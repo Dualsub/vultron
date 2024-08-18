@@ -104,6 +104,7 @@ namespace Vultron
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
+        void SetBloomSettings(const BloomSettings &bloomSettings) { m_backend.SetBloomSettings(bloomSettings); }
 
         void WaitAndResetImageTransitionQueue() { m_backend.WaitAndResetImageTransitionQueue(); }
 

@@ -13,7 +13,8 @@ namespace Vultron
         None = 0,
         UniformBuffer,
         CombinedImageSampler,
-        StorageBuffer
+        StorageBuffer,
+        StorageImage
     };
 
     struct DescriptorSetLayoutBinding

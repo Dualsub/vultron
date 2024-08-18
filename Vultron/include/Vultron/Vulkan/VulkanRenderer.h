@@ -51,6 +51,7 @@ namespace Vultron
     constexpr uint32_t c_maxUniformBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxStorageBuffers = 2 * c_maxSets;
     constexpr uint32_t c_maxCombinedImageSamplers = 2 * c_maxSets;
+    constexpr uint32_t c_maxStorageImages = 2 * c_maxSets;
 
     constexpr uint32_t c_maxSkeletalInstances = 512;
     constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
@@ -64,6 +65,8 @@ namespace Vultron
     constexpr uint32_t c_maxParticleInstances = 4096;
 
     constexpr uint32_t c_maxLines = 4096;
+
+    constexpr uint32_t c_maxBloomMipLevels = 6;
 
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
 
@@ -227,6 +230,7 @@ namespace Vultron
         glm::vec2 texCoord;
         glm::vec2 texSize;
         glm::vec4 color;
+        glm::vec4 emissiveColor;
     };
 
     static_assert(sizeof(StaticInstanceData) % 16 == 0);
@@ -391,6 +395,16 @@ namespace Vultron
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
 
+    struct BloomSettings
+    {
+        float exposure = 1.0f;
+        float gamma = 2.2f;
+        float bloomIntensity = 1.0f;
+        float bloomThreshold = 0.04f;
+    };
+
+    static_assert(sizeof(BloomSettings) % 16 == 0);
+
     struct RenderData
     {
         const std::vector<RenderBatch> &staticBatches;
@@ -435,6 +449,17 @@ namespace Vultron
         VulkanImage m_depthImage;
         VkFramebuffer m_sceneFramebuffer;
 
+        // Bloom
+        std::vector<VulkanImage> m_bloomMipChain;
+        VkDescriptorSet m_sceneToBloomDescriptorSet;
+        std::vector<VkDescriptorSet> m_bloomDownsampleSets;
+        std::vector<VkDescriptorSet> m_bloomUpsampleSets;
+        VkDescriptorSetLayout m_bloomSetLayout;
+        VulkanShader m_bloomDownsampleShader;
+        VulkanComputePipeline m_bloomDownsamplePipeline;
+        VulkanShader m_bloomUpsampleShader;
+        VulkanComputePipeline m_bloomUpsamplePipeline;
+        VkSampler m_bloomSampler;
 
         // Pools
         VkCommandPool m_commandPool;
@@ -531,6 +556,8 @@ namespace Vultron
         // Permanent resources
         ResourcePool m_resourcePool;
 
+        BloomSettings m_bloomSettings;
+
         Camera m_camera;
 
         // Render pass
@@ -539,6 +566,9 @@ namespace Vultron
 
         // Shadow map
         bool InitializeShadowMap();
+
+        // Bloom
+        bool InitializeBloomPipeline();
 
         // Material pipeline
         bool InitializeDescriptorSetLayout();
@@ -593,6 +623,8 @@ namespace Vultron
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
         void DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize);
+        void WriteBloomDownsampleCommands(VkCommandBuffer commandBuffer);
+        void WriteBloomUpsampleCommands(VkCommandBuffer commandBuffer);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
         void CalculateProjectionMatrix();
 
@@ -628,12 +660,14 @@ namespace Vultron
         }
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
         void SetDeltaTime(float deltaTime) { m_uniformBufferData.deltaTime = deltaTime; }
+        void SetBloomSettings(const BloomSettings &settings) { m_bloomSettings = settings; }
 
         const std::vector<SkeletonBone> &GetBones() const { return m_bones; }
         const std::vector<AnimationFrame> &GetAnimationFrames() const { return m_animationFrames; }
         const glm::mat4 &GetProjectionMatrix() const { return m_uniformBufferData.proj; }
         const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
         Camera &GetCamera() { return m_camera; }
+        const BloomSettings &GetBloomSettings() const { return m_bloomSettings; }
 
         RenderHandle LoadMesh(const std::string &filepath);
         RenderHandle LoadQuad(const std::string &name);

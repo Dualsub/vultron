@@ -53,6 +53,7 @@ namespace Vultron
                     .texCoord = job.texCoord,
                     .texSize = job.texSize,
                     .color = job.color,
+                    .emissiveColor = job.emissiveColor,
                 });
         }
         else
@@ -65,6 +66,7 @@ namespace Vultron
                     .texCoord = job.texCoord,
                     .texSize = job.texSize,
                     .color = job.color,
+                    .emissiveColor = job.emissiveColor,
                 });
             instancedJob.nonShadowCasterCount++;
         }

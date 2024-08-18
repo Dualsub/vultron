@@ -5,6 +5,7 @@ layout(location = 1) in vec3 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec4 fragLightSpacePos;
 layout(location = 4) in vec4 fragColor;
+layout(location = 5) in vec4 fragEmissiveColor;
 
 layout(location = 0) out vec4 outColor;
 
@@ -94,12 +95,6 @@ vec3 GetNormalFromMap()
 	mat3 TBN = mat3(T, B, N);
 
 	return normalize(TBN * tangentNormal);
-}
-
-vec3 Tonemap(vec3 x)
-{
-    const float L_white = 4.0;
-    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
 }
 
 float D_GGX(float dotNH, float roughness)
@@ -207,14 +202,7 @@ void main() {
 	kD *= 1.0 - metallic;	  
 	vec3 ambient = (kD * diffuse + specular) * ao;
 	
-	vec3 color = ambient + Lo * shadow;
-	
-	float exposure = 0.8;
-	float gamma = 2.2;
-
-	color = Tonemap(color * exposure);
-	color = color * (1.0f / Tonemap(vec3(11.2f)));	
-	color = pow(color, vec3(1.0f / gamma));
+	vec3 color = ambient + Lo * shadow + fragEmissiveColor.rgb;
     
 	// float depth = gl_FragCoord.z;
     // float near = 0.1;

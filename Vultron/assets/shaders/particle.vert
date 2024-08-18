@@ -9,6 +9,7 @@ layout(location = 1) out vec3 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
 layout(location = 4) out vec4 fragColor;
+layout(location = 5) out vec4 fragEmissiveColor;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -65,7 +66,7 @@ void main()
     float frameRate = instance.lifeDurationAndNumFramesAndFrameRate.z;
 
     float scaleIn = instance.scaleFadeInOutAndOpacityFadeInOut.x > 0.0 ? easeOutQuint(clamp(timeElapsed / instance.scaleFadeInOutAndOpacityFadeInOut.x, 0.0, 1.0)) : 1.0;
-    float scaleOut = 1.0;//clamp(instance.scaleFadeInOutAndOpacityFadeInOut.y / timeRemaining, 0.0, 1.0);
+    float scaleOut = instance.scaleFadeInOutAndOpacityFadeInOut.y > 0.0 ? easeOutQuint(clamp(timeRemaining / instance.scaleFadeInOutAndOpacityFadeInOut.y, 0.0, 1.0)) : 1.0;
 
     float opacityIn = instance.scaleFadeInOutAndOpacityFadeInOut.z > 0.0 ? clamp(timeElapsed / instance.scaleFadeInOutAndOpacityFadeInOut.z, 0.0, 1.0) : 1.0;
     float opacityOut = instance.scaleFadeInOutAndOpacityFadeInOut.w > 0.0 ? clamp(timeRemaining / instance.scaleFadeInOutAndOpacityFadeInOut.w, 0.0, 1.0) : 1.0;
@@ -148,4 +149,5 @@ void main()
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;
     vec4 color = mix(instance.startColor, instance.endColor, clamp(timeElapsed / instance.lifeDurationAndNumFramesAndFrameRate.x, 0.0, 1.0));
     fragColor = vec4(color.rgb, color.a * opacityIn * opacityOut);
+    fragEmissiveColor = vec4(0.0);
 }

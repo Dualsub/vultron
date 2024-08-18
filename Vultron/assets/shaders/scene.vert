@@ -9,6 +9,7 @@ layout(location = 1) out vec3 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
 layout(location = 4) out vec4 fragColor;
+layout(location = 5) out vec4 fragEmissiveColor;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -29,6 +30,7 @@ struct InstanceData {
     mat4 model;
     vec4 texOffsetAndSize;
     vec4 color;
+    vec4 emissiveColor;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
@@ -50,4 +52,5 @@ void main()
     fragNormal = normalize(mat3(transpose(inverse(instances[gl_InstanceIndex].model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * pos;
     fragColor = instances[gl_InstanceIndex].color;
+    fragEmissiveColor = instances[gl_InstanceIndex].emissiveColor;
 }

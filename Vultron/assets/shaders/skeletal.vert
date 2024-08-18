@@ -11,6 +11,7 @@ layout(location = 1) out vec3 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
 layout(location = 4) out vec4 fragColor;
+layout(location = 5) out vec4 fragEmissiveColor;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -75,6 +76,7 @@ void main()  {
     fragNormal = normalize(mat3(instances[gl_InstanceIndex].model * boneMatrix) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * fragPos;
     fragColor = instances[gl_InstanceIndex].color;
+    fragEmissiveColor = vec4(0.0);
     // for (int i = 0; i < 4; i++) {
     //     if (inBoneIDs[i] == 47) {
     //         fragColor = vec4(1.0, 0.0, 0.0, 1.0);

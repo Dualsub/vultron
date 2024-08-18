@@ -88,6 +88,24 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeCommandPools())
+        {
+            std::cerr << "Faild to initialize command pool." << std::endl;
+            return false;
+        }
+
+        if (!InitializeCommandBuffer())
+        {
+            std::cerr << "Faild to initialize command buffer." << std::endl;
+            return false;
+        }
+
+        if (!InitializeDescriptorPool())
+        {
+            std::cerr << "Faild to initialize descriptor pool." << std::endl;
+            return false;
+        }
+
         const auto [width, height] = window.GetExtent();
         if (!m_swapchain.Initialize(m_context, width, height))
         {
@@ -101,6 +119,24 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeDepthBuffer())
+        {
+            std::cerr << "Faild to initialize depth buffer." << std::endl;
+            return false;
+        }
+
+        if (!InitializeSamplers())
+        {
+            std::cerr << "Faild to initialize sampler." << std::endl;
+            return false;
+        }
+
+        if (!InitializeFramebuffers())
+        {
+            std::cerr << "Faild to initialize framebuffers." << std::endl;
+            return false;
+        }
+
         if (!InitializeDescriptorSetLayout())
         {
             std::cerr << "Faild to initialize descriptor set layout." << std::endl;
@@ -110,6 +146,12 @@ namespace Vultron
         if (!InitializeGraphicsPipeline())
         {
             std::cerr << "Faild to initialize graphics pipeline." << std::endl;
+            return false;
+        }
+
+        if (!InitializeBloomPipeline())
+        {
+            std::cerr << "Faild to initialize bloom pipeline." << std::endl;
             return false;
         }
 
@@ -149,30 +191,6 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeCommandPools())
-        {
-            std::cerr << "Faild to initialize command pool." << std::endl;
-            return false;
-        }
-
-        if (!InitializeCommandBuffer())
-        {
-            std::cerr << "Faild to initialize command buffer." << std::endl;
-            return false;
-        }
-
-        if (!InitializeDepthBuffer())
-        {
-            std::cerr << "Faild to initialize depth buffer." << std::endl;
-            return false;
-        }
-
-        if (!InitializeFramebuffers())
-        {
-            std::cerr << "Faild to initialize framebuffers." << std::endl;
-            return false;
-        }
-
         if (!InitializeShadowMap())
         {
             std::cerr << "Faild to initialize shadow framebuffers." << std::endl;
@@ -185,12 +203,6 @@ namespace Vultron
             return false;
         }
 
-        if (!InitializeSamplers())
-        {
-            std::cerr << "Faild to initialize sampler." << std::endl;
-            return false;
-        }
-
         if (!InitializeUniformBuffers())
         {
             std::cerr << "Faild to initialize uniform buffers." << std::endl;
@@ -200,12 +212,6 @@ namespace Vultron
         if (!InitializeInstanceBuffers())
         {
             std::cerr << "Faild to initialize instance buffer." << std::endl;
-            return false;
-        }
-
-        if (!InitializeDescriptorPool())
-        {
-            std::cerr << "Faild to initialize descriptor pool." << std::endl;
             return false;
         }
 
@@ -266,24 +272,51 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeRenderPass()
     {
-        m_renderPass = VulkanRenderPass::Create(
+        m_scenePass = VulkanRenderPass::Create(
             m_context,
-            {.attachments = {
-                 // Color attachment
-                 {
-                     .format = m_swapchain.GetImageFormat(),
-                 },
-                 // Depth attachment
-                 {
-                     .type = VulkanRenderPass::AttachmentType::Depth,
-                     .format = VK_FORMAT_D32_SFLOAT,
-                     .samples = VK_SAMPLE_COUNT_1_BIT,
-                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                     .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                     .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}}});
+            {
+                .attachments = {
+                    // Color attachment
+                    {
+                        // HDR format
+                        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                        // Layout for texture to be used in bloom pass
+                        .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
+                    // Depth attachment
+                    {
+                        .type = VulkanRenderPass::AttachmentType::Depth,
+                        .format = VK_FORMAT_D32_SFLOAT,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    },
+                },
+                .dependencies = {
+                    {
+                        .srcSubpass = VK_SUBPASS_EXTERNAL,
+                        .dstSubpass = 0,
+                        .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                    {
+                        .srcSubpass = 0,
+                        .dstSubpass = VK_SUBPASS_EXTERNAL,
+                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                },
+            });
 
         m_shadowPass = VulkanRenderPass::Create(
             m_context,
@@ -320,6 +353,17 @@ namespace Vultron
                         .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
                         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                },
+            });
+
+        m_compositePass = VulkanRenderPass::Create(
+            m_context,
+            {
+                .attachments = {
+                    // Color attachment
+                    {
+                        .format = m_swapchain.GetImageFormat(),
                     },
                 },
             });
@@ -460,6 +504,38 @@ namespace Vultron
                 },
             });
 
+        m_bloomSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageImage,
+                    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+            });
+
+        m_compositeSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Scene image
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Bloom image
+                    .binding = 1,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+            });
+
         return true;
     }
 
@@ -498,7 +574,7 @@ namespace Vultron
         };
 
         m_staticPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_staticVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -509,7 +585,7 @@ namespace Vultron
             });
 
         m_skeletalPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_skeletalVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -552,7 +628,7 @@ namespace Vultron
         m_spriteFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sprite.frag.spv"});
 
         m_spritePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_compositePass,
             {
                 .vertexShader = m_spriteVertexShader,
                 .fragmentShader = m_spriteFragmentShader,
@@ -573,7 +649,7 @@ namespace Vultron
         m_sdfFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sdf.frag.spv"});
 
         m_sdfPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_compositePass,
             {
                 .vertexShader = m_spriteVertexShader,
                 .fragmentShader = m_sdfFragmentShader,
@@ -595,7 +671,7 @@ namespace Vultron
         m_skyboxFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/skybox.frag.spv"});
 
         m_skyboxPipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_skyboxVertexShader,
                 .fragmentShader = m_skyboxFragmentShader,
@@ -610,6 +686,30 @@ namespace Vultron
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::LessOrEqual,
+            });
+
+        // Composite
+        m_compositeVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/composite.vert.spv"});
+        m_compositeFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/composite.frag.spv"});
+
+        m_compositePipeline = VulkanMaterialPipeline::Create(
+            m_context, m_compositePass,
+            {
+                .vertexShader = m_compositeVertexShader,
+                .fragmentShader = m_compositeFragmentShader,
+                .descriptorSetLayouts = {m_compositeSetLayout},
+                .bindings = {},
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .offset = 0,
+                        .size = sizeof(BloomSettings),
+                    },
+                },
+                .vertexDescription = {},
+                .cullMode = CullMode::Front,
+                .blendEnable = false,
+                .depthFunction = DepthFunction::Always,
             });
 
         return true;
@@ -749,7 +849,7 @@ namespace Vultron
 
         m_particleVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/particle.vert.spv"});
         m_particlePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_particleVertexShader,
                 .fragmentShader = m_fragmentShader,
@@ -808,7 +908,7 @@ namespace Vultron
         m_lineFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/line.frag.spv"});
 
         m_linePipeline = VulkanMaterialPipeline::Create(
-            m_context, m_renderPass,
+            m_context, m_scenePass,
             {
                 .vertexShader = m_lineVertexShader,
                 .fragmentShader = m_lineFragmentShader,
@@ -831,13 +931,11 @@ namespace Vultron
 
         for (size_t i = 0; i < imageViews.size(); i++)
         {
-            std::array<VkImageView, 2> attachments = {
-                imageViews[i],
-                m_depthImage.GetImageView()};
+            std::array<VkImageView, 1> attachments = {imageViews[i]};
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = m_renderPass.GetRenderPass();
+            framebufferInfo.renderPass = m_compositePass.GetRenderPass();
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = m_swapchain.GetExtent().width;
@@ -846,6 +944,33 @@ namespace Vultron
 
             VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &framebuffers[i]));
         }
+
+        m_sceneImage = VulkanImage::Create(
+            m_context,
+            {
+                .info = {
+                    .width = m_swapchain.GetExtent().width,
+                    .height = m_swapchain.GetExtent().height,
+                    .depth = 1,
+                    .mipLevels = 1,
+                    .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                },
+                .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            });
+
+        std::array<VkImageView, 2> attachments = {m_sceneImage.GetImageView(), m_depthImage.GetImageView()};
+
+        VkFramebufferCreateInfo sceneFramebufferInfo{};
+        sceneFramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        sceneFramebufferInfo.renderPass = m_scenePass.GetRenderPass();
+        sceneFramebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        sceneFramebufferInfo.pAttachments = attachments.data();
+        sceneFramebufferInfo.width = m_swapchain.GetExtent().width;
+        sceneFramebufferInfo.height = m_swapchain.GetExtent().height;
+        sceneFramebufferInfo.layers = 1;
+
+        VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &sceneFramebufferInfo, nullptr, &m_sceneFramebuffer));
 
         return true;
     }
@@ -876,6 +1001,145 @@ namespace Vultron
         framebufferInfo.layers = 1;
 
         VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &m_shadowFramebuffer));
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeBloomPipeline()
+    {
+        // Initialize bloom pipeline
+        const uint32_t width = m_swapchain.GetExtent().width;
+        const uint32_t height = m_swapchain.GetExtent().height;
+        const uint32_t maxSwapchainMipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+        const uint32_t mipLevels = std::min(maxSwapchainMipLevels, c_maxBloomMipLevels);
+
+        m_bloomMipChain.resize(mipLevels);
+        for (uint32_t i = 0; i < mipLevels; i++)
+        {
+            m_bloomMipChain[i] = VulkanImage::Create(
+                m_context,
+                {
+                    .info = {
+                        .width = width >> (i + 1),
+                        .height = height >> (i + 1),
+                        .depth = 1,
+                        .mipLevels = 1,
+                        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                    },
+                    .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                });
+
+            m_bloomMipChain[i].TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        }
+
+        // Descriptor sets for downsampling and upsampling compute shaders for the mipchain, i.e. mipLevels - 1 sets for each,
+        // but we use the scene image as the first input for downsampling which adds one more set
+        m_bloomDownsampleSets.resize(mipLevels);
+        for (uint32_t i = 0; i < mipLevels; i++)
+        {
+            m_bloomDownsampleSets[i] = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(), m_descriptorPool, m_bloomSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = i == 0 ? m_sceneImage.GetImageView() : m_bloomMipChain[i - 1].GetImageView(),
+                        .sampler = m_bloomSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageImage,
+                        .imageView = m_bloomMipChain[i].GetImageView(),
+                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
+                });
+        }
+
+        const uint32_t upsampleSets = mipLevels - 1;
+        m_bloomUpsampleSets.resize(upsampleSets);
+        // Iterate in reverse order because we upsample from the smallest mip level
+        for (uint32_t i = 0; i < upsampleSets; i++)
+        {
+            m_bloomUpsampleSets[i] = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(), m_descriptorPool, m_bloomSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_bloomMipChain[mipLevels - i - 1].GetImageView(),
+                        .sampler = m_bloomSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageImage,
+                        .imageView = m_bloomMipChain[mipLevels - i - 2].GetImageView(),
+                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
+                });
+        }
+
+        // Initialize bloom compute pipeline
+        m_bloomDownsampleShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/bloom_downsample.comp.spv"});
+        m_bloomDownsamplePipeline = VulkanComputePipeline::Create(
+            m_context,
+            {
+                .shader = m_bloomDownsampleShader,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageImage,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                        .offset = 0,
+                        .size = sizeof(uint32_t),
+                    },
+                },
+            });
+
+        m_bloomUpsampleShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/bloom_upsample.comp.spv"});
+        m_bloomUpsamplePipeline = VulkanComputePipeline::Create(
+            m_context,
+            {
+                .shader = m_bloomUpsampleShader,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageImage,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                        .offset = 0,
+                        .size = sizeof(float),
+                    },
+                },
+            });
+
+        m_bloomSettings = {
+            .exposure = 1.0f,
+            .gamma = 2.2f,
+            .bloomIntensity = 1.0f,
+            .bloomThreshold = 0.04f,
+        };
 
         return true;
     }
@@ -1006,6 +1270,27 @@ namespace Vultron
 
         VK_CHECK(vkCreateSampler(m_context.GetDevice(), &cubemapSamplerInfo, nullptr, &m_cubemapSampler));
 
+        // Bloom sampler
+        VkSamplerCreateInfo bloomSamplerInfo{};
+        bloomSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        bloomSamplerInfo.magFilter = VK_FILTER_LINEAR;
+        bloomSamplerInfo.minFilter = VK_FILTER_LINEAR;
+        bloomSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        bloomSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        bloomSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        bloomSamplerInfo.anisotropyEnable = VK_FALSE;
+        bloomSamplerInfo.maxAnisotropy = 1.0f;
+        bloomSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        bloomSamplerInfo.unnormalizedCoordinates = VK_FALSE;
+        bloomSamplerInfo.compareEnable = VK_FALSE;
+        bloomSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        bloomSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        bloomSamplerInfo.mipLodBias = 0.0f;
+        bloomSamplerInfo.minLod = 0.0f;
+        bloomSamplerInfo.maxLod = 0.25f;
+
+        VK_CHECK(vkCreateSampler(m_context.GetDevice(), &bloomSamplerInfo, nullptr, &m_bloomSampler));
+
         return true;
     }
 
@@ -1109,11 +1394,12 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 3> poolSizes = {
+        std::array<VkDescriptorPoolSize, 4> poolSizes = {
             {
                 {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, c_maxUniformBuffers},
                 {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, c_maxStorageBuffers},
                 {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, c_maxCombinedImageSamplers},
+                {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, c_maxStorageImages},
             }};
 
         VkDescriptorPoolCreateInfo poolInfo{};
@@ -1353,6 +1639,27 @@ namespace Vultron
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
                 });
+
+            m_frames[i].compositeDescriptorSet = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(),
+                m_descriptorPool,
+                m_compositeSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_sceneImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_bloomMipChain[0].GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                });
         }
 
         return true;
@@ -1558,7 +1865,7 @@ namespace Vultron
 
         // vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
         // vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        // vkDestroyRenderPass(m_context.GetDevice(), m_renderPass.GetRenderPass(), nullptr);
+        // vkDestroyRenderPass(m_context.GetDevice(), m_scenePass.GetRenderPass(), nullptr);
 
         // for (auto imageView : m_swapChainImageViews)
         // {
@@ -1887,8 +2194,8 @@ namespace Vultron
         { // Render pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = m_renderPass.GetRenderPass();
-            renderPassInfo.framebuffer = m_swapchain.GetFramebuffer(imageIndex);
+            renderPassInfo.renderPass = m_scenePass.GetRenderPass();
+            renderPassInfo.framebuffer = m_sceneFramebuffer;
 
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
@@ -1920,11 +2227,92 @@ namespace Vultron
             ClearDepthBuffer(commandBuffer, viewportSize);
 
             DrawLines(commandBuffer, {frame.skyboxDescriptorSet}, frame.lineVertexBuffer, static_cast<uint32_t>(renderData.lines.size()), viewportSize);
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
+
+        { // Bloom pass using compute shaders
+            WriteBloomDownsampleCommands(commandBuffer);
+            WriteBloomUpsampleCommands(commandBuffer);
+
+            // Transition the scene image to shader read only
+            VkUtil::TransitionImageLayout(
+                m_context.GetDevice(),
+                commandBuffer,
+                m_context.GetGraphicsQueue(),
+                m_sceneImage.GetImage(),
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+            // Transition the first mip level of the bloom mip chain to shader read only
+            VkUtil::TransitionImageLayout(
+                m_context.GetDevice(),
+                commandBuffer,
+                m_context.GetGraphicsQueue(),
+                m_bloomMipChain[0].GetImage(),
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+
+        { // Composite pass
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = m_compositePass.GetRenderPass();
+            renderPassInfo.framebuffer = m_swapchain.GetFramebuffer(imageIndex);
+
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
+            glm::uvec2 viewportSize = {m_swapchain.GetExtent().width, m_swapchain.GetExtent().height};
+
+            std::array<VkClearValue, 1> clearValues{};
+            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
+
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipeline());
+
+                VkViewport viewport{};
+                viewport.x = 0.0f;
+                viewport.y = 0.0f;
+                viewport.width = (float)viewportSize.x;
+                viewport.height = (float)viewportSize.y;
+
+                VkRect2D scissor{};
+                scissor.offset = {0, 0};
+                scissor.extent = {viewportSize.x, viewportSize.y};
+
+                vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+                vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+                VkDescriptorSet descriptorSets[] = {frame.compositeDescriptorSet};
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
+
+                vkCmdPushConstants(commandBuffer, m_compositePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BloomSettings), &m_bloomSettings);
+
+                vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            }
+
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_spritePipeline, renderData.spriteBatches, viewportSize);
             DrawWithPipeline<VulkanQuadMesh>(commandBuffer, {frame.spriteDescriptorSet}, m_sdfPipeline, renderData.sdfBatches, viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
         }
+
+        // Transition back the bloom top mip level to general
+        VkUtil::TransitionImageLayout(
+            m_context.GetDevice(),
+            commandBuffer,
+            m_context.GetGraphicsQueue(),
+            m_bloomMipChain[0].GetImage(),
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL);
 
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
@@ -2117,6 +2505,60 @@ namespace Vultron
         vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
+    }
+
+    void VulkanRenderer::WriteBloomDownsampleCommands(VkCommandBuffer commandBuffer)
+    {
+        for (uint32_t i = 0; i < m_bloomDownsampleSets.size(); i++)
+        {
+            VkDescriptorSet descriptorSet = m_bloomDownsampleSets[i];
+
+            const VulkanImage &targetImage = m_bloomMipChain[i];
+            const ImageInfo &targetImageInfo = targetImage.GetInfo();
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_bloomDownsamplePipeline.GetPipeline());
+            vkCmdPushConstants(commandBuffer, m_bloomDownsamplePipeline.GetPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &i);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_bloomDownsamplePipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdDispatch(commandBuffer, targetImageInfo.width, targetImageInfo.height, 1);
+
+            // Barrier for bloom mip chain
+            VkUtil::TransitionImageLayout(
+                m_context.GetDevice(),
+                commandBuffer,
+                m_context.GetGraphicsQueue(),
+                targetImage.GetImage(),
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_GENERAL);
+        }
+    }
+
+    void VulkanRenderer::WriteBloomUpsampleCommands(VkCommandBuffer commandBuffer)
+    {
+        const float filterRadius = 0.005f * 2.0f;
+
+        for (uint32_t i = 0; i < m_bloomUpsampleSets.size(); i++)
+        {
+            VkDescriptorSet descriptorSet = m_bloomUpsampleSets[i];
+
+            const VulkanImage &targetImage = m_bloomMipChain[m_bloomMipChain.size() - i - 2];
+            const ImageInfo &targetImageInfo = targetImage.GetInfo();
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_bloomUpsamplePipeline.GetPipeline());
+            vkCmdPushConstants(commandBuffer, m_bloomUpsamplePipeline.GetPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &filterRadius);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_bloomUpsamplePipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdDispatch(commandBuffer, targetImageInfo.width, targetImageInfo.height, 1);
+
+            // Barrier for bloom mip chain
+            VkUtil::TransitionImageLayout(
+                m_context.GetDevice(),
+                commandBuffer,
+                m_context.GetGraphicsQueue(),
+                targetImage.GetImage(),
+                VK_FORMAT_R16G16B16A16_SFLOAT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_GENERAL);
+        }
     }
 
     void VulkanRenderer::ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize)
@@ -2318,10 +2760,16 @@ namespace Vultron
         vkDestroySampler(m_context.GetDevice(), m_textureSampler, nullptr);
         vkDestroySampler(m_context.GetDevice(), m_shadowSampler, nullptr);
         vkDestroySampler(m_context.GetDevice(), m_cubemapSampler, nullptr);
+        vkDestroySampler(m_context.GetDevice(), m_bloomSampler, nullptr);
 
         m_depthImage.Destroy(m_context);
         m_shadowMap.Destroy(m_context);
         m_brdfLUT.Destroy(m_context);
+        m_sceneImage.Destroy(m_context);
+        for (auto &mip : m_bloomMipChain)
+        {
+            mip.Destroy(m_context);
+        }
         m_resourcePool.Destroy(m_context);
         m_staticVertexShader.Destroy(m_context);
         m_skeletalVertexShader.Destroy(m_context);
@@ -2341,6 +2789,10 @@ namespace Vultron
         m_particleVertexShader.Destroy(m_context);
         m_lineVertexShader.Destroy(m_context);
         m_lineFragmentShader.Destroy(m_context);
+        m_bloomDownsampleShader.Destroy(m_context);
+        m_bloomUpsampleShader.Destroy(m_context);
+        m_compositeVertexShader.Destroy(m_context);
+        m_compositeFragmentShader.Destroy(m_context);
 
         vkDestroyCommandPool(m_context.GetDevice(), m_commandPool, nullptr);
         vkDestroyCommandPool(m_context.GetDevice(), m_transferCommandPool, nullptr);
@@ -2352,6 +2804,8 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_environmentSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_particleSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_bloomSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_compositeSetLayout, nullptr);
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
@@ -2371,11 +2825,16 @@ namespace Vultron
         m_particleUpdatePipeline.Destroy(m_context);
         m_particleSortPipeline.Destroy(m_context);
         m_linePipeline.Destroy(m_context);
+        m_bloomDownsamplePipeline.Destroy(m_context);
+        m_bloomUpsamplePipeline.Destroy(m_context);
+        m_compositePipeline.Destroy(m_context);
 
-        m_renderPass.Destroy(m_context);
+        m_scenePass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);
+        m_compositePass.Destroy(m_context);
 
         vkDestroyFramebuffer(m_context.GetDevice(), m_shadowFramebuffer, nullptr);
+        vkDestroyFramebuffer(m_context.GetDevice(), m_sceneFramebuffer, nullptr);
 
         m_swapchain.Destroy(m_context);
 

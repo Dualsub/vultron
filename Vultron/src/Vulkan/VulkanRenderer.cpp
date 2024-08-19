@@ -1900,6 +1900,28 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, static_cast<uint32_t>(renderData.skeletalInstances.size()), 1, 1);
         }
 
+        // Barrier for Skeletal Animation Output Buffer: frame.boneOutputBuffer
+        {
+            VkBufferMemoryBarrier bufferBarrier = {};
+            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.buffer = frame.boneOutputBuffer.GetBuffer();
+            bufferBarrier.offset = 0;
+            bufferBarrier.size = VK_WHOLE_SIZE;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                0, nullptr,
+                1, &bufferBarrier,
+                0, nullptr);
+        }
+
         // Clear count of particles
         {
             vkCmdFillBuffer(commandBuffer, frame.particleInstanceBuffer.GetBuffer(), 0, sizeof(ParticleInstanceData), 0);
@@ -2600,6 +2622,26 @@ namespace Vultron
         // Compute
         vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
 
+        vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
+
+        vkResetCommandBuffer(frame.computeCommandBuffer, 0);
+        WriteComputeCommands(frame.computeCommandBuffer, renderData);
+
+        VkSubmitInfo computeSubmitInfo{};
+        computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        computeSubmitInfo.commandBufferCount = 1;
+        computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
+        computeSubmitInfo.signalSemaphoreCount = 1;
+        computeSubmitInfo.pSignalSemaphores = &frame.computeFinishedSemaphore;
+
+        VK_CHECK(vkQueueSubmit(m_context.GetComputeQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
+
+        // Graphics
+        vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
+
+        m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
+
         // Uniform buffer
         UniformBufferData ubo = m_uniformBufferData;
         // Rortate forward vector to get view direction
@@ -2625,26 +2667,6 @@ namespace Vultron
         // Animation instance buffer
         const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
         frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
-
-        vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
-
-        vkResetCommandBuffer(frame.computeCommandBuffer, 0);
-        WriteComputeCommands(frame.computeCommandBuffer, renderData);
-
-        VkSubmitInfo computeSubmitInfo{};
-        computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-        computeSubmitInfo.commandBufferCount = 1;
-        computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
-        computeSubmitInfo.signalSemaphoreCount = 1;
-        computeSubmitInfo.pSignalSemaphores = &frame.computeFinishedSemaphore;
-
-        VK_CHECK(vkQueueSubmit(m_context.GetComputeQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
-
-        // Graphics
-        vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
-
-        m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
 
         // Static instance buffer
         const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();

@@ -254,7 +254,7 @@ namespace Vultron
 
         if (bones.size() > 0)
         {
-            m_boneBuffer.UploadStaged(m_context.GetDevice(), m_transferCommandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
+            m_boneBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), bones.data(), sizeof(bones[0]) * bones.size());
         }
 
         if (m_animationFrames.size() > c_maxAnimationFrames)
@@ -266,7 +266,7 @@ namespace Vultron
 
         if (m_animationFrames.size() > 0)
         {
-            m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_transferCommandPool, m_context.GetTransferQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
+            m_animationFrameBuffer.UploadStaged(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), m_context.GetAllocator(), m_animationFrames.data(), sizeof(m_animationFrames[0]) * m_animationFrames.size());
         }
     }
 
@@ -301,18 +301,18 @@ namespace Vultron
                         .srcSubpass = VK_SUBPASS_EXTERNAL,
                         .dstSubpass = 0,
                         .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                        .srcAccessMask = VK_ACCESS_NONE_KHR,
+                        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
                     },
                     {
                         .srcSubpass = 0,
                         .dstSubpass = VK_SUBPASS_EXTERNAL,
-                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
                         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
                     },
                 },
@@ -1891,7 +1891,13 @@ namespace Vultron
 
         const FrameData &frame = m_frames[m_currentFrameIndex];
 
-        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.boneOutputBuffer.GetBuffer(),
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // Skeletal Animation
         {
@@ -1900,54 +1906,36 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, static_cast<uint32_t>(renderData.skeletalInstances.size()), 1, 1);
         }
 
-        // Barrier for Skeletal Animation Output Buffer: frame.boneOutputBuffer
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = frame.boneOutputBuffer.GetBuffer();
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
+        // // Barrier that ensures the compute shader writes are finished before the vertex shader reads
+        VkUtil::BufferBarrier(
+            commandBuffer, 
+            frame.boneOutputBuffer.GetBuffer(), 
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
 
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleInstanceBuffer.GetBuffer(),
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         // Clear count of particles
         {
             vkCmdFillBuffer(commandBuffer, frame.particleInstanceBuffer.GetBuffer(), 0, sizeof(ParticleInstanceData), 0);
         }
 
-        // Barrier after clearing particle count
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = frame.particleInstanceBuffer.GetBuffer();
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
+        // Ensure the buffer is cleared before it is read
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleInstanceBuffer.GetBuffer(),
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // Particle Update
         {
@@ -1956,24 +1944,14 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, c_maxParticleInstances / 256, 1, 1);
         }
 
-        // TODO: Change this to a buffer barrier
-        // Barrier for Particle Update
-        {
-            VkMemoryBarrier memoryBarrier = {};
-            memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-            memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                1,
-                &memoryBarrier,
-                0, nullptr,
-                0, nullptr);
-        }
+        // Barrier to ensure update is finished before the new particles are added
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleInstanceBuffer.GetBuffer(),
+            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // Particle Emitters
         {
@@ -1982,24 +1960,14 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, static_cast<uint32_t>(renderData.particleEmitters.size()), 1, 1);
         }
 
-        // TODO: Change this to a buffer barrier
-        // Barrier for Particle Emitters
-        {
-            VkMemoryBarrier memoryBarrier = {};
-            memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-            memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                1,
-                &memoryBarrier,
-                0, nullptr,
-                0, nullptr);
-        }
+        // Ensure that the particle instances are updated before sorting
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleInstanceBuffer.GetBuffer(),
+            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // Particle Sort
         {
@@ -2008,27 +1976,22 @@ namespace Vultron
             SortBuffer(c_maxParticleInstances, commandBuffer, m_particleSortPipeline, frame.particleInstanceBuffer);
         }
 
-        // Barrier for particle instance buffer
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = frame.particleInstanceBuffer.GetBuffer();
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
+        // Ensure that the particle instances are sorted before copying the count to the draw command buffer
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleInstanceBuffer.GetBuffer(),
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_TRANSFER_READ_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleDrawCommandBuffer.GetBuffer(),
+            VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         // Copy the count from the buffer to the draw command buffer
         {
@@ -2041,50 +2004,13 @@ namespace Vultron
         }
 
         // Barrier for particleDrawCommandBuffer
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = frame.particleDrawCommandBuffer.GetBuffer();
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
-
-        // Barrier for particleInstanceBuffer
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = frame.particleInstanceBuffer.GetBuffer();
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
-
-        VK_CHECK(vkEndCommandBuffer(commandBuffer));
+        VkUtil::BufferBarrier(
+            commandBuffer,
+            frame.particleDrawCommandBuffer.GetBuffer(),
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
     }
 
     enum class SortAlgorithmPart : uint32_t
@@ -2100,28 +2026,13 @@ namespace Vultron
     {
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushBlock), &pushBlock);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
-
-        // Barrier for buffer
-        {
-            VkBufferMemoryBarrier bufferBarrier = {};
-            bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-            bufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-            bufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.buffer = buffer;
-            bufferBarrier.offset = 0;
-            bufferBarrier.size = VK_WHOLE_SIZE;
-
-            vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                0, nullptr,
-                1, &bufferBarrier,
-                0, nullptr);
-        }
+        VkUtil::BufferBarrier(
+            commandBuffer, 
+            buffer, 
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     }
 
     void VulkanRenderer::SortBuffer(uint32_t n, VkCommandBuffer commandBuffer, const VulkanComputePipeline &pipeline, const VulkanBuffer &buffer)
@@ -2179,15 +2090,8 @@ namespace Vultron
 
     void VulkanRenderer::WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData)
     {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0;                  // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-
         const FrameData &frame = m_frames[m_currentFrameIndex];
-
-        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-
+        
         { // Shadow pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -2335,8 +2239,6 @@ namespace Vultron
             VK_FORMAT_R16G16B16A16_SFLOAT,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             VK_IMAGE_LAYOUT_GENERAL);
-
-        VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
     template <typename MeshType>
@@ -2544,14 +2446,18 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, targetImageInfo.width, targetImageInfo.height, 1);
 
             // Barrier for bloom mip chain
-            VkUtil::TransitionImageLayout(
-                m_context.GetDevice(),
+            VkUtil::ImageBarrier(
                 commandBuffer,
-                m_context.GetGraphicsQueue(),
-                targetImage.GetImage(),
-                VK_FORMAT_R16G16B16A16_SFLOAT,
-                VK_IMAGE_LAYOUT_GENERAL,
-                VK_IMAGE_LAYOUT_GENERAL);
+                targetImage,
+                {
+                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                });
+                
         }
     }
 
@@ -2572,14 +2478,17 @@ namespace Vultron
             vkCmdDispatch(commandBuffer, targetImageInfo.width, targetImageInfo.height, 1);
 
             // Barrier for bloom mip chain
-            VkUtil::TransitionImageLayout(
-                m_context.GetDevice(),
+            VkUtil::ImageBarrier(
                 commandBuffer,
-                m_context.GetGraphicsQueue(),
-                targetImage.GetImage(),
-                VK_FORMAT_R16G16B16A16_SFLOAT,
-                VK_IMAGE_LAYOUT_GENERAL,
-                VK_IMAGE_LAYOUT_GENERAL);
+                targetImage,
+                {
+                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                });
         }
     }
 
@@ -2610,8 +2519,8 @@ namespace Vultron
         const uint32_t currentFrameIndex = m_currentFrameIndex;
         const FrameData &frame = m_frames[currentFrameIndex];
 
-        std::vector<VkSemaphore> renderWaitSemaphores = {frame.imageAvailableSemaphore, frame.computeFinishedSemaphore};
-        std::vector<VkPipelineStageFlags> renderWaitStages = {VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
+        std::vector<VkSemaphore> renderWaitSemaphores = {};
+        std::vector<VkPipelineStageFlags> renderWaitStages = {};
         uint32_t imageTransitionCount = ProcessImageTransitions(frame.transferCommandBuffer, frame.transferFence, frame.imageTransitionFinishedSemaphores);
         for (uint32_t i = 0; i < imageTransitionCount; i++)
         {
@@ -2619,70 +2528,33 @@ namespace Vultron
             renderWaitStages.push_back(VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
 
-        // Compute
-        vkWaitForFences(m_context.GetDevice(), 1, &frame.computeInFlightFence, VK_TRUE, timeout);
-
-        vkResetFences(m_context.GetDevice(), 1, &frame.computeInFlightFence);
-
-        vkResetCommandBuffer(frame.computeCommandBuffer, 0);
-        WriteComputeCommands(frame.computeCommandBuffer, renderData);
-
-        VkSubmitInfo computeSubmitInfo{};
-        computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-        computeSubmitInfo.commandBufferCount = 1;
-        computeSubmitInfo.pCommandBuffers = &frame.computeCommandBuffer;
-        computeSubmitInfo.signalSemaphoreCount = 1;
-        computeSubmitInfo.pSignalSemaphores = &frame.computeFinishedSemaphore;
-
-        VK_CHECK(vkQueueSubmit(m_context.GetComputeQueue(), 1, &computeSubmitInfo, frame.computeInFlightFence));
-
-        // Graphics
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
 
         m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
+        
+        {
+            // Uniform buffer
+            UniformBufferData ubo = m_uniformBufferData;
+            const glm::vec3 viewPos = m_camera.position;
+            const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+            ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
+            ubo.viewPos = viewPos;
+            ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
+            static std::random_device rd;
+            static std::mt19937 gen(rd());
+            static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+            ubo.random = dis(gen);
+            ubo.pointLights = renderData.pointLights;
+            m_uniformBufferData = ubo;
 
-        // Uniform buffer
-        UniformBufferData ubo = m_uniformBufferData;
-        // Rortate forward vector to get view direction
-        const glm::vec3 viewPos = m_camera.position;
-        const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
-        ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.viewPos = viewPos;
-        ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
-        ubo.random = dis(gen);
-        ubo.pointLights = renderData.pointLights;
-
-        m_uniformBufferData = ubo;
-
-        frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
-
-        // Skeletal instance buffer
-        const size_t skeletalSize = sizeof(SkeletalInstanceData) * renderData.skeletalInstances.size();
-        frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), skeletalSize);
-
-        // Animation instance buffer
-        const size_t animationSize = sizeof(AnimationInstanceData) * renderData.animationInstances.size();
-        frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), animationSize);
-
-        // Static instance buffer
-        const size_t size = sizeof(StaticInstanceData) * renderData.staticInstances.size();
-        frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), size);
-
-        // Sprite instance buffer
-        const size_t spriteSize = sizeof(SpriteInstanceData) * renderData.spriteInstances.size();
-        frame.spriteInstanceBuffer.CopyData(renderData.spriteInstances.data(), spriteSize);
-
-        // Particle emitter buffer
-        const size_t emitterSize = sizeof(ParticleEmitterData) * renderData.particleEmitters.size();
-        frame.particleEmitterBuffer.CopyData(renderData.particleEmitters.data(), emitterSize);
-
-        // Line vertex buffer
-        const size_t lineSize = sizeof(LineData) * renderData.lines.size();
-        frame.lineVertexBuffer.CopyData(renderData.lines.data(), lineSize);
+            frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
+            frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), renderData.skeletalInstances.size() * sizeof(SkeletalInstanceData));
+            frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), renderData.animationInstances.size() * sizeof(AnimationInstanceData));
+            frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), renderData.staticInstances.size() * sizeof(StaticInstanceData));
+            frame.spriteInstanceBuffer.CopyData(renderData.spriteInstances.data(), renderData.spriteInstances.size() * sizeof(SpriteInstanceData));
+            frame.lineVertexBuffer.CopyData(renderData.lines.data(), (glm::min)(renderData.lines.size(), static_cast<size_t>(c_maxLines)) * sizeof(LineData));
+            frame.particleEmitterBuffer.CopyData(renderData.particleEmitters.data(), renderData.particleEmitters.size() * sizeof(ParticleEmitterData));
+        }
 
         uint32_t imageIndex;
         VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
@@ -2690,10 +2562,19 @@ namespace Vultron
         vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
 
         vkResetCommandBuffer(frame.commandBuffer, 0);
+        constexpr VkCommandBufferBeginInfo c_beginInfo{.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        VK_CHECK(vkBeginCommandBuffer(frame.commandBuffer, &c_beginInfo));
+
+        WriteComputeCommands(frame.commandBuffer, renderData);
         WriteGraphicsCommands(frame.commandBuffer, imageIndex, renderData);
+
+        VK_CHECK(vkEndCommandBuffer(frame.commandBuffer));
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        renderWaitSemaphores.push_back(frame.imageAvailableSemaphore);
+        renderWaitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
         submitInfo.waitSemaphoreCount = static_cast<uint32_t>(renderWaitSemaphores.size());
         submitInfo.pWaitSemaphores = renderWaitSemaphores.data();
@@ -2831,8 +2712,6 @@ namespace Vultron
 
         m_boneBuffer.Destroy(m_context.GetAllocator());
         m_animationFrameBuffer.Destroy(m_context.GetAllocator());
-        m_animationInstanceBuffer.Destroy(m_context.GetAllocator());
-        m_skeletalInstanceBuffer.Destroy(m_context.GetAllocator());
 
         m_staticPipeline.Destroy(m_context);
         m_skeletalPipeline.Destroy(m_context);

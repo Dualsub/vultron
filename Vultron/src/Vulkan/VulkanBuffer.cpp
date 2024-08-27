@@ -15,10 +15,11 @@ namespace Vultron
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = createInfo.size;
         bufferInfo.usage = createInfo.usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        bufferInfo.sharingMode = createInfo.sharingMode;
 
         VmaAllocationCreateInfo allocInfo = {};
         allocInfo.usage = createInfo.allocationUsage;
+        allocInfo.requiredFlags = createInfo.requiredFlags;
 
         VkBuffer buffer;
         VmaAllocation allocation;

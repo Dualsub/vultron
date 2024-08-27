@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Vultron/Vulkan/VulkanTypes.h"
+#include "Vultron/Vulkan/VulkanImage.h"
 
 #include <vulkan/vulkan.h>
 
@@ -55,6 +56,21 @@ namespace Vultron::VkUtil
     void TransitionImageLayout(VkDevice device, VkCommandBuffer commandBuffer, const ImageTransition &transition);
     void TransitionImageLayout(VkDevice device, VkCommandBuffer commandBuffer, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1, uint32_t layers = 1);
     size_t GetAlignedSize(size_t offset, size_t alignment);
+
+    void BufferBarrier(VkCommandBuffer commandBuffer, VkBuffer buffer, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
+    
+    struct ImageBarrierInfo
+    {
+        VkImageLayout oldLayout;
+        VkImageLayout newLayout;
+        VkAccessFlags srcAccessMask;
+        VkAccessFlags dstAccessMask;
+        VkPipelineStageFlags srcStageMask;
+        VkPipelineStageFlags dstStageMask;
+        VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    };
+
+    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage& image, const ImageBarrierInfo &info);
 
     VkDescriptorType GetDescriptorType(DescriptorType type);
 }

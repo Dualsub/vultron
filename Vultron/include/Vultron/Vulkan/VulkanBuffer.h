@@ -36,6 +36,8 @@ namespace Vultron
             VkBufferUsageFlags usage = 0;
             size_t size = 0;
             VmaMemoryUsage allocationUsage = VMA_MEMORY_USAGE_AUTO;
+            VkSharingMode sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            VkMemoryPropertyFlags requiredFlags = 0;
         };
         static Ptr<VulkanBuffer> CreatePtr(const BufferCreateInfo &createInfo);
         static VulkanBuffer Create(const BufferCreateInfo &createInfo);
@@ -66,6 +68,7 @@ namespace Vultron
         void CopyData(T *data, size_t size, size_t offset = 0) const
         {
             assert(mapped != nullptr && "Buffer is not mapped.");
+            assert(size + offset <= m_size && "Data size exceeds buffer size.");
             std::memcpy(mapped, data, size);
         }
 

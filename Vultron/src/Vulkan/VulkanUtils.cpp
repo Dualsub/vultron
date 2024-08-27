@@ -245,6 +245,43 @@ namespace Vultron::VkUtil
         return (offset + alignment - 1) & ~(alignment - 1);
     }
 
+    void BufferBarrier(VkCommandBuffer commandBuffer, VkBuffer buffer, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDeviceSize offset, VkDeviceSize size)
+    {
+        VkBufferMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.srcAccessMask = srcAccessMask;
+        barrier.dstAccessMask = dstAccessMask;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = buffer;
+        barrier.offset = offset;
+        barrier.size = size;
+
+        vkCmdPipelineBarrier(commandBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+    }
+
+    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage& image, const ImageBarrierInfo &info)
+    {
+        const ImageInfo& imageInfo = image.GetInfo(); 
+
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = info.oldLayout;
+        barrier.newLayout = info.newLayout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image.GetImage();
+        barrier.subresourceRange.aspectMask = info.aspectMask;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = imageInfo.mipLevels;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = imageInfo.layers;
+        barrier.srcAccessMask = info.srcAccessMask;
+        barrier.dstAccessMask = info.dstAccessMask;
+
+        vkCmdPipelineBarrier(commandBuffer, info.srcStageMask, info.dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
     VkDescriptorType GetDescriptorType(DescriptorType type)
     {
         switch (type)

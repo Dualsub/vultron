@@ -488,9 +488,6 @@ namespace Vultron
         VulkanBuffer m_boneBuffer;
         std::vector<AnimationFrame> m_animationFrames;
         VulkanBuffer m_animationFrameBuffer;
-        // -- GPU to CPU resources
-        VulkanBuffer m_skeletalInstanceBuffer;
-        VulkanBuffer m_animationInstanceBuffer;
 
         // Sprite pipeline
         VulkanMaterialPipeline m_spritePipeline;

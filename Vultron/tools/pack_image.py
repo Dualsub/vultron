@@ -16,9 +16,8 @@ def resize_opencv(image, size):
 def resize_skimage(image, size):
     return transform.resize(image, size, anti_aliasing=True)
 
-def generate_mipmaps(image, mips):
-    mipmaps = [image]
-    resize_func = resize_pil if image.dtype == np.uint8 else resize_skimage 
+def generate_mipmaps(image, mips, resize_func):
+    mipmaps = [image] 
     for _ in range(1, mips):
         mip_width = mipmaps[-1].shape[1] // 2
         mip_height = mipmaps[-1].shape[0] // 2
@@ -35,7 +34,7 @@ class ImageTypes:
     Texture2D = 0
     Cubemap = 1
 
-def pack_image(image_files, output_file, mips, flip, flip_horizontal, invert, cubemap):
+def pack_image(image_files, output_file, resize, mips, flip, flip_horizontal, invert, cubemap):
     
     inputs = [*image_files]
     
@@ -61,7 +60,13 @@ def pack_image(image_files, output_file, mips, flip, flip_horizontal, invert, cu
         except Exception:
             image = np.array(Image.open(input))
 
+        resize_func = resize_pil if image.dtype == np.uint8 else resize_skimage
+
         height, width, channels = image.shape
+        if resize:
+            print(f"Resizing image to {resize[0]}x{resize[1]}")
+            image = resize_func(image, resize)
+            height, width, channels = image.shape
 
         print(f"Loaded image with dimensions {width}x{height} and {channels} channels, type: {image.dtype}")
         
@@ -94,7 +99,7 @@ def pack_image(image_files, output_file, mips, flip, flip_horizontal, invert, cu
                 np.floor(np.log2(min(width, height))) + 1)
 
         assert channels > 0, "Unsupported image format: 0 channels"
-        mipmaps = generate_mipmaps(image, mipmapLevels)
+        mipmaps = generate_mipmaps(image, mipmapLevels, resize_func)
         layers.append(mipmaps)
 
     # Assert that all images have the same dimensions and same number of mipmaps
@@ -156,6 +161,8 @@ def main():
     parser.add_argument(
         "-m", "--mips", help="The number of mipmap levels to generate", default=-1, type=int)
     parser.add_argument(
+        "-r", "--resize", help="Resize the image to the specified dimensions", nargs=2, type=int)
+    parser.add_argument(
         "-f", "--flip", help="Flip the image vertically", action="store_true")
     parser.add_argument(
         "-fh", "--flip_horizontal", help="Flip the image horizontally", action="store_true")
@@ -174,9 +181,9 @@ def main():
         sides = ["px", "nx", "py", "ny", "pz", "nz"]
         base_path = args.input[0]
         paths = [base_path.replace("*", side) for side in sides]
-        pack_image(paths, args.output, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+        pack_image(paths, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
     else:
-        pack_image(args.input, args.output, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+        pack_image(args.input, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
 
 if __name__ == "__main__":
     main()

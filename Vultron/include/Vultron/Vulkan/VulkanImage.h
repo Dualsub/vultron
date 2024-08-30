@@ -69,12 +69,14 @@ namespace Vultron
         friend class VulkanFontAtlas;
 
     private:
+        inline static size_t s_memoryUsage = 0;
+
         VkImage m_image{VK_NULL_HANDLE};
         VkImageView m_imageView{VK_NULL_HANDLE};
         VmaAllocation m_allocation{VK_NULL_HANDLE};
         ImageInfo m_info{};
 
-        static std::vector<MipInfo> ReadMipsFromFile(std::fstream &file, uint32_t width, uint32_t height, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel);
+        static std::vector<MipInfo> ReadMipsFromFile(std::fstream &file, uint32_t width, uint32_t height, uint32_t startMip, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel);
 
     public:
         VulkanImage(VkImage image, VkImageView imageView, VmaAllocation allocation, const ImageInfo &info)
@@ -99,6 +101,7 @@ namespace Vultron
         {
             ImageType type = ImageType::None;
             VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+            bool useAllMips = false;
             const std::string &filepath;
             ImageTransitionQueue *imageTransitionQueue = nullptr;
         };
@@ -117,5 +120,7 @@ namespace Vultron
         const ImageInfo &GetInfo() const { return m_info; }
 
         static void SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
+    
+        static size_t GetMemoryUsage() { return s_memoryUsage; }
     };
 }

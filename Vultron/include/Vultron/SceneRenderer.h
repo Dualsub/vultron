@@ -111,7 +111,7 @@ namespace Vultron
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);
         RenderHandle LoadSkeletalMesh(const std::string &path);
-        RenderHandle LoadImage(const std::string &path, ImageType type = ImageType::None);
+        RenderHandle LoadImage(const std::string &path, ImageType type = ImageType::None, bool useAllMips = false);
         RenderHandle LoadFontAtlas(const std::string &path);
         RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
         RenderHandle LoadAnimation(const std::string &path);
@@ -141,6 +141,8 @@ namespace Vultron
         }
 
         void Destroy(const RenderHandle &handle) { m_backend.Destroy(handle); }
+
+        size_t GetImageMemoryUsage() const { return m_backend.GetImageMemoryUsage(); }
     };
 
 }

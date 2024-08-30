@@ -670,7 +670,7 @@ namespace Vultron
         RenderHandle LoadQuad(const std::string &name);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
-        RenderHandle LoadImage(const std::string &filepath, ImageType type = ImageType::None);
+        RenderHandle LoadImage(const std::string &filepath, ImageType type = ImageType::None, bool useAllMips = false);
         RenderHandle LoadFontAtlas(const std::string &filepath);
         RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
 
@@ -729,5 +729,10 @@ namespace Vultron
         }
 
         void Destroy(RenderHandle id) { m_resourcePool.AddToDeletionQueue(id, (m_currentFrameIndex + 1) % c_frameOverlap); }
+
+        size_t GetImageMemoryUsage() const
+        {
+            return VulkanImage::GetMemoryUsage();
+        }
     };
 }

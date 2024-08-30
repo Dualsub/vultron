@@ -2794,12 +2794,13 @@ namespace Vultron
         return m_resourcePool.AddAnimation(filepath, VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
-    RenderHandle VulkanRenderer::LoadImage(const std::string &filepath, ImageType type)
+    RenderHandle VulkanRenderer::LoadImage(const std::string &filepath, ImageType type, bool useAllMips)
     {
         VulkanImage image = VulkanImage::CreateFromFile(
             m_context, m_transferCommandPool,
             {
                 .type = type,
+                .useAllMips = useAllMips,
                 .filepath = filepath,
                 .imageTransitionQueue = &m_imageTransitionQueue,
             });

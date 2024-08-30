@@ -589,9 +589,10 @@ namespace Vultron
         return m_backend.LoadSkeletalMesh(path);
     }
 
-    RenderHandle SceneRenderer::LoadImage(const std::string &path, ImageType type)
+    // Bool for ensuring bigger mip levels are loaded, despite the performance hit
+    RenderHandle SceneRenderer::LoadImage(const std::string &path, ImageType type, bool useAllMips)
     {
-        return m_backend.LoadImage(path, type);
+        return m_backend.LoadImage(path, type, useAllMips);
     }
 
     RenderHandle SceneRenderer::LoadFontAtlas(const std::string &path)

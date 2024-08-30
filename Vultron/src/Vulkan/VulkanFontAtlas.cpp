@@ -28,7 +28,7 @@ namespace Vultron
 
         file.read(reinterpret_cast<char *>(&header), sizeof(header));
 
-        std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.width, header.height, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
+        std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.width, header.height, 0, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
         std::vector<std::vector<MipInfo>> layers;
         layers.push_back(std::move(mips));
 

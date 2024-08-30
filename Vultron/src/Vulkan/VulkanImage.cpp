@@ -14,12 +14,19 @@
 
 namespace Vultron
 {
-    std::vector<MipInfo> VulkanImage::ReadMipsFromFile(std::fstream &file, uint32_t width, uint32_t height, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel)
+    std::vector<MipInfo> VulkanImage::ReadMipsFromFile(std::fstream &file, uint32_t width, uint32_t height, uint32_t startMip, uint32_t numMipLevels, uint32_t numChannels, uint32_t numBytesPerChannel)
     {
         std::vector<MipInfo> mips;
         mips.reserve(numMipLevels);
 
-        for (int32_t i = 0; i < numMipLevels; i++)
+        for (uint32_t i = 0; i < startMip; i++)
+        {
+            uint32_t mipWidth = width >> i;
+            uint32_t mipHeight = height >> i;
+            file.seekg(mipWidth * mipHeight * numChannels * numBytesPerChannel, std::ios::cur);
+        }
+
+        for (int32_t i = startMip; i < numMipLevels; i++)
         {
             uint32_t mipWidth = width >> i;
             uint32_t mipHeight = height >> i;
@@ -143,15 +150,18 @@ namespace Vultron
                 format = VK_FORMAT_R16G16_SFLOAT;
         }
 
+        const uint32_t targetStartMip = 2u;
+        // Make sure that the target start mip is not greater than the number of mips in the image.
+        const uint32_t startMip = std::min(createInfo.useAllMips ? 0 : targetStartMip, header.numMipLevels - 1);
         VulkanImage image = VulkanImage::Create(
             context,
             {
                 .info = {
-                    .width = static_cast<uint32_t>(header.width),
-                    .height = static_cast<uint32_t>(header.height),
-                    .mipLevels = static_cast<uint32_t>(header.numMipLevels),
+                    .width = header.width >> startMip,
+                    .height = header.height >> startMip,
+                    .mipLevels = header.numMipLevels - startMip,
                     .format = format,
-                    .layers = static_cast<uint32_t>(header.numLayers),
+                    .layers = header.numLayers,
                 },
                 .type = createInfo.type == ImageType::None ? header.type : createInfo.type,
             });
@@ -160,13 +170,15 @@ namespace Vultron
         layers.reserve(header.numLayers);
         for (uint32_t i = 0; i < header.numLayers; i++)
         {
-            std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.width, header.height, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
+            std::vector<MipInfo> mips = VulkanImage::ReadMipsFromFile(file, header.width, header.height, startMip, header.numMipLevels, header.numChannels, header.numBytesPerChannel);
             layers.push_back(std::move(mips));
         }
 
         image.UploadData(context, commandPool, createInfo.imageTransitionQueue, header.numBytesPerChannel * header.numChannels, layers);
 
         file.close();
+
+        s_memoryUsage += ((header.width * header.height) >> startMip) * header.numChannels * header.numBytesPerChannel * (header.numLayers - startMip) * 2.0f * (1.0f - std::pow(0.5f, header.numMipLevels));
 
         return image;
     }

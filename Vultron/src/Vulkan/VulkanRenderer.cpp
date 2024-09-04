@@ -640,6 +640,13 @@ namespace Vultron
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
                 },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .offset = 0,
+                        .size = sizeof(glm::uvec2),
+                    },
+                },
                 .vertexDescription = SpriteVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::Always,
@@ -1908,8 +1915,8 @@ namespace Vultron
 
         // // Barrier that ensures the compute shader writes are finished before the vertex shader reads
         VkUtil::BufferBarrier(
-            commandBuffer, 
-            frame.boneOutputBuffer.GetBuffer(), 
+            commandBuffer,
+            frame.boneOutputBuffer.GetBuffer(),
             VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -2027,11 +2034,11 @@ namespace Vultron
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushBlock), &pushBlock);
         vkCmdDispatch(commandBuffer, workGroupCount, 1, 1);
         VkUtil::BufferBarrier(
-            commandBuffer, 
-            buffer, 
+            commandBuffer,
+            buffer,
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     }
 
@@ -2091,7 +2098,7 @@ namespace Vultron
     void VulkanRenderer::WriteGraphicsCommands(VkCommandBuffer commandBuffer, uint32_t imageIndex, const RenderData &renderData)
     {
         const FrameData &frame = m_frames[m_currentFrameIndex];
-        
+
         { // Shadow pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -2264,6 +2271,12 @@ namespace Vultron
         scissor.offset = {0, 0};
         scissor.extent = {viewportSize.x, viewportSize.y};
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        // A bit of a hack for now, but we need to pass the viewport size to the shader
+        if constexpr (std::is_same<MeshType, VulkanQuadMesh>::value)
+        {
+            vkCmdPushConstants(commandBuffer, pipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(viewportSize), &viewportSize);
+        }
 
         const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSets.size());
         for (uint32_t i = 0; i < numDescriptorSets; i++)
@@ -2457,7 +2470,6 @@ namespace Vultron
                     .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                     .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                 });
-                
         }
     }
 
@@ -2531,7 +2543,7 @@ namespace Vultron
         vkWaitForFences(m_context.GetDevice(), 1, &frame.inFlightFence, VK_TRUE, timeout);
 
         m_resourcePool.ProcessDeletionQueue(m_context, m_currentFrameIndex);
-        
+
         {
             // Uniform buffer
             UniformBufferData ubo = m_uniformBufferData;

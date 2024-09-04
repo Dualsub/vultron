@@ -269,8 +269,10 @@ namespace Vultron
         glm::vec2 texCoord;
         glm::vec2 texSize;
         glm::vec4 color;
+        glm::vec4 borderRadius;
         float rotation;
-        float _padding[3];
+        float zOrder;
+        float _padding[2];
     };
 
     static_assert(sizeof(SpriteInstanceData) % 16 == 0);
@@ -733,6 +735,11 @@ namespace Vultron
         size_t GetImageMemoryUsage() const
         {
             return VulkanImage::GetMemoryUsage();
+        }
+
+        size_t GetBufferMemoryUsage() const
+        {
+            return VulkanBuffer::GetMemoryUsage();
         }
     };
 }

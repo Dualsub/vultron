@@ -143,6 +143,8 @@ namespace Vultron
         void Destroy(const RenderHandle &handle) { m_backend.Destroy(handle); }
 
         size_t GetImageMemoryUsage() const { return m_backend.GetImageMemoryUsage(); }
+        size_t GetBufferMemoryUsage() const { return m_backend.GetBufferMemoryUsage(); }
+        size_t GetMemoryUsage() const { return m_backend.GetImageMemoryUsage() + m_backend.GetBufferMemoryUsage(); }
     };
 
 }

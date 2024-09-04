@@ -16,6 +16,8 @@ namespace Vultron
     class VulkanBuffer
     {
     private:
+        inline static size_t s_memoryUsage = 0;
+
         VkBuffer m_buffer{VK_NULL_HANDLE};
         VmaAllocation m_allocation{VK_NULL_HANDLE};
         size_t m_size = 0;
@@ -88,6 +90,8 @@ namespace Vultron
         size_t GetSize() const { return m_size; }
         VkBuffer GetBuffer() const { return m_buffer; }
         VmaAllocation GetAllocation() const { return m_allocation; }
+
+        static size_t GetMemoryUsage() { return s_memoryUsage; }
     };
 
 }

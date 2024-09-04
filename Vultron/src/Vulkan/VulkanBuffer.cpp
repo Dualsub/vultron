@@ -25,11 +25,15 @@ namespace Vultron
         VmaAllocation allocation;
         vmaCreateBuffer(createInfo.allocator, &bufferInfo, &allocInfo, &buffer, &allocation, nullptr);
 
+        s_memoryUsage += createInfo.size;
+
         return VulkanBuffer(buffer, allocation, createInfo.size);
     }
 
     void VulkanBuffer::Destroy(VmaAllocator allocator)
     {
         vmaDestroyBuffer(allocator, m_buffer, m_allocation);
+
+        s_memoryUsage -= m_size;
     }
 }

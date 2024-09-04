@@ -6,12 +6,14 @@ layout(location = 1) in vec2 inTexCoord;
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec4 fragClipCoord;
-
+layout(location = 3) out vec2 quadSize;
+layout(location = 4) out vec4 borderRadius;
 
 struct SpriteInstanceData {
     vec4 positionAndSize;
     vec4 texCoordAndSize;
     vec4 color;
+    vec4 borderRadius;
     float rotation;
 };
 
@@ -35,4 +37,6 @@ void main()
     fragClipCoord = vec4(texCoordAndSize.xy, texCoordAndSize.xy + texCoordAndSize.zw);
     fragTexCoord = texCoord;
     fragColor = instances[gl_InstanceIndex].color;
+    quadSize = size;
+    borderRadius = instances[gl_InstanceIndex].borderRadius;
 }

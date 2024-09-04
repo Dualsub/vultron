@@ -45,7 +45,6 @@ namespace Vultron
         VkSurfaceFormatKHR surfaceFormat = support.formats[0];
         for (const auto &availableFormat : support.formats)
         {
-            // HDR
             if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM)
             {
                 surfaceFormat = availableFormat;

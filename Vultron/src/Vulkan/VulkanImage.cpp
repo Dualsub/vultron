@@ -112,6 +112,39 @@ namespace Vultron
 
         VulkanImage outImage = VulkanImage(image, imageView, allocation, createInfo.info);
 
+        size_t numBytesPerPixel = 4;
+        switch (createInfo.info.format)
+        {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            numBytesPerPixel = 4;
+            break;
+        case VK_FORMAT_R32G32B32_SFLOAT:
+            numBytesPerPixel = 12;
+            break;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            numBytesPerPixel = 16;
+            break;
+        case VK_FORMAT_R32G32_SFLOAT:
+            numBytesPerPixel = 8;
+            break;
+        case VK_FORMAT_R16G16_SFLOAT:
+            numBytesPerPixel = 4;
+            break;
+        default:
+            break;
+        }
+
+        size_t memoryUsage = 0;
+        for (uint32_t i = 0; i < createInfo.info.mipLevels; i++)
+        {
+            uint32_t mipWidth = createInfo.info.width >> i;
+            uint32_t mipHeight = createInfo.info.height >> i;
+            memoryUsage += mipWidth * mipHeight * numBytesPerPixel * createInfo.info.layers;
+        }
+
+        outImage.m_memoryUsage = memoryUsage;
+        s_memoryUsage += memoryUsage;
+
         return outImage;
     }
 
@@ -177,8 +210,6 @@ namespace Vultron
         image.UploadData(context, commandPool, createInfo.imageTransitionQueue, header.numBytesPerChannel * header.numChannels, layers);
 
         file.close();
-
-        s_memoryUsage += ((header.width * header.height) >> startMip) * header.numChannels * header.numBytesPerChannel * (header.numLayers - startMip) * 2.0f * (1.0f - std::pow(0.5f, header.numMipLevels));
 
         return image;
     }
@@ -290,6 +321,8 @@ namespace Vultron
     {
         vkDestroyImageView(context.GetDevice(), m_imageView, nullptr);
         vmaDestroyImage(context.GetAllocator(), m_image, m_allocation);
+
+        s_memoryUsage -= m_memoryUsage;
     }
 
     void VulkanImage::SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath)

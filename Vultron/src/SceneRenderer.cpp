@@ -156,7 +156,9 @@ namespace Vultron
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
+            .borderRadius = job.borderRadius,
             .rotation = job.rotation,
+            .zOrder = job.zOrder,
         });
     }
 
@@ -295,6 +297,10 @@ namespace Vultron
                 .firstInstance = static_cast<uint32_t>(spriteInstances.size()),
                 .instanceCount = static_cast<uint32_t>(job.instances.size()),
             });
+
+            std::sort(job.instances.begin(), job.instances.end(), [](const SpriteInstanceData &a, const SpriteInstanceData &b)
+                      { return a.zOrder < b.zOrder; });
+
             spriteInstances.insert(spriteInstances.end(), job.instances.begin(), job.instances.end());
         }
 

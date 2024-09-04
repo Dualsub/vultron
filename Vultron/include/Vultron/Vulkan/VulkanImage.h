@@ -70,6 +70,7 @@ namespace Vultron
 
     private:
         inline static size_t s_memoryUsage = 0;
+        size_t m_memoryUsage = 0;
 
         VkImage m_image{VK_NULL_HANDLE};
         VkImageView m_imageView{VK_NULL_HANDLE};
@@ -120,7 +121,7 @@ namespace Vultron
         const ImageInfo &GetInfo() const { return m_info; }
 
         static void SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
-    
+
         static size_t GetMemoryUsage() { return s_memoryUsage; }
     };
 }

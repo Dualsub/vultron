@@ -236,11 +236,11 @@ namespace Vultron
 
         assert(families.graphicsFamily.has_value() && "No graphics family index.");
         assert(families.presentFamily.has_value() && "No present family index.");
-        assert(families.computeFamily.has_value() && "No compute family index.");
+        // assert(families.computeFamily.has_value() && "No compute family index.");
         assert(families.transferFamily.has_value() && "No transfer family index.");
 
         vkGetDeviceQueue(m_device, families.graphicsFamily.value(), 0, &m_graphicsQueue);
-        vkGetDeviceQueue(m_device, families.computeFamily.value(), 1, &m_computeQueue);
+        // vkGetDeviceQueue(m_device, families.computeFamily.value(), 0, &m_computeQueue);
         vkGetDeviceQueue(m_device, families.presentFamily.value(), 0, &m_presentQueue);
         vkGetDeviceQueue(m_device, families.transferFamily.value(), 0, &m_transferQueue);
 

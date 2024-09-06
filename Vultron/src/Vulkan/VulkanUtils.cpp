@@ -23,7 +23,7 @@ namespace Vultron::VkUtil
                 queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT &&
                 queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT &&
                 queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT &&
-                queueFamily.queueCount >= 2)
+                queueFamily.queueCount >= 1)
             {
                 families.graphicsFamily = i;
                 families.computeFamily = i;
@@ -260,9 +260,9 @@ namespace Vultron::VkUtil
         vkCmdPipelineBarrier(commandBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 1, &barrier, 0, nullptr);
     }
 
-    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage& image, const ImageBarrierInfo &info)
+    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage &image, const ImageBarrierInfo &info)
     {
-        const ImageInfo& imageInfo = image.GetInfo(); 
+        const ImageInfo &imageInfo = image.GetInfo();
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

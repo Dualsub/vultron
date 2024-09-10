@@ -55,7 +55,7 @@ namespace Vultron
 
     constexpr uint32_t c_maxSkeletalInstances = 512;
     constexpr uint32_t c_maxAnimationInstances = 4 * c_maxSkeletalInstances;
-    constexpr uint32_t c_maxBones = 256;
+    constexpr uint32_t c_maxBones = 512;
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
     constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
 

@@ -34,7 +34,7 @@ class ImageTypes:
     Texture2D = 0
     Cubemap = 1
 
-def pack_image(image_files, output_file, resize, mips, flip, flip_horizontal, invert, cubemap):
+def pack_image(image_files, output_file, resize = None, mips = -1, flip = False, flip_horizontal = False, invert = False, cubemap = False):
     
     inputs = [*image_files]
     

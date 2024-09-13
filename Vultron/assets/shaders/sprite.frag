@@ -31,7 +31,7 @@ float GetOpacity(vec2 fragTexCoord) {
     (fragTexCoord.y > 0.5 ? borderRadius.z : borderRadius.y);
 
     vec2 aspectRatio = (vec2(screenSize) / min(screenSize.x, screenSize.y)) * (quadSize / min(quadSize.x, quadSize.y));
-    float sd = roundedBoxSDF((fragTexCoord - 0.5) * aspectRatio, vec2(0.5) * aspectRatio, borderRadiusValue);
+    float sd = roundedBoxSDF((fragTexCoord - 0.5) * aspectRatio, vec2(0.5) * aspectRatio, borderRadiusValue * (1.0 / min(quadSize.x, quadSize.y)));
     
     return 1.0 - smoothstep(0.0, edgeSoftness * 2.0 * pixelSize, sd);
 }

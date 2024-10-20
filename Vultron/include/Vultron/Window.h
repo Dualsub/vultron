@@ -30,6 +30,7 @@ namespace Vultron
         GLFWwindow *m_windowHandle = nullptr;
         uint32_t m_width = 0;
         uint32_t m_height = 0;
+        bool m_resized = false;
 
     public:
         Window() = default;
@@ -66,6 +67,11 @@ namespace Vultron
             return std::make_pair(m_width, m_height);
         }
 
+        bool IsMinimized() const
+        {
+            return m_width == 0 || m_height == 0;
+        }
+
         glm::vec2 GetAspectRatio() const
         {
             return glm::vec2(1.0f, static_cast<float>(m_width) / static_cast<float>(m_height));
@@ -74,6 +80,11 @@ namespace Vultron
         GLFWwindow *GetWindowHandle() const
         {
             return m_windowHandle;
+        }
+
+        bool IsResized() const
+        {
+            return m_resized;
         }
 
         void SetTitle(const std::string &title)

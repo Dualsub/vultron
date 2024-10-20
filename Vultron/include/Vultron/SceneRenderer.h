@@ -101,6 +101,7 @@ namespace Vultron
         glm::mat4 GetProjectionMatrix() const { return m_backend.GetProjectionMatrix(); }
         glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }
 
+        void SetFramebufferResized(bool resized) { m_backend.SetFramebufferResized(resized); }
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }

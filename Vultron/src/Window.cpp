@@ -11,7 +11,7 @@ namespace Vultron
         }
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         if (createInfo.mode == WindowMode::Windowed)
         {
@@ -49,6 +49,18 @@ namespace Vultron
     void Window::PollEvents()
     {
         glfwPollEvents();
+        int width, height;
+        glfwGetFramebufferSize(m_windowHandle, &width, &height);
+        if (width != m_width || height != m_height)
+        {
+            m_width = static_cast<uint32_t>(width);
+            m_height = static_cast<uint32_t>(height);
+            m_resized = true;
+        }
+        else
+        {
+            m_resized = false;
+        }
     }
 
     void Window::Shutdown()

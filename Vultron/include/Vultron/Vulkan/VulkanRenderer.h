@@ -427,7 +427,7 @@ namespace Vultron
     class VulkanRenderer
     {
     private:
-        VulkanContext m_context;
+        VulkanContext m_context = {};
 
         // Transfer operations
         VkFence m_transferFence;
@@ -435,6 +435,7 @@ namespace Vultron
 
         // Swap chain
         VulkanSwapchain m_swapchain;
+        bool m_framebufferResized = false;
 
         // Shadow map
         VulkanImage m_shadowMap;
@@ -567,6 +568,7 @@ namespace Vultron
         bool InitializeShadowMap();
 
         // Bloom
+        bool InitializeBloomMipChain();
         bool InitializeBloomPipeline();
 
         // Material pipeline
@@ -608,7 +610,8 @@ namespace Vultron
         VulkanImage GenerateBRDFLUT();
 
         // Swapchain
-        void RecreateSwapchain(uint32_t width, uint32_t height);
+        void DestorySwapchain();
+        void RecreateSwapchain();
 
         // Validation/debugging
         bool InitializeDebugMessenger();
@@ -647,6 +650,8 @@ namespace Vultron
         void PostInitialize();
         void Draw(const RenderData &renderData);
         void Shutdown();
+        // Frame buffer resize
+        void SetFramebufferResized(bool resized) { m_framebufferResized = resized; }
 
         void SetCamera(const Camera &camera)
         {

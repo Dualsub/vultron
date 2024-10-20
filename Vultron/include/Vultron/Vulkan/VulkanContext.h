@@ -29,17 +29,18 @@ namespace Vultron
     class VulkanContext
     {
     private:
-        VkInstance m_instance;
-        VkPhysicalDevice m_physicalDevice;
-        VkPhysicalDeviceProperties m_deviceProperties;
-        VkDevice m_device;
-        QueueFamilies m_queueFamilies;
-        VkQueue m_graphicsQueue;
-        VkQueue m_presentQueue;
-        VkQueue m_computeQueue;
-        VkQueue m_transferQueue;
-        VkSurfaceKHR m_surface;
-        VmaAllocator m_allocator;
+        Window *m_windowPtr = nullptr;
+        VkInstance m_instance = VK_NULL_HANDLE;
+        VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+        VkPhysicalDeviceProperties m_deviceProperties = {};
+        VkDevice m_device = VK_NULL_HANDLE;
+        QueueFamilies m_queueFamilies = {};
+        VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+        VkQueue m_presentQueue = VK_NULL_HANDLE;
+        VkQueue m_computeQueue = VK_NULL_HANDLE;
+        VkQueue m_transferQueue = VK_NULL_HANDLE;
+        VkSurfaceKHR m_surface = VK_NULL_HANDLE;
+        VmaAllocator m_allocator = VK_NULL_HANDLE;
 
         bool InitializeInstance(const Window &window);
         bool InitializeSurface(const Window &window);
@@ -58,6 +59,7 @@ namespace Vultron
         bool Initialize(const Window &window);
         void Destroy();
 
+        inline Window *GetWindow() const { return m_windowPtr; }
         inline VkInstance GetInstance() const { return m_instance; }
         inline VkPhysicalDevice GetPhysicalDevice() const { return m_physicalDevice; }
         inline VkPhysicalDeviceProperties GetDeviceProperties() const { return m_deviceProperties; }

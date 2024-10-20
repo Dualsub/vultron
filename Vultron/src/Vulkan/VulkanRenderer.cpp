@@ -149,6 +149,12 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeBloomMipChain())
+        {
+            std::cerr << "Faild to initialize bloom mip chain." << std::endl;
+            return false;
+        }
+
         if (!InitializeBloomPipeline())
         {
             std::cerr << "Faild to initialize bloom pipeline." << std::endl;
@@ -668,6 +674,13 @@ namespace Vultron
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
                 },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .offset = 0,
+                        .size = sizeof(glm::uvec2),
+                    },
+                },
                 .vertexDescription = SpriteVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::Always,
@@ -1012,7 +1025,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanRenderer::InitializeBloomPipeline()
+    bool VulkanRenderer::InitializeBloomMipChain()
     {
         // Initialize bloom pipeline
         const uint32_t width = m_swapchain.GetExtent().width;
@@ -1088,6 +1101,11 @@ namespace Vultron
                 });
         }
 
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeBloomPipeline()
+    {
         // Initialize bloom compute pipeline
         m_bloomDownsampleShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/bloom_downsample.comp.spv"});
         m_bloomDownsamplePipeline = VulkanComputePipeline::Create(
@@ -1856,37 +1874,22 @@ namespace Vultron
         return image;
     }
 
-    void VulkanRenderer::RecreateSwapchain(uint32_t width, uint32_t height)
+    void VulkanRenderer::RecreateSwapchain()
     {
-        // vkDeviceWaitIdle(m_context.GetDevice());
+        vkDeviceWaitIdle(m_context.GetDevice());
 
-        // for (auto framebuffer : m_swapchain.GetFramebuffers())
-        // {
-        //     vkDestroyFramebuffer(m_context.GetDevice(), framebuffer, nullptr);
-        // }
+        DestorySwapchain();
 
-        // for (const auto &frame : m_frames)
-        // {
-        //     vkFreeCommandBuffers(m_context.GetDevice(), m_commandPool, 1, &frame.commandBuffer);
-        // }
+        Window *window = m_context.GetWindow();
+        auto [width, height] = window->GetExtent();
 
-        // vkDestroyPipeline(m_context.GetDevice(), m_graphicsPipeline, nullptr);
-        // vkDestroyPipelineLayout(m_context.GetDevice(), m_pipelineLayout, nullptr);
-        // vkDestroyRenderPass(m_context.GetDevice(), m_scenePass.GetRenderPass(), nullptr);
+        m_swapchain.Initialize(m_context, width, height);
+        InitializeDepthBuffer();
+        InitializeFramebuffers();
+        InitializeBloomMipChain();
+        InitializeDescriptorSets();
 
-        // for (auto imageView : m_swapChainImageViews)
-        // {
-        //     vkDestroyImageView(m_context.GetDevice(), imageView, nullptr);
-        // }
-
-        // vkDestroySwapchainKHR(m_context.GetDevice(), m_swapChain, nullptr);
-
-        // InitializeSwapChain(width, height);
-        // InitializeImageViews();
-        // InitializeRenderPass();
-        // InitializeGraphicsPipeline();
-        // InitializeFramebuffers();
-        // InitializeCommandBuffer();
+        m_framebufferResized = false;
     }
 
     void VulkanRenderer::WriteComputeCommands(VkCommandBuffer commandBuffer, const RenderData &renderData)
@@ -2569,7 +2572,16 @@ namespace Vultron
         }
 
         uint32_t imageIndex;
-        VK_CHECK(vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex));
+        VkResult acquireResult = vkAcquireNextImageKHR(m_context.GetDevice(), m_swapchain.GetSwapchain(), timeout, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            RecreateSwapchain();
+            return;
+        }
+        else
+        {
+            VK_CHECK(acquireResult);
+        }
 
         vkResetFences(m_context.GetDevice(), 1, &frame.inFlightFence);
 
@@ -2612,9 +2624,32 @@ namespace Vultron
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        VK_CHECK(vkQueuePresentKHR(m_context.GetPresentQueue(), &presentInfo));
+        VkResult presentResult = vkQueuePresentKHR(m_context.GetPresentQueue(), &presentInfo);
+        if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || m_framebufferResized)
+        {
+            RecreateSwapchain();
+        }
+        else
+        {
+            VK_CHECK(presentResult);
+        }
 
         m_currentFrameIndex = (currentFrameIndex + 1) % c_frameOverlap;
+    }
+
+    void VulkanRenderer::DestorySwapchain()
+    {
+        m_depthImage.Destroy(m_context);
+        m_sceneImage.Destroy(m_context);
+
+        for (auto &mip : m_bloomMipChain)
+        {
+            mip.Destroy(m_context);
+        }
+
+        vkDestroyFramebuffer(m_context.GetDevice(), m_sceneFramebuffer, nullptr);
+
+        m_swapchain.Destroy(m_context);
     }
 
     void VulkanRenderer::Shutdown()
@@ -2677,14 +2712,9 @@ namespace Vultron
         vkDestroySampler(m_context.GetDevice(), m_cubemapSampler, nullptr);
         vkDestroySampler(m_context.GetDevice(), m_bloomSampler, nullptr);
 
-        m_depthImage.Destroy(m_context);
         m_shadowMap.Destroy(m_context);
         m_brdfLUT.Destroy(m_context);
-        m_sceneImage.Destroy(m_context);
-        for (auto &mip : m_bloomMipChain)
-        {
-            mip.Destroy(m_context);
-        }
+
         m_resourcePool.Destroy(m_context);
         m_staticVertexShader.Destroy(m_context);
         m_skeletalVertexShader.Destroy(m_context);
@@ -2745,11 +2775,8 @@ namespace Vultron
         m_scenePass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);
         m_compositePass.Destroy(m_context);
-
         vkDestroyFramebuffer(m_context.GetDevice(), m_shadowFramebuffer, nullptr);
-        vkDestroyFramebuffer(m_context.GetDevice(), m_sceneFramebuffer, nullptr);
-
-        m_swapchain.Destroy(m_context);
+        DestorySwapchain();
 
         if (c_validationLayersEnabled)
         {

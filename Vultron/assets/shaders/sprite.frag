@@ -4,7 +4,6 @@ layout(push_constant) uniform PushConstants {
     uvec2 screenSize;
 };
 
-
 layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 3) in vec2 quadSize;

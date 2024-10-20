@@ -22,6 +22,8 @@ namespace Vultron
             return false;
         }
 
+        m_windowPtr = const_cast<Window *>(&window);
+
         if (!InitializePhysicalDevice())
         {
             std::cerr << "Faild to initialize physical device." << std::endl;

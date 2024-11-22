@@ -2524,8 +2524,18 @@ namespace Vultron
 
     void VulkanRenderer::CalculateProjectionMatrix()
     {
-        m_uniformBufferData.proj = glm::perspective(glm::radians(m_camera.fov), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 0.1f, 3200.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(m_camera.fov), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 10.0f, 6000.0f);
         m_uniformBufferData.proj[1][1] *= -1;
+    }
+
+#define COPY_VECTOR_TO_BUFFER(buffer, vector, maxSize)                                                                                        \
+    if (!vector.empty())                                                                                                                      \
+    {                                                                                                                                         \
+        if (static_cast<uint32_t>(vector.size()) > static_cast<uint32_t>(maxSize))                                                            \
+        {                                                                                                                                     \
+            std::cerr << #vector << ":" << vector.size() << " " << #maxSize << ":" << maxSize << std::endl;                                   \
+        }                                                                                                                                     \
+        buffer.CopyData(vector.data(), (glm::min)(static_cast<uint32_t>(vector.size()), static_cast<uint32_t>(maxSize)) * sizeof(vector[0])); \
     }
 
     void VulkanRenderer::Draw(const RenderData &renderData)
@@ -2554,7 +2564,9 @@ namespace Vultron
             const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
             ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
             ubo.viewPos = viewPos;
-            ubo.lightViewProjection = ComputeLightProjectionMatrix(ubo.proj, ubo.view, ubo.lightDir);
+            glm::mat4 lightCamProj = glm::perspective(glm::radians(m_camera.fov), m_camera.aspectRatio, 10.0f, 4000.0f);
+            lightCamProj[1][1] *= -1;
+            ubo.lightViewProjection = ComputeLightProjectionMatrix(lightCamProj, ubo.view, ubo.lightDir);
             static std::random_device rd;
             static std::mt19937 gen(rd());
             static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
@@ -2563,12 +2575,13 @@ namespace Vultron
             m_uniformBufferData = ubo;
 
             frame.uniformBuffer.CopyData(&ubo, sizeof(ubo));
-            frame.skeletalInstanceBuffer.CopyData(renderData.skeletalInstances.data(), renderData.skeletalInstances.size() * sizeof(SkeletalInstanceData));
-            frame.animationInstanceBuffer.CopyData(renderData.animationInstances.data(), renderData.animationInstances.size() * sizeof(AnimationInstanceData));
-            frame.staticInstanceBuffer.CopyData(renderData.staticInstances.data(), renderData.staticInstances.size() * sizeof(StaticInstanceData));
-            frame.spriteInstanceBuffer.CopyData(renderData.spriteInstances.data(), renderData.spriteInstances.size() * sizeof(SpriteInstanceData));
-            frame.lineVertexBuffer.CopyData(renderData.lines.data(), (glm::min)(renderData.lines.size(), static_cast<size_t>(c_maxLines)) * sizeof(LineData));
-            frame.particleEmitterBuffer.CopyData(renderData.particleEmitters.data(), renderData.particleEmitters.size() * sizeof(ParticleEmitterData));
+
+            COPY_VECTOR_TO_BUFFER(frame.staticInstanceBuffer, renderData.staticInstances, c_maxInstances);
+            COPY_VECTOR_TO_BUFFER(frame.skeletalInstanceBuffer, renderData.skeletalInstances, c_maxSkeletalInstances);
+            COPY_VECTOR_TO_BUFFER(frame.animationInstanceBuffer, renderData.animationInstances, c_maxAnimationInstances);
+            COPY_VECTOR_TO_BUFFER(frame.spriteInstanceBuffer, renderData.spriteInstances, c_maxSpriteInstances);
+            COPY_VECTOR_TO_BUFFER(frame.lineVertexBuffer, renderData.lines, c_maxLines);
+            COPY_VECTOR_TO_BUFFER(frame.particleEmitterBuffer, renderData.particleEmitters, c_maxParticleEmitters);
         }
 
         uint32_t imageIndex;

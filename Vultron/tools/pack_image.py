@@ -16,7 +16,7 @@ def resize_opencv(image, size):
 def resize_skimage(image, size):
     return transform.resize(image, size, anti_aliasing=True)
 
-def generate_mipmaps(image, mips, resize_func):
+def generate_mipmaps(image, mips, resize_func = resize_pil):
     mipmaps = [image] 
     for _ in range(1, mips):
         mip_width = mipmaps[-1].shape[1] // 2
@@ -60,10 +60,12 @@ def pack_image(image_files, output_file, resize = None, mips = -1, flip = False,
         except Exception:
             image = np.array(Image.open(input))
 
+
         resize_func = resize_pil if image.dtype == np.uint8 else resize_skimage
 
         height, width, channels = image.shape
         if resize:
+            print(resize)
             print(f"Resizing image to {resize[0]}x{resize[1]}")
             image = resize_func(image, resize)
             height, width, channels = image.shape
@@ -146,7 +148,7 @@ def pack_all(dir):
         for file in files:
             file_without_ext, _ = os.path.splitext(file)
             try:
-                pack_image([file], file_without_ext + ".dat", -1, False, False, False)
+                pack_image([file], file_without_ext + ".dat")
             except Exception as e:
                 failed_files.append((file, e))
 

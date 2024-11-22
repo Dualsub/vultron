@@ -44,7 +44,7 @@
 
 namespace Vultron
 {
-    constexpr size_t c_maxInstances = 1024;
+    constexpr size_t c_maxInstances = 1024 * 4;
     constexpr uint32_t c_frameOverlap = 2;
 
     constexpr uint32_t c_maxSets = static_cast<uint32_t>(c_maxInstances * 2);
@@ -61,10 +61,10 @@ namespace Vultron
 
     constexpr uint32_t c_maxSpriteInstances = 1024;
 
-    constexpr uint32_t c_maxParticleEmitters = 128;
+    constexpr uint32_t c_maxParticleEmitters = 256;
     constexpr uint32_t c_maxParticleInstances = 4096;
 
-    constexpr uint32_t c_maxLines = 4096;
+    constexpr uint32_t c_maxLines = 4096 * 4;
 
     constexpr uint32_t c_maxBloomMipLevels = 6;
 
@@ -364,6 +364,7 @@ namespace Vultron
         glm::vec3 position;
         glm::quat rotation;
         float fov = 45.0f;
+        float aspectRatio = 16.0f / 9.0f;
     };
 
     struct PointLightData

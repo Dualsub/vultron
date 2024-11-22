@@ -117,6 +117,7 @@ namespace Vultron
     {
     private:
         std::unordered_map<RenderHandle, VulkanResource> m_resources;
+        std::unordered_map<RenderHandle, VulkanResource> m_resourcesPendingDeletion;
         std::array<std::vector<RenderHandle>, 2> m_deletionQueue;
 
     public:
@@ -218,7 +219,12 @@ namespace Vultron
 
         void AddToDeletionQueue(RenderHandle id, uint32_t frameIndex)
         {
+            if (m_resources.find(id) == m_resources.end())
+                return;
+
             m_deletionQueue[frameIndex].push_back(id);
+            m_resourcesPendingDeletion.insert({id, std::move(m_resources.at(id))});
+            m_resources.erase(id);
         }
 
         void ProcessDeletionQueue(const VulkanContext &context, uint32_t frameIndex)
@@ -233,10 +239,12 @@ namespace Vultron
 
         void Destroy(RenderHandle id, const VulkanContext &context)
         {
-            assert(m_resources.find(id) != m_resources.end() && "Resource does not exist");
+            if (m_resourcesPendingDeletion.find(id) == m_resourcesPendingDeletion.end())
+                return;
+
             std::visit([&context](auto &&arg)
-                       { arg.Destroy(context); }, m_resources.at(id));
-            m_resources.erase(id);
+                       { arg.Destroy(context); }, m_resourcesPendingDeletion.at(id));
+            m_resourcesPendingDeletion.erase(id);
         }
 
         void Destroy(const VulkanContext &context)
@@ -247,7 +255,14 @@ namespace Vultron
                            { arg.Destroy(context); }, resource.second);
             }
 
+            for (auto &resource : m_resourcesPendingDeletion)
+            {
+                std::visit([&context](auto &&arg)
+                           { arg.Destroy(context); }, resource.second);
+            }
+
             m_resources.clear();
+            m_resourcesPendingDeletion.clear();
         }
     };
 }

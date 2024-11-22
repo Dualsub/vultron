@@ -8,7 +8,7 @@ MODEL_FLAGS = (
     postprocess.aiProcess_Triangulate | 
     postprocess.aiProcess_GenSmoothNormals | postprocess.aiProcess_CalcTangentSpace)
 
-def pack_mesh(meshes, output_file):
+def pack_mesh(meshes, output_file, vertex_scale=[1, 1, 1], vertex_offset=[0, 0, 0], vertex_axis_indices=[0, 1, 2]):
 
     vertices = np.array([], dtype=np.float32)
     indices = np.array([], dtype=np.uint32)
@@ -17,8 +17,8 @@ def pack_mesh(meshes, output_file):
 
     for i, mesh in enumerate(meshes):
         # Flipping the y and z axis
-        positions = np.array(mesh.vertices)
-        normals = np.array(mesh.normals)
+        positions = np.array(mesh.vertices[:, vertex_axis_indices]) * vertex_scale + vertex_offset
+        normals = np.array(mesh.normals[:, vertex_axis_indices]) * vertex_scale
         
         uvs = np.array(mesh.texturecoords[0])[:, :2]
         # Edit UVs for Vulkan

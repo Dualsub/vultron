@@ -48,6 +48,8 @@ namespace Vultron
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
         std::vector<LineData> m_lines;
+        std::vector<RibbonVertex> m_ribbonVertices;
+        std::vector<uint32_t> m_ribbonIndices;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
         std::array<PointLightData, 4> m_pointLights;
@@ -56,6 +58,9 @@ namespace Vultron
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
         std::set<RenderHandle> m_transparentMaterials;
         RenderHandle m_quadMesh = {};
+
+        // Function that generates vertices for a ribbon, and then appends it to the list of ribbon vertices
+        void GenerateRibbonVertices(const std::vector<RibbonControlPoint> &points, const glm::vec2 &uvStart, const glm::vec2 &uvEnd, std::vector<RibbonVertex> &vertices, std::vector<uint32_t> &indices);
 
     public:
         SceneRenderer() = default;
@@ -73,6 +78,7 @@ namespace Vultron
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
         void SubmitRenderJob(const AnimationInstance &job);
+        void SubmitRenderJob(const RibbonRenderJob &job);
         void SubmitRenderJob(const LineRenderJob &job);
         void EndFrame();
         void Shutdown();

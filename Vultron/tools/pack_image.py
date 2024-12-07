@@ -5,7 +5,9 @@ import numpy as np
 import cv2 as cv
 from PIL import Image
 from skimage import transform
+import json
 # Take a image file, generate mipmaps and pack it into a vultron image file
+
 
 def resize_pil(image, size):
     return np.array(Image.fromarray(image).resize(size, Image.LANCZOS))
@@ -152,6 +154,40 @@ def pack_all(dir):
             except Exception as e:
                 failed_files.append((file, e))
 
+def execute(args):
+    if args.all:
+        pack_all(args.input[0])
+    elif args.cubemap:
+        sides = ["px", "nx", "py", "ny", "pz", "nz"]
+        base_path = args.input[0]
+        paths = [base_path.replace("*", side) for side in sides]
+        pack_image(paths, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+    else:
+        pack_image(args.input, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+
+def process_json_operations(json_file):
+    with open(json_file, 'r') as f:
+        operations = json.load(f)
+    
+    for operation in operations:
+        # Create object with the same attributes as the argparse object
+        class Args(object):
+            def __init__(self):
+                self.input = []
+                self.output = ""
+                self.mips = -1
+                self.resize = None
+                self.flip = False
+                self.flip_horizontal = False
+                self.invert = False
+                self.cubemap = False
+                self.all = False
+
+        args = Args()
+        for key, value in operation.items():
+            setattr(args, key, value)
+        
+        execute(args)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -176,16 +212,10 @@ def main():
         "--all", help="Pack all images in a directory", action="store_true")
 
     args = parser.parse_args()
-
-    if args.all:
-        pack_all(args.input[0])
-    elif args.cubemap:
-        sides = ["px", "nx", "py", "ny", "pz", "nz"]
-        base_path = args.input[0]
-        paths = [base_path.replace("*", side) for side in sides]
-        pack_image(paths, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+    if args.input[0].endswith(".json"):
+        process_json_operations(args.input[0])
     else:
-        pack_image(args.input, args.output, args.resize, args.mips, args.flip, args.flip_horizontal, args.invert, args.cubemap)
+        execute(args)
 
 if __name__ == "__main__":
     main()

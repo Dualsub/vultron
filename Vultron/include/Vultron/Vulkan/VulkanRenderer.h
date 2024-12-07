@@ -66,6 +66,8 @@ namespace Vultron
 
     constexpr uint32_t c_maxLines = 4096 * 4;
 
+    constexpr uint32_t c_maxRibbonVertices = 4096 * 4;
+
     constexpr uint32_t c_maxBloomMipLevels = 6;
 
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
@@ -218,6 +220,10 @@ namespace Vultron
         VkDescriptorSet particleUpdateDescriptorSet;
         VkDescriptorSet particleSortDescriptorSet;
         VkDescriptorSet particleDescriptorSet;
+
+        VulkanBuffer ribbonVertexBuffer;
+        VulkanBuffer ribbonIndexBuffer;
+        VkDescriptorSet ribbonDescriptorSet;
 
         VulkanBuffer lineVertexBuffer;
 
@@ -423,6 +429,8 @@ namespace Vultron
         const std::optional<RenderHandle> particleAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
         const std::vector<LineData> &lines;
+        const std::vector<RibbonVertex> &ribbonVertices;
+        const std::vector<uint32_t> &ribbonIndices;
     };
 
     class VulkanRenderer
@@ -524,6 +532,11 @@ namespace Vultron
         VulkanMaterialPipeline m_particlePipeline;
         VkDescriptorSetLayout m_particleSetLayout;
 
+        // Ribbon pipeline
+        VulkanMaterialPipeline m_ribbonPipeline;
+        VulkanShader m_ribbonVertexShader;
+        VkDescriptorSetLayout m_ribbonSetLayout;
+
         // Line pipeline
         VulkanMaterialPipeline m_linePipeline;
         VulkanShader m_lineVertexShader;
@@ -584,6 +597,10 @@ namespace Vultron
         bool InitializeParticlePipeline();
         bool InitializeParticleBuffers();
 
+        // Ribbon pipeline
+        bool InitializeRibbonPipeline();
+        bool InitializeRibbonBuffers();
+
         // Line pipeline
         bool InitializeLinePipeline();
         bool InitializeLineBuffers();
@@ -625,6 +642,7 @@ namespace Vultron
         void DrawWithPipeline(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
+        void DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, uint32_t ribbonIndexCount, glm::uvec2 viewportSize);
         void DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize);
         void WriteBloomDownsampleCommands(VkCommandBuffer commandBuffer);
         void WriteBloomUpsampleCommands(VkCommandBuffer commandBuffer);

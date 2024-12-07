@@ -4,6 +4,66 @@
 
 namespace Vultron
 {
+    void SceneRenderer::GenerateRibbonVertices(const std::vector<RibbonControlPoint> &points, const glm::vec2 &uvStart, const glm::vec2 &uvEnd, std::vector<RibbonVertex> &vertices, std::vector<uint32_t> &indices)
+    {
+        if (points.size() < 2)
+        {
+            return;
+        }
+
+        const uint32_t numSegments = static_cast<uint32_t>(points.size()) - 1;
+        const uint32_t numVertices = (numSegments + 1) * 2; // Two vertices per control point
+        const uint32_t numIndices = numSegments * 6;        // Two triangles per segment
+
+        const uint32_t vertexOffset = static_cast<uint32_t>(vertices.size());
+        const uint32_t indexOffset = static_cast<uint32_t>(indices.size());
+
+        vertices.resize(vertexOffset + numVertices);
+        indices.resize(indexOffset + numIndices);
+
+        for (uint32_t i = 0; i <= numSegments; i++)
+        {
+            const RibbonControlPoint &p0 = points[i];
+
+            glm::vec3 dir = glm::vec3(0.0f);
+            if (i < numSegments)
+            {
+                dir = glm::normalize(points[i + 1].position - p0.position);
+            }
+            else
+            {
+                dir = glm::normalize(p0.position - points[i - 1].position);
+            }
+
+            const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+            const glm::vec3 normal = glm::normalize(glm::cross(dir, up));
+
+            const glm::vec3 left = p0.position - normal * p0.width;
+            const glm::vec3 right = p0.position + normal * p0.width;
+
+            const float t = static_cast<float>(i) / static_cast<float>(numSegments);
+            float uvX = glm::mix(uvStart.x, uvEnd.x, t);
+            const glm::vec2 uv0 = glm::vec2(uvX, uvStart.y);
+            const glm::vec2 uv1 = glm::vec2(uvX, uvEnd.y);
+
+            // Add two vertices for the current control point
+            vertices[vertexOffset + i * 2 + 0] = RibbonVertex{.position = left, .normal = up, .texCoord = glm::vec3(uv0, 0.0f), .color = p0.color};
+            vertices[vertexOffset + i * 2 + 1] = RibbonVertex{.position = right, .normal = up, .texCoord = glm::vec3(uv1, 0.0f), .color = p0.color};
+        }
+
+        for (uint32_t i = 0; i < numSegments; i++)
+        {
+            // Triangle 1
+            indices[indexOffset + i * 6 + 0] = vertexOffset + i * 2 + 0;
+            indices[indexOffset + i * 6 + 1] = vertexOffset + i * 2 + 1;
+            indices[indexOffset + i * 6 + 2] = vertexOffset + (i + 1) * 2 + 0;
+
+            // Triangle 2
+            indices[indexOffset + i * 6 + 3] = vertexOffset + (i + 1) * 2 + 0;
+            indices[indexOffset + i * 6 + 4] = vertexOffset + i * 2 + 1;
+            indices[indexOffset + i * 6 + 5] = vertexOffset + (i + 1) * 2 + 1;
+        }
+    }
 
     bool SceneRenderer::Initialize(const Window &window)
     {
@@ -22,6 +82,8 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
+        m_ribbonVertices.clear();
+        m_ribbonIndices.clear();
         m_lines.clear();
         m_spriteJobs.clear();
         m_fontJobs.clear();
@@ -209,6 +271,16 @@ namespace Vultron
         });
     }
 
+    void SceneRenderer::SubmitRenderJob(const RibbonRenderJob &job)
+    {
+        GenerateRibbonVertices(
+            job.points,
+            job.texCoord,
+            job.texCoord + job.texSize,
+            m_ribbonVertices,
+            m_ribbonIndices);
+    }
+
     void SceneRenderer::SubmitRenderJob(const LineRenderJob &job)
     {
         m_lines.push_back({
@@ -329,6 +401,8 @@ namespace Vultron
             .particleAtlasMaterial = m_particleAtlasMaterial,
             .pointLights = m_pointLights,
             .lines = m_lines,
+            .ribbonVertices = m_ribbonVertices,
+            .ribbonIndices = m_ribbonIndices,
         });
 
         m_particleEmitters.clear();

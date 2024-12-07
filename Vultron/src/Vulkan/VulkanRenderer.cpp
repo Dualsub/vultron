@@ -185,6 +185,18 @@ namespace Vultron
             return false;
         }
 
+        if (!InitializeRibbonPipeline())
+        {
+            std::cerr << "Faild to initialize ribbon pipeline." << std::endl;
+            return false;
+        }
+
+        if (!InitializeRibbonBuffers())
+        {
+            std::cerr << "Faild to initialize ribbon buffers." << std::endl;
+            return false;
+        }
+
         if (!InitializeLineBuffers())
         {
             std::cerr << "Faild to initialize line buffers." << std::endl;
@@ -495,6 +507,29 @@ namespace Vultron
                     .binding = 1,
                     .type = DescriptorType::StorageBuffer,
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+                {
+                    // Shadow map
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // BRDF LUT
+                    .binding = 3,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+            });
+
+        m_ribbonSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Scene data
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
                 {
                     // Shadow map
@@ -907,6 +942,60 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeParticleBuffers()
     {
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeRibbonPipeline()
+    {
+        m_ribbonVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/ribbon.vert.spv"});
+        m_ribbonPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_scenePass,
+            {
+                .vertexShader = m_ribbonVertexShader,
+                .fragmentShader = m_fragmentShader,
+                .descriptorSetLayouts = {m_ribbonSetLayout, m_environmentSetLayout},
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    {
+                        .binding = 2,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .offset = 0,
+                        .size = sizeof(glm::vec4) + sizeof(float) * 3,
+                    },
+                },
+                .vertexDescription = RibbonVertex::GetVertexDescription(),
+                .cullMode = CullMode::None,
+                .depthWriteEnable = false,
+            });
+
+        return true;
+    }
+
+    bool VulkanRenderer::InitializeRibbonBuffers()
+    {
+        for (size_t i = 0; i < c_frameOverlap; i++)
+        {
+            m_frames[i].ribbonVertexBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(RibbonVertex) * c_maxRibbonVertices, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            m_frames[i].ribbonVertexBuffer.Map(m_context.GetAllocator());
+
+            m_frames[i].ribbonIndexBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = sizeof(uint32_t) * c_maxRibbonVertices, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            m_frames[i].ribbonIndexBuffer.Map(m_context.GetAllocator());
+        }
 
         return true;
     }
@@ -1665,6 +1754,33 @@ namespace Vultron
                     },
                 });
 
+            m_frames[i].ribbonDescriptorSet = VkInit::CreateDescriptorSet(
+                m_context.GetDevice(),
+                m_descriptorPool,
+                m_ribbonSetLayout,
+                {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::UniformBuffer,
+                        .buffer = m_frames[i].uniformBuffer.GetBuffer(),
+                        .size = m_frames[i].uniformBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 2,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_shadowMap.GetImageView(),
+                        .sampler = m_shadowSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 3,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_brdfLUT.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                });
+
             m_frames[i].compositeDescriptorSet = VkInit::CreateDescriptorSet(
                 m_context.GetDevice(),
                 m_descriptorPool,
@@ -2157,6 +2273,7 @@ namespace Vultron
                 if (renderData.particleAtlasMaterial.has_value())
                 {
                     DrawParticles(commandBuffer, frame.particleDrawCommandBuffer, {frame.particleDescriptorSet, environmentDescriptorSet}, renderData.particleAtlasMaterial.value(), viewportSize);
+                    DrawRibbons(commandBuffer, {frame.ribbonDescriptorSet, environmentDescriptorSet}, renderData.particleAtlasMaterial.value(), frame.ribbonVertexBuffer, frame.ribbonIndexBuffer, static_cast<uint32_t>(renderData.ribbonIndices.size()), viewportSize);
                 }
             }
 
@@ -2374,6 +2491,58 @@ namespace Vultron
         vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer.GetBuffer(), 0, 1, sizeof(VkDrawIndexedIndirectCommand));
     }
 
+    void VulkanRenderer::DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, uint32_t ribbonIndexCount, glm::uvec2 viewportSize)
+    {
+        const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetMaterialInstance(particleAtlasMaterial);
+        if (!material.has_value())
+        {
+            return;
+        }
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ribbonPipeline.GetPipeline());
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)viewportSize.x;
+        viewport.height = (float)viewportSize.y;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = {viewportSize.x, viewportSize.y};
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        std::vector<VkDescriptorSet> descriptorSetsCopy = descriptorSets;
+        descriptorSetsCopy.push_back(material->GetDescriptorSet());
+
+        const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSetsCopy.size());
+        for (uint32_t i = 0; i < numDescriptorSets; i++)
+        {
+            if (descriptorSetsCopy[i] == VK_NULL_HANDLE)
+            {
+                continue;
+            }
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ribbonPipeline.GetPipelineLayout(), i, 1, &descriptorSetsCopy[i], 0, nullptr);
+        }
+
+        std::vector<char> materialData = material->GetMaterialData();
+        if (!materialData.empty())
+        {
+            vkCmdPushConstants(commandBuffer, m_ribbonPipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
+        }
+
+        VkBuffer vertexBuffers[] = {ribbonVertexBuffer.GetBuffer()};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, ribbonIndexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(commandBuffer, ribbonIndexCount, 1, 0, 0, 0);
+    }
+
     void VulkanRenderer::DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_linePipeline.GetPipeline());
@@ -2580,6 +2749,8 @@ namespace Vultron
             COPY_VECTOR_TO_BUFFER(frame.skeletalInstanceBuffer, renderData.skeletalInstances, c_maxSkeletalInstances);
             COPY_VECTOR_TO_BUFFER(frame.animationInstanceBuffer, renderData.animationInstances, c_maxAnimationInstances);
             COPY_VECTOR_TO_BUFFER(frame.spriteInstanceBuffer, renderData.spriteInstances, c_maxSpriteInstances);
+            COPY_VECTOR_TO_BUFFER(frame.ribbonVertexBuffer, renderData.ribbonVertices, c_maxRibbonVertices);
+            COPY_VECTOR_TO_BUFFER(frame.ribbonIndexBuffer, renderData.ribbonIndices, c_maxRibbonVertices);
             COPY_VECTOR_TO_BUFFER(frame.lineVertexBuffer, renderData.lines, c_maxLines);
             COPY_VECTOR_TO_BUFFER(frame.particleEmitterBuffer, renderData.particleEmitters, c_maxParticleEmitters);
         }
@@ -2716,6 +2887,11 @@ namespace Vultron
             m_frames[i].particleDrawCommandBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].particleDrawCommandBuffer.Destroy(m_context.GetAllocator());
 
+            m_frames[i].ribbonVertexBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].ribbonVertexBuffer.Destroy(m_context.GetAllocator());
+            m_frames[i].ribbonIndexBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].ribbonIndexBuffer.Destroy(m_context.GetAllocator());
+
             m_frames[i].lineVertexBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].lineVertexBuffer.Destroy(m_context.GetAllocator());
         }
@@ -2745,6 +2921,7 @@ namespace Vultron
         m_particleUpdateShader.Destroy(m_context);
         m_particleSortShader.Destroy(m_context);
         m_particleVertexShader.Destroy(m_context);
+        m_ribbonVertexShader.Destroy(m_context);
         m_lineVertexShader.Destroy(m_context);
         m_lineFragmentShader.Destroy(m_context);
         m_bloomDownsampleShader.Destroy(m_context);
@@ -2762,6 +2939,7 @@ namespace Vultron
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_environmentSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_particleSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_ribbonSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_bloomSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_compositeSetLayout, nullptr);
 
@@ -2780,6 +2958,7 @@ namespace Vultron
         m_particleEmitterPipeline.Destroy(m_context);
         m_particleUpdatePipeline.Destroy(m_context);
         m_particleSortPipeline.Destroy(m_context);
+        m_ribbonPipeline.Destroy(m_context);
         m_linePipeline.Destroy(m_context);
         m_bloomDownsamplePipeline.Destroy(m_context);
         m_bloomUpsamplePipeline.Destroy(m_context);

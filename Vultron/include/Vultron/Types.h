@@ -152,6 +152,20 @@ namespace Vultron
         RenderHandle environmentMap = {};
     };
 
+    struct RibbonControlPoint
+    {
+        glm::vec3 position;
+        float width;
+        glm::vec4 color;
+    };
+
+    struct RibbonRenderJob
+    {
+        std::vector<struct RibbonControlPoint> points = {};
+        glm::vec2 texCoord = glm::vec2(0.0f);
+        glm::vec2 texSize = glm::vec2(1.0f);
+    };
+
     struct LineRenderJob
     {
         glm::vec3 start = {};

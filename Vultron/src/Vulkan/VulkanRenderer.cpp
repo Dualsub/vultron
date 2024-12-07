@@ -301,13 +301,18 @@ namespace Vultron
                         // Layout for texture to be used in bloom pass
                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                     },
+                    // Outline attachment
+                    {
+                        .format = VK_FORMAT_R32_SFLOAT,
+                        .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    },
                     // Depth attachment
                     {
                         .type = VulkanRenderPass::AttachmentType::Depth,
                         .format = VK_FORMAT_D32_SFLOAT,
                         .samples = VK_SAMPLE_COUNT_1_BIT,
                         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -575,6 +580,12 @@ namespace Vultron
                     .type = DescriptorType::CombinedImageSampler,
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
+                {
+                    // Depth image
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
             });
 
         return true;
@@ -758,7 +769,7 @@ namespace Vultron
                     {
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                         .offset = 0,
-                        .size = sizeof(BloomSettings),
+                        .size = sizeof(BloomSettings) + 2 * sizeof(float),
                     },
                 },
                 .vertexDescription = {},
@@ -1068,7 +1079,7 @@ namespace Vultron
                 .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
             });
 
-        std::array<VkImageView, 2> attachments = {m_sceneImage.GetImageView(), m_depthImage.GetImageView()};
+        std::array<VkImageView, 3> attachments = {m_sceneImage.GetImageView(), m_depthOutlineImage.GetImageView(), m_depthImage.GetImageView()};
 
         VkFramebufferCreateInfo sceneFramebufferInfo{};
         sceneFramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1426,6 +1437,21 @@ namespace Vultron
             });
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+        m_depthOutlineImage = VulkanImage::Create(
+            m_context,
+            {
+                .info = {
+                    .width = m_swapchain.GetExtent().width,
+                    .height = m_swapchain.GetExtent().height,
+                    .depth = 1,
+                    .format = VK_FORMAT_R32_SFLOAT,
+                },
+                .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            });
+
+        m_depthOutlineImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
         return true;
     }
@@ -1800,6 +1826,13 @@ namespace Vultron
                         .sampler = m_textureSampler,
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
+                    {
+                        .binding = 2,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_depthOutlineImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
                 });
         }
 
@@ -1938,15 +1971,16 @@ namespace Vultron
             });
 
         // Render
-        VkClearValue clearValues[1];
+        VkClearValue clearValues[2];
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clearValues[1].color = {{0.0f}};
 
         VkRenderPassBeginInfo renderPassBeginInfo{};
         renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassBeginInfo.renderPass = renderPass.GetRenderPass();
         renderPassBeginInfo.renderArea.extent.width = dim;
         renderPassBeginInfo.renderArea.extent.height = dim;
-        renderPassBeginInfo.clearValueCount = 1;
+        renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
         renderPassBeginInfo.framebuffer = framebuffer;
 
@@ -2253,9 +2287,10 @@ namespace Vultron
             renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
             glm::uvec2 viewportSize = {m_swapchain.GetExtent().width, m_swapchain.GetExtent().height};
 
-            std::array<VkClearValue, 2> clearValues{};
+            std::array<VkClearValue, 3> clearValues{};
             clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
-            clearValues[1].depthStencil = {1.0f, 0};
+            clearValues[1].color = {{0.0f}};
+            clearValues[2].depthStencil = {1.0f, 0};
 
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
@@ -2277,11 +2312,23 @@ namespace Vultron
                 }
             }
 
-            ClearDepthBuffer(commandBuffer, viewportSize);
+            // ClearDepthBuffer(commandBuffer, viewportSize);
 
             DrawLines(commandBuffer, {frame.skyboxDescriptorSet}, frame.lineVertexBuffer, static_cast<uint32_t>(renderData.lines.size()), viewportSize);
 
             vkCmdEndRenderPass(commandBuffer);
+        }
+
+        {
+            // Transition the depth outliner image to shader read only
+            VkUtil::TransitionImageLayout(
+                m_context.GetDevice(),
+                commandBuffer,
+                m_context.GetGraphicsQueue(),
+                m_depthOutlineImage.GetImage(),
+                VK_FORMAT_R32_SFLOAT,
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
 
         { // Bloom pass using compute shaders
@@ -2347,6 +2394,17 @@ namespace Vultron
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
                 vkCmdPushConstants(commandBuffer, m_compositePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BloomSettings), &m_bloomSettings);
+
+                struct
+                {
+                    float nearPlane;
+                    float farPlane;
+                } depthSettings = {
+                    .nearPlane = 10.0f,
+                    .farPlane = 6000.0f,
+                };
+
+                vkCmdPushConstants(commandBuffer, m_compositePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(BloomSettings), sizeof(depthSettings), &depthSettings);
 
                 vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             }
@@ -2824,6 +2882,7 @@ namespace Vultron
     void VulkanRenderer::DestorySwapchain()
     {
         m_depthImage.Destroy(m_context);
+        m_depthOutlineImage.Destroy(m_context);
         m_sceneImage.Destroy(m_context);
 
         for (auto &mip : m_bloomMipChain)

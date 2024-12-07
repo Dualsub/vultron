@@ -8,11 +8,15 @@ layout(location = 4) in vec4 fragColor;
 layout(location = 5) in vec4 fragEmissiveColor;
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out float outDepth;
 
 // Push Constants
 layout(push_constant) uniform PushConstants {
 	vec4 albedoColor;
-	vec3 metallicRoughnessAo;
+	vec2 metallicMinMax;
+	vec2 roughnessMinMax;
+	vec2 aoMinMax;
+	bool outline;
 } materialParams;
 
 struct PointLight {
@@ -160,9 +164,9 @@ vec3 SpecularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, vec3 albedo, float me
 void main() {
     vec4 texColor = texture(albedoMap, fragTexCoord) * materialParams.albedoColor * fragColor;
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
-    float metallic = mix(0.0, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).b) * materialParams.metallicRoughnessAo.x;
-    float roughness = mix(0.01, 1.0, texture(metallicRoughnessAoMap, fragTexCoord).g) * materialParams.metallicRoughnessAo.y;
-    float ao = texture(metallicRoughnessAoMap, fragTexCoord).r * materialParams.metallicRoughnessAo.z;
+    float metallic = mix(materialParams.metallicMinMax.x, materialParams.metallicMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).b);
+    float roughness = mix(materialParams.roughnessMinMax.x, materialParams.roughnessMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).g);
+    float ao = mix(materialParams.aoMinMax.x, materialParams.aoMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).r);
 
     float shadow = GetShadow(fragLightSpacePos / fragLightSpacePos.w);
 
@@ -202,7 +206,7 @@ void main() {
 	kD *= 1.0 - metallic;	  
 	vec3 ambient = (kD * diffuse + specular) * ao;
 	
-	vec3 color = ambient + Lo * shadow + fragEmissiveColor.rgb;
+	vec3 color = ambient + Lo * shadow + pow(fragEmissiveColor.rgb, vec3(2.2));
     
 	// float depth = gl_FragCoord.z;
     // float near = 0.1;
@@ -212,4 +216,5 @@ void main() {
 
     // outColor = vec4(depthColor, 1.0);
     outColor = vec4(color, texColor.a);
+	outDepth = materialParams.outline ? gl_FragCoord.z * texColor.a : 0.0;
 }

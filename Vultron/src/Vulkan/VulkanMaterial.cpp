@@ -154,8 +154,14 @@ namespace Vultron
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable = VK_FALSE;
         colorBlending.logicOp = VK_LOGIC_OP_COPY;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlendAttachment;
+
+        VkPipelineColorBlendAttachmentState outlineDepthAttachment = {};
+        outlineDepthAttachment.blendEnable = VK_FALSE;
+        outlineDepthAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT; // Since depth is stored in the red component
+
+        std::array<VkPipelineColorBlendAttachmentState, 2> attachments = {colorBlendAttachment, outlineDepthAttachment};
+        colorBlending.attachmentCount = static_cast<uint32_t>(attachments.size());
+        colorBlending.pAttachments = attachments.data();
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

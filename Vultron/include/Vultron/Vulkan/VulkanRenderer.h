@@ -125,9 +125,14 @@ namespace Vultron
         glm::vec4 albedoColor = glm::vec4(1.0f);
         RenderHandle normal;
         RenderHandle metallicRoughnessAO;
-        float metallic = 1.0f;
-        float roughness = 1.0f;
-        float ao = 1.0f;
+        float metallicMin = 0.0f;
+        float metallicMax = 1.0f;
+        float roughnessMin = 0.0f;
+        float roughnessMax = 1.0f;
+        float aoMin = 0.0f;
+        float aoMax = 1.0f;
+
+        bool outline = false;
         bool transparent = false;
 
         std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
@@ -161,16 +166,21 @@ namespace Vultron
         {
             struct
             {
-                glm::vec4 albedoColor;
-                float metallic;
-                float roughness;
-                float ao;
+                alignas(16) glm::vec4 albedoColor;
+                alignas(8) glm::vec2 metallicMinMax;
+                alignas(8) glm::vec2 roughnessMinMax;
+                alignas(8) glm::vec2 aoMinMax;
+                alignas(4) uint32_t outline;
+                alignas(16) char padding[12];
             } materialData = {
                 .albedoColor = albedoColor,
-                .metallic = metallic,
-                .roughness = roughness,
-                .ao = ao,
+                .metallicMinMax = glm::vec2(metallicMin, metallicMax),
+                .roughnessMinMax = glm::vec2(roughnessMin, roughnessMax),
+                .aoMinMax = glm::vec2(aoMin, aoMax),
+                .outline = outline ? 1u : 0u,
             };
+
+            static_assert(sizeof(materialData) % 16 == 0);
 
             std::vector<char> data;
             data.resize(sizeof(materialData));
@@ -459,6 +469,7 @@ namespace Vultron
         // Scene
         VulkanImage m_sceneImage;
         VulkanImage m_depthImage;
+        VulkanImage m_depthOutlineImage;
         VkFramebuffer m_sceneFramebuffer;
 
         // Bloom

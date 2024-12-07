@@ -29,7 +29,8 @@ namespace Vultron
                 createInfo.depthFunction,
                 createInfo.depthTestEnable,
                 createInfo.depthWriteEnable,
-                createInfo.topology))
+                createInfo.topology,
+                createInfo.outputToSceneImage))
         {
             std::cerr << "Failed to initialize graphics pipeline" << std::endl;
             assert(false);
@@ -58,7 +59,7 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, bool blendEnable, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, bool blendEnable, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology, bool outputToSceneImage)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -150,17 +151,17 @@ namespace Vultron
             colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
         }
 
-        VkPipelineColorBlendStateCreateInfo colorBlending{};
-        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.logicOpEnable = VK_FALSE;
-        colorBlending.logicOp = VK_LOGIC_OP_COPY;
-
         VkPipelineColorBlendAttachmentState outlineDepthAttachment = {};
         outlineDepthAttachment.blendEnable = VK_FALSE;
         outlineDepthAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT; // Since depth is stored in the red component
 
         std::array<VkPipelineColorBlendAttachmentState, 2> attachments = {colorBlendAttachment, outlineDepthAttachment};
-        colorBlending.attachmentCount = static_cast<uint32_t>(attachments.size());
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.logicOp = VK_LOGIC_OP_COPY;
+        colorBlending.attachmentCount = outputToSceneImage ? static_cast<uint32_t>(attachments.size()) : static_cast<uint32_t>(attachments.size()) - 1u; // If we're not outputting to the scene image, we don't need to blend the depth attachment
         colorBlending.pAttachments = attachments.data();
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};

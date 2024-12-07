@@ -47,7 +47,7 @@ namespace Vultron
         VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
         bool m_shouldBindMaterial = true;
 
-        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, bool blendEnable, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology);
+        bool InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, bool blendEnable, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology, bool outputToSceneImage);
         bool InitializeDescriptorSetLayout(const VulkanContext &context, const std::vector<DescriptorSetLayoutBinding> &descriptorSetLayoutBindings);
 
     public:
@@ -72,6 +72,7 @@ namespace Vultron
             bool depthTestEnable = true;
             bool depthWriteEnable = true;
             Topology topology = Topology::TriangleList;
+            bool outputToSceneImage = true;
         };
 
         static VulkanMaterialPipeline Create(const VulkanContext &context, const VulkanRenderPass &renderPass, const MaterialCreateInfo &createInfo);

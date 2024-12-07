@@ -622,7 +622,7 @@ namespace Vultron
         VkPushConstantRange materialParameters = {
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             .offset = 0,
-            .size = sizeof(glm::vec4) + sizeof(float) * 3,
+            .size = sizeof(PBRMaterial::Parameters),
         };
 
         m_staticPipeline = VulkanMaterialPipeline::Create(
@@ -662,6 +662,7 @@ namespace Vultron
                 .bindings = {},
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
+                .outputToSceneImage = false,
             });
 
         m_skeletalShadowPipeline = VulkanMaterialPipeline::Create(
@@ -673,6 +674,7 @@ namespace Vultron
                 .bindings = {},
                 .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
+                .outputToSceneImage = false,
             });
 
         // Sprite
@@ -702,6 +704,7 @@ namespace Vultron
                 .vertexDescription = SpriteVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::Always,
+                .outputToSceneImage = false,
             });
 
         // SDF
@@ -730,6 +733,7 @@ namespace Vultron
                 .vertexDescription = SpriteVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .depthFunction = DepthFunction::Always,
+                .outputToSceneImage = false,
             });
 
         // Skybox
@@ -776,6 +780,7 @@ namespace Vultron
                 .cullMode = CullMode::Front,
                 .blendEnable = false,
                 .depthFunction = DepthFunction::Always,
+                .outputToSceneImage = false,
             });
 
         return true;
@@ -941,7 +946,7 @@ namespace Vultron
                     {
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                         .offset = 0,
-                        .size = sizeof(glm::vec4) + sizeof(float) * 3,
+                        .size = sizeof(PBRMaterial::Parameters),
                     },
                 },
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
@@ -986,7 +991,7 @@ namespace Vultron
                     {
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                         .offset = 0,
-                        .size = sizeof(glm::vec4) + sizeof(float) * 3,
+                        .size = sizeof(PBRMaterial::Parameters),
                     },
                 },
                 .vertexDescription = RibbonVertex::GetVertexDescription(),
@@ -2394,17 +2399,6 @@ namespace Vultron
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositePipeline.GetPipelineLayout(), 0, 1, descriptorSets, 0, nullptr);
 
                 vkCmdPushConstants(commandBuffer, m_compositePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BloomSettings), &m_bloomSettings);
-
-                struct
-                {
-                    float nearPlane;
-                    float farPlane;
-                } depthSettings = {
-                    .nearPlane = 10.0f,
-                    .farPlane = 6000.0f,
-                };
-
-                vkCmdPushConstants(commandBuffer, m_compositePipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(BloomSettings), sizeof(depthSettings), &depthSettings);
 
                 vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             }

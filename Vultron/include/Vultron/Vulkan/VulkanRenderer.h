@@ -121,6 +121,16 @@ namespace Vultron
 
     struct PBRMaterial
     {
+        struct Parameters
+        {
+            alignas(16) glm::vec4 albedoColor;
+            alignas(8) glm::vec2 metallicMinMax;
+            alignas(8) glm::vec2 roughnessMinMax;
+            alignas(8) glm::vec2 aoMinMax;
+            alignas(4) uint32_t outline;
+            alignas(16) char padding[12];
+        };
+
         RenderHandle albedo;
         glm::vec4 albedoColor = glm::vec4(1.0f);
         RenderHandle normal;
@@ -164,15 +174,7 @@ namespace Vultron
 
         std::vector<char> GetMaterialData() const
         {
-            struct
-            {
-                alignas(16) glm::vec4 albedoColor;
-                alignas(8) glm::vec2 metallicMinMax;
-                alignas(8) glm::vec2 roughnessMinMax;
-                alignas(8) glm::vec2 aoMinMax;
-                alignas(4) uint32_t outline;
-                alignas(16) char padding[12];
-            } materialData = {
+            Parameters materialData = {
                 .albedoColor = albedoColor,
                 .metallicMinMax = glm::vec2(metallicMin, metallicMax),
                 .roughnessMinMax = glm::vec2(roughnessMin, roughnessMax),

@@ -12,12 +12,21 @@
 #include <unordered_map>
 #include <variant>
 #include <set>
+#include <mutex>
+#include <shared_mutex>
+#include <iostream>
 
 namespace Vultron
 {
     // Font atlas is making the size of the resource repository 120 bytes vs 80 bytes without it.
     // We could remove the image from the font atlas and make it a separate image resource. Might be better.
     using VulkanResource = std::variant<VulkanMesh, VulkanSkeletalMesh, VulkanImage, VulkanMaterialInstance, VulkanAnimation, VulkanFontAtlas, VulkanEnvironmentMap>;
+    struct ResourceEntry
+    {
+        VulkanResource resource;
+        uint32_t refCount = 0;
+        std::string name;
+    };
 
     class ResourceRepository
     {
@@ -116,9 +125,16 @@ namespace Vultron
     class ResourcePool
     {
     private:
-        std::unordered_map<RenderHandle, VulkanResource> m_resources;
+        std::unordered_map<RenderHandle, ResourceEntry> m_resources;
         std::unordered_map<RenderHandle, VulkanResource> m_resourcesPendingDeletion;
         std::array<std::vector<RenderHandle>, 2> m_deletionQueue;
+        mutable std::shared_mutex m_mutex;
+
+        template <typename T>
+        void DestoryInternal(const VulkanContext &context, T &resource)
+        {
+            resource.Destroy(context);
+        }
 
     public:
         static RenderHandle CreateHandle(const std::string &input)
@@ -138,21 +154,69 @@ namespace Vultron
         ResourcePool() = default;
         ~ResourcePool() = default;
 
-        RenderHandle AddResource(const std::string &name, const VulkanResource &resource)
+        RenderHandle AddResourceNoLock(const std::string &name, const VulkanResource &resource)
         {
             RenderHandle handle = CreateHandle(name);
             assert(m_resources.find(handle) == m_resources.end() && "Resource already exists");
-            m_resources.insert({handle, resource});
+            m_resources.insert({handle, {resource, 1, name}});
+            std::cout << "Added resource: " << name << std::endl;
             return handle;
+        }
+
+        RenderHandle AddResource(const std::string &name, const VulkanResource &resource)
+        {
+            std::unique_lock lock(m_mutex);
+            return AddResourceNoLock(name, resource);
+        }
+
+        OptionalRenderHandle TryAcquireResourceNoLock(const std::string &name)
+        {
+            RenderHandle id = CreateHandle(name);
+            if (m_resources.find(id) == m_resources.end())
+                return std::nullopt;
+
+            m_resources.at(id).refCount++;
+            return id;
+        }
+
+        OptionalRenderHandle TryAcquireResource(const std::string &name)
+        {
+            std::unique_lock lock(m_mutex);
+            return TryAcquireResourceNoLock(name);
+        }
+
+        void ReleaseResourceNoLock(RenderHandle id, uint32_t frameIndex)
+        {
+            if (m_resources.find(id) == m_resources.end())
+                return;
+
+            m_resources.at(id).refCount--;
+            if (m_resources.at(id).refCount == 0)
+            {
+                AddToDeletionQueueNoLock(id, frameIndex);
+            }
+        }
+
+        void ReleaseResource(RenderHandle id, uint32_t frameIndex)
+        {
+            std::unique_lock lock(m_mutex);
+            ReleaseResourceNoLock(id, frameIndex);
+        }
+
+        template <typename T>
+        const T &GetResourceNoLock(RenderHandle id) const
+        {
+            assert(m_resources.find(id) != m_resources.end() && "Resource does not exist");
+            assert(std::holds_alternative<T>(m_resources.at(id).resource) && "Invalid type");
+            const T &resource = std::get<T>(m_resources.at(id).resource);
+            return resource;
         }
 
         template <typename T>
         const T &GetResource(RenderHandle id) const
         {
-            assert(m_resources.find(id) != m_resources.end() && "Resource does not exist");
-            assert(std::holds_alternative<T>(m_resources.at(id)) && "Invalid type");
-            const T &resource = std::get<T>(m_resources.at(id));
-            return resource;
+            std::shared_lock lock(m_mutex);
+            return GetResourceNoLock<T>(id);
         }
 
         RenderHandle AddMesh(const std::string &name, const VulkanMesh &mesh)
@@ -217,27 +281,41 @@ namespace Vultron
             return GetSkeletalMesh(id).GetDrawInfo();
         }
 
-        void AddToDeletionQueue(RenderHandle id, uint32_t frameIndex)
+        void AddToDeletionQueueNoLock(RenderHandle id, uint32_t frameIndex)
         {
             if (m_resources.find(id) == m_resources.end())
                 return;
 
             m_deletionQueue[frameIndex].push_back(id);
-            m_resourcesPendingDeletion.insert({id, std::move(m_resources.at(id))});
+            m_resourcesPendingDeletion.insert({id, std::move(m_resources.at(id).resource)});
             m_resources.erase(id);
         }
 
+        void AddToDeletionQueue(RenderHandle id, uint32_t frameIndex)
+        {
+            std::unique_lock lock(m_mutex);
+            AddToDeletionQueueNoLock(id, frameIndex);
+        }
+
+        // TODO: Maybe add timeout to prevent stalling for too long
         void ProcessDeletionQueue(const VulkanContext &context, uint32_t frameIndex)
         {
+            std::unique_lock lock(m_mutex);
             for (auto &id : m_deletionQueue[frameIndex])
             {
-                Destroy(id, context);
+                DestroyNoLock(id, context);
             }
 
             m_deletionQueue[frameIndex].clear();
         }
 
         void Destroy(RenderHandle id, const VulkanContext &context)
+        {
+            std::unique_lock lock(m_mutex);
+            DestroyNoLock(id, context);
+        }
+
+        void DestroyNoLock(RenderHandle id, const VulkanContext &context)
         {
             if (m_resourcesPendingDeletion.find(id) == m_resourcesPendingDeletion.end())
                 return;
@@ -249,10 +327,11 @@ namespace Vultron
 
         void Destroy(const VulkanContext &context)
         {
+            std::unique_lock lock(m_mutex);
             for (auto &resource : m_resources)
             {
                 std::visit([&context](auto &&arg)
-                           { arg.Destroy(context); }, resource.second);
+                           { arg.Destroy(context); }, resource.second.resource);
             }
 
             for (auto &resource : m_resourcesPendingDeletion)

@@ -17,6 +17,7 @@
 namespace Vultron
 {
     using RenderHandle = uint64_t;
+    using OptionalRenderHandle = std::optional<RenderHandle>;
     using PoolHandle = uint32_t;
 
     constexpr RenderHandle c_invalidHandle = 0;

@@ -260,27 +260,40 @@ namespace Vultron
 
         stagingBuffer.Destroy(context.GetAllocator());
 
-        ImageTransition transitionForGraphics = VkInit::CreateImageTransitionBarrier(
-            m_image,
-            m_info.format,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            mipLevels,
-            layersCount,
-            imageTransitionQueue ? context.GetTransferQueueFamily() : VK_QUEUE_FAMILY_IGNORED,
-            imageTransitionQueue ? context.GetGraphicsQueueFamily() : VK_QUEUE_FAMILY_IGNORED);
+        // ImageTransition transitionForGraphics = VkInit::CreateImageTransitionBarrier(
+        //     m_image,
+        //     m_info.format,
+        //     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        //     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        //     mipLevels,
+        //     layersCount,
+        //     imageTransitionQueue ? context.GetTransferQueueFamily() : VK_QUEUE_FAMILY_IGNORED,
+        //     imageTransitionQueue ? context.GetGraphicsQueueFamily() : VK_QUEUE_FAMILY_IGNORED);
+
+        ImageTransition releaseBarrier{};
+        releaseBarrier.barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        releaseBarrier.barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        releaseBarrier.barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        releaseBarrier.barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        releaseBarrier.barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        releaseBarrier.barrier.srcQueueFamilyIndex = imageTransitionQueue ? context.GetTransferQueueFamily() : VK_QUEUE_FAMILY_IGNORED;
+        releaseBarrier.barrier.dstQueueFamilyIndex = imageTransitionQueue ? context.GetGraphicsQueueFamily() : VK_QUEUE_FAMILY_IGNORED;
+        releaseBarrier.barrier.image = m_image;
+        releaseBarrier.barrier.subresourceRange = {
+            VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, layersCount};
+        releaseBarrier.srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        releaseBarrier.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
         if (imageTransitionQueue)
         {
+            releaseBarrier.barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            releaseBarrier.barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            releaseBarrier.dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
             VkSemaphoreCreateInfo semaphoreInfo = {};
             semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-            VK_CHECK(vkCreateSemaphore(context.GetDevice(), &semaphoreInfo, nullptr, &transitionForGraphics.semaphore));
-
-            transitionForGraphics.barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            transitionForGraphics.barrier.dstAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
-            transitionForGraphics.dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            VK_CHECK(vkCreateSemaphore(context.GetDevice(), &semaphoreInfo, nullptr, &releaseBarrier.semaphore));
         }
 
         VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
@@ -288,22 +301,33 @@ namespace Vultron
         VkUtil::TransitionImageLayout(
             context.GetDevice(),
             commandBuffer,
-            transitionForGraphics);
+            releaseBarrier);
 
         VkUtil::EndSingleTimeCommands(
             context.GetDevice(),
             commandPool,
             queue,
             commandBuffer,
-            transitionForGraphics.semaphore);
+            releaseBarrier.semaphore);
 
         if (imageTransitionQueue)
         {
-            transitionForGraphics.barrier.srcAccessMask = VK_IMAGE_LAYOUT_UNDEFINED;
-            transitionForGraphics.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            transitionForGraphics.barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            transitionForGraphics.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            imageTransitionQueue->Push(transitionForGraphics);
+            ImageTransition acquireBarrier{};
+            acquireBarrier.barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            acquireBarrier.barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            acquireBarrier.barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            acquireBarrier.barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            acquireBarrier.barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            acquireBarrier.barrier.srcQueueFamilyIndex = context.GetTransferQueueFamily();
+            acquireBarrier.barrier.dstQueueFamilyIndex = context.GetGraphicsQueueFamily();
+            acquireBarrier.barrier.image = m_image;
+            acquireBarrier.barrier.subresourceRange = {
+                VK_IMAGE_ASPECT_COLOR_BIT, 0, mipLevels, 0, layersCount};
+            acquireBarrier.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            acquireBarrier.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            acquireBarrier.semaphore = releaseBarrier.semaphore;
+
+            imageTransitionQueue->Push(acquireBarrier);
         }
     }
 

@@ -59,7 +59,7 @@ namespace Vultron
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
     constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
 
-    constexpr uint32_t c_maxSpriteInstances = 1024;
+    constexpr uint32_t c_maxSpriteInstances = 1024 * 10;
 
     constexpr uint32_t c_maxParticleEmitters = 256;
     constexpr uint32_t c_maxParticleInstances = 4096;
@@ -94,6 +94,11 @@ namespace Vultron
         {
             return {};
         }
+
+        std::vector<RenderHandle> GetReferencedResources() const
+        {
+            return {texture};
+        }
     };
 
     struct FontSpriteMaterial
@@ -116,6 +121,11 @@ namespace Vultron
         std::vector<char> GetMaterialData() const
         {
             return {};
+        }
+
+        std::vector<RenderHandle> GetReferencedResources() const
+        {
+            return {fontAtlas};
         }
     };
 
@@ -189,6 +199,11 @@ namespace Vultron
             std::memcpy(data.data(), &materialData, sizeof(materialData));
 
             return data;
+        }
+
+        std::vector<RenderHandle> GetReferencedResources() const
+        {
+            return {albedo, normal, metallicRoughnessAO};
         }
     };
 
@@ -567,6 +582,7 @@ namespace Vultron
 
         // Debugging
         VkDebugUtilsMessengerEXT m_debugMessenger;
+        std::function<void(const std::string &)> m_debugCallback;
 
         // Frame data
         FrameData m_frames[c_frameOverlap];
@@ -697,6 +713,7 @@ namespace Vultron
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
         void SetDeltaTime(float deltaTime) { m_uniformBufferData.deltaTime = deltaTime; }
         void SetBloomSettings(const BloomSettings &settings) { m_bloomSettings = settings; }
+        void SetDebugCallback(std::function<void(const std::string &)> callback) { m_debugCallback = callback; }
 
         const std::vector<SkeletonBone> &GetBones() const { return m_bones; }
         const std::vector<AnimationFrame> &GetAnimationFrames() const { return m_animationFrames; }
@@ -725,13 +742,20 @@ namespace Vultron
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
         {
+            if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+            {
+                return handle.value();
+            }
+
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             std::vector<char> materialData = materialCreateInfo.GetMaterialData();
+            std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_staticPipeline,
                 {
                     bindings,
                     materialData,
+                    referencedResources,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
@@ -740,13 +764,20 @@ namespace Vultron
         template <>
         RenderHandle CreateMaterial(const std::string &name, const SpriteMaterial &materialCreateInfo)
         {
+            if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+            {
+                return handle.value();
+            }
+
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             std::vector<char> materialData = materialCreateInfo.GetMaterialData();
+            std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_spritePipeline,
                 {
                     bindings,
                     materialData,
+                    referencedResources,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
@@ -755,19 +786,26 @@ namespace Vultron
         template <>
         RenderHandle CreateMaterial(const std::string &name, const FontSpriteMaterial &materialCreateInfo)
         {
+            if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+            {
+                return handle.value();
+            }
+
             std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
             std::vector<char> materialData = materialCreateInfo.GetMaterialData();
+            std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_spritePipeline,
                 {
                     bindings,
                     materialData,
+                    referencedResources,
                 });
 
             return m_resourcePool.AddMaterialInstance(name, materialInstance);
         }
 
-        void Destroy(RenderHandle id) { m_resourcePool.AddToDeletionQueue(id, (m_currentFrameIndex + 1) % c_frameOverlap); }
+        void Destroy(RenderHandle id) { m_resourcePool.ReleaseResource(id, (m_currentFrameIndex + 1) % c_frameOverlap); }
 
         size_t GetImageMemoryUsage() const
         {

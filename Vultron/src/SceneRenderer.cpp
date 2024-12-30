@@ -176,6 +176,7 @@ namespace Vultron
             .boneOutputOffset = boneOutputOffset,
             .bonesToIgnore = job.bonesToIgnore,
             .color = job.color,
+            .emissiveColor = job.emissiveColor,
         };
 
         instancedJob.instances.push_back(instance);

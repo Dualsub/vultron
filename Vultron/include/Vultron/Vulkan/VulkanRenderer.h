@@ -278,6 +278,7 @@ namespace Vultron
         int32_t boneOutputOffset;
         std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
         glm::vec4 color;
+        glm::vec4 emissiveColor;
     };
 
     static_assert(sizeof(SkeletalInstanceData) % 16 == 0);

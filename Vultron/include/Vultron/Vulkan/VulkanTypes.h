@@ -3,6 +3,7 @@
 #include "Vultron/Core/Queue.h"
 
 #include "vulkan/vulkan.h"
+#include <glm/glm.hpp>
 
 #include <optional>
 

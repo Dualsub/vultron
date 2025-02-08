@@ -1,0 +1,102 @@
+#version 460
+
+// Each irradiance probe stores 9 SH coefficients (order 2)
+struct SHData {
+    vec4 coeffs[9];
+};
+
+layout(std430, binding = 1) buffer SHBuffer {
+    SHData shOutput[];
+};
+
+// Environment map – assumed to be in your Y‑up world
+layout(binding = 0) uniform samplerCubeArray samplerEnv;
+
+// Push constants: angular step sizes (in radians)
+layout(push_constant) uniform PushBlock {
+    float deltaPhi;   // e.g. 2π / resolution in φ
+    float deltaTheta; // e.g. (π/2) / resolution in θ (since we only integrate over hemisphere)
+} pc;
+
+// Standard SH basis constants (Peter–Pike Sloan’s real SH, Z‑up)
+const float c0 = 0.2820947918;
+const float c1 = 0.4886025119;
+const float c2 = 1.0925484306;
+const float c3 = 0.3153915653;
+const float c4 = 0.5462742153;
+
+// Evaluates SH basis functions for a given direction (assumed to be in Z‑up space).
+void EvaluateSHBasis(in vec3 v, out float basis[9])
+{
+    float x = v.x;
+    float y = v.y;
+    float z = v.z;
+    
+    basis[0] = c0;              // Y00
+    basis[1] = c1 * y;          // Y1-1
+    basis[2] = c1 * z;          // Y10
+    basis[3] = c1 * x;          // Y11
+    basis[4] = c2 * (x * y);    // Y2-2
+    basis[5] = c2 * (y * z);    // Y2-1
+    basis[6] = c3 * (3.0 * z * z - 1.0); // Y20
+    basis[7] = c2 * (x * z);    // Y21
+    basis[8] = c4 * (x * x - y * y);     // Y22
+}
+
+void main()
+{
+    // One thread per probe.
+    uint probeIndex = gl_GlobalInvocationID.x;
+    
+    // Prepare accumulators for 9 SH coefficients.
+    vec3 accum[9];
+    for (int i = 0; i < 9; i++) {
+        accum[i] = vec3(0.0);
+    }
+    
+    float PI = 3.14159265359;
+    float TWO_PI = 6.28318530718;
+    
+    // For one-sided diffuse irradiance, integrate over the upper hemisphere:
+    // θ from 0 to π and φ from 0 to 2π.
+    for (float phi = 0.0; phi < TWO_PI; phi += pc.deltaPhi)
+    {
+        for (float theta = 0.0; theta < PI; theta += pc.deltaTheta)
+        {
+            float sinTheta = sin(theta);
+            float cosTheta = cos(theta); // equals the Y component
+            
+            // Y‑up spherical-to-Cartesian:
+            //   x = sinθ cosφ, y = cosθ (up), z = sinθ sinφ.
+            vec3 dir = vec3(sinTheta * cos(phi),
+                            cosTheta,
+                            sinTheta * sin(phi));
+
+            vec3 normDir = normalize(dir);
+            
+            // Sample the environment map (in Y‑up space).
+            vec3 color = texture(samplerEnv, vec4(normDir, probeIndex)).rgb;
+            
+            vec3 rotatedDir = vec3(normDir.x, normDir.y, normDir.z);
+            // Evaluate SH basis functions with the conventional (Z‑up) formulas.
+            float basis[9];
+            EvaluateSHBasis(rotatedDir, basis);
+            
+            // Differential solid angle.
+            float dOmega = pc.deltaPhi * pc.deltaTheta * sinTheta;
+            // For one-sided diffuse irradiance, use clamped cosine weight (cosθ).
+            float weight = cosTheta;
+            
+            // Accumulate contributions.
+            for (int i = 0; i < 9; i++) {
+                accum[i] += color * basis[i] * weight * dOmega;
+            }
+        }
+    }
+    
+    // Write out the integrated SH coefficients.
+    // (They represent one-sided diffuse irradiance.)
+    for (int i = 0; i < 9; i++) {
+        shOutput[probeIndex].coeffs[i] = vec4(accum[i], 0.0);
+    }
+}

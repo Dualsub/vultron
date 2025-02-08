@@ -137,7 +137,7 @@ namespace Vultron
         }
 
     public:
-        static RenderHandle CreateHandle(const std::string &input)
+        constexpr static RenderHandle CreateHandle(const std::string_view &input)
         {
             uint32_t hash = 0x811c9dc5;
             uint32_t prime = 0x1000193;
@@ -153,6 +153,17 @@ namespace Vultron
 
         ResourcePool() = default;
         ~ResourcePool() = default;
+
+        bool IsValidNoLock(RenderHandle id) const
+        {
+            return m_resources.find(id) != m_resources.end();
+        }
+
+        bool IsValid(RenderHandle id) const
+        {
+            std::shared_lock lock(m_mutex);
+            return IsValidNoLock(id);
+        }
 
         RenderHandle AddResourceNoLock(const std::string &name, const VulkanResource &resource)
         {

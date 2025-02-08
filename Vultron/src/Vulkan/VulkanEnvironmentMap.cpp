@@ -1,6 +1,7 @@
 #include "Vultron/Vulkan/VulkanEnvironmentMap.h"
 
 #include "Vultron/Vulkan/VulkanMaterial.h"
+#include "Vultron/Vulkan/VulkanComputePipeline.h"
 #include "Vultron/Vulkan/VulkanRenderPass.h"
 #include "Vultron/Vulkan/VulkanShader.h"
 #include "Vultron/Vulkan/VulkanUtils.h"
@@ -13,23 +14,45 @@
 
 #include <chrono>
 #include <iostream>
+#include <fstream>
 
 namespace Vultron
 {
-    VulkanEnvironmentMap VulkanEnvironmentMap::CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info)
+    VulkanEnvironmentMap VulkanEnvironmentMap::CreateFromFile(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, VkDescriptorSetLayout environmentLayout, VkSampler sampler, const EnvironmentMapCreateInfo &info)
     {
-        auto image = VulkanImage::CreateFromFile(
-            context,
-            commandPool,
-            {
-                .filepath = info.filepath,
-                .imageTransitionQueue = info.imageTransitionQueue,
-            });
+        // This is commented out because we are using cubemaps instead of SHs for now
+        // auto irradiance = VulkanImage::CreateFromFile(
+        //     context,
+        //     commandPool,
+        //     {
+        //         .type = ImageType::CubemapArray,
+        //         .useAllMips = true,
+        //         .filepath = info.irradianceFilepath,
+        //         .imageTransitionQueue = info.imageTransitionQueue,
+        //     });
+
+        // IrradianceVolumeData irradianceData;
+        // if (!info.shsFilepath.empty())
+        // {
+        //     std::fstream file(info.shsFilepath, std::ios::in | std::ios::binary);
+        //     if (!file.is_open())
+        //     {
+        //         std::cerr << "Failed to open SHs file" << std::endl;
+        //         assert(false);
+        //     }
+
+        //     file.read(reinterpret_cast<char *>(&irradianceData.volume), sizeof(IrradianceVolumeData::volume));
+        //     const size_t numSHs = irradianceData.volume.numCells.x * irradianceData.volume.numCells.y * irradianceData.volume.numCells.z;
+        //     irradianceData.shs.resize(numSHs);
+        //     file.read(reinterpret_cast<char *>(irradianceData.shs.data()), numSHs * sizeof(SHData));
+        // }
 
         auto irradiance = VulkanImage::CreateFromFile(
             context,
             commandPool,
             {
+                .type = ImageType::CubemapArray,
+                .useAllMips = true,
                 .filepath = info.irradianceFilepath,
                 .imageTransitionQueue = info.imageTransitionQueue,
             });
@@ -38,12 +61,35 @@ namespace Vultron
             context,
             commandPool,
             {
+                .type = ImageType::CubemapArray,
+                .useAllMips = true,
                 .filepath = info.prefilteredFilepath,
                 .imageTransitionQueue = info.imageTransitionQueue,
             });
 
-        VulkanEnvironmentMap environmentMap(image, irradiance, prefiltered);
-        if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, skyboxLayout, sampler))
+        const size_t probesSize = sizeof(VolumeData) + sizeof(glm::vec4) * info.probePositions.size();
+
+        auto probeBuffer = VulkanBuffer::Create({
+            .allocator = context.GetAllocator(),
+            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .size = probesSize,
+            .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+        });
+
+        std::vector<glm::vec4> probePositions(info.probePositions.size());
+        for (size_t i = 0; i < info.probePositions.size(); i++)
+        {
+            probePositions[i] = glm::vec4(info.probePositions[i], 0.0f);
+        }
+
+        std::vector<uint8_t> probeData(probesSize);
+        std::memcpy(probeData.data(), &info.irradianceVolumeData, sizeof(VolumeData));
+        std::memcpy(probeData.data() + sizeof(VolumeData), probePositions.data(), sizeof(glm::vec4) * info.probePositions.size());
+
+        probeBuffer.UploadStaged(context.GetDevice(), commandPool, info.imageTransitionQueue ? context.GetTransferQueue() : context.GetGraphicsQueue(), context.GetAllocator(), probeData.data(), probesSize);
+
+        VulkanEnvironmentMap environmentMap(irradiance, info.irradianceVolumeData, prefiltered, probeBuffer);
+        if (!environmentMap.InitializeDescriptorSets(context, descriptorPool, environmentLayout, sampler))
         {
             std::cerr << "Failed to initialize descriptor sets for environment map" << std::endl;
             assert(false);
@@ -52,11 +98,17 @@ namespace Vultron
         return environmentMap;
     }
 
-    bool VulkanEnvironmentMap::InitializeDescriptorSets(const VulkanContext &context, VkDescriptorPool descriptorPool, VkDescriptorSetLayout environmentLayout, VkDescriptorSetLayout skyboxLayout, VkSampler sampler)
+    bool VulkanEnvironmentMap::InitializeDescriptorSets(const VulkanContext &context, VkDescriptorPool descriptorPool, VkDescriptorSetLayout environmentLayout, VkSampler sampler)
     {
         m_environmentSet = VkInit::CreateDescriptorSet(
             context.GetDevice(), descriptorPool, environmentLayout,
             {
+                // {
+                //     .binding = 0,
+                //     .type = DescriptorType::StorageBuffer,
+                //     .buffer = m_irradianceVolumeBuffer.GetBuffer(),
+                //     .size = m_irradianceVolumeBuffer.GetSize(),
+                // },
                 {
                     .binding = 0,
                     .type = DescriptorType::CombinedImageSampler,
@@ -69,16 +121,11 @@ namespace Vultron
                     .imageView = m_prefiltered.GetImageView(),
                     .sampler = sampler,
                 },
-            });
-
-        m_skyboxSet = VkInit::CreateDescriptorSet(
-            context.GetDevice(), descriptorPool, skyboxLayout,
-            {
                 {
-                    .binding = 0,
-                    .type = DescriptorType::CombinedImageSampler,
-                    .imageView = m_image.GetImageView(),
-                    .sampler = sampler,
+                    .binding = 2,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_probeBuffer.GetBuffer(),
+                    .size = m_probeBuffer.GetSize(),
                 },
             });
 
@@ -87,18 +134,26 @@ namespace Vultron
 
     void VulkanEnvironmentMap::Destroy(const VulkanContext &context)
     {
-        m_image.Destroy(context);
+        // m_irradianceVolumeBuffer.Destroy(context.GetAllocator());
         m_irradiance.Destroy(context);
         m_prefiltered.Destroy(context);
+        m_probeBuffer.Destroy(context.GetAllocator());
     }
 
     VulkanImage VulkanEnvironmentMap::GenerateIrradianceMap(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap)
     {
         auto tStart = std::chrono::high_resolution_clock::now();
 
+        if (environmentMap.GetInfo().format != VK_FORMAT_R32G32B32A32_SFLOAT)
+        {
+            std::cerr << "Environment map format must be VK_FORMAT_R32G32B32A32_SFLOAT" << std::endl;
+            abort();
+        }
+
         const VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        const int32_t dim = 64;
+        const int32_t dim = 16;
         const uint32_t numMips = static_cast<uint32_t>(glm::floor(glm::log2(static_cast<float>(dim)))) + 1;
+        const uint32_t numArrayLayers = environmentMap.GetInfo().layers / 6;
 
         // Sampler
         VkSamplerCreateInfo samplerCI{};
@@ -127,9 +182,9 @@ namespace Vultron
                     .depth = 1,
                     .mipLevels = numMips,
                     .format = format,
-                    .layers = 6,
+                    .layers = numArrayLayers * 6,
                 },
-                .type = ImageType::Cubemap,
+                .type = ImageType::CubemapArray,
                 .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
                 .additionalUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             });
@@ -228,8 +283,9 @@ namespace Vultron
         struct PushBlock
         {
             glm::mat4 mvp;
-            float deltaPhi = (2.0f * glm::pi<float>()) / 180.0f;
-            float deltaTheta = (0.5f * glm::pi<float>()) / 64.0f;
+            float deltaPhi = (2.0f * glm::pi<float>()) / 512.0f;
+            float deltaTheta = (0.5f * glm::pi<float>()) / 128.0f;
+            uint32_t arrayLayer = 0;
         } pushBlock;
 
         VulkanShader vertexShader = VulkanShader::CreateFromFile(context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});
@@ -250,7 +306,11 @@ namespace Vultron
                 },
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::None,
+                .blendEnable = false,
                 .depthFunction = DepthFunction::LessOrEqual,
+                .depthTestEnable = true,
+                .depthWriteEnable = true,
+                .outputToSceneImage = false,
             });
 
         // Render
@@ -301,62 +361,65 @@ namespace Vultron
             VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        for (uint32_t mip = 0; mip < numMips; mip++)
+        for (uint32_t arrayLayer = 0; arrayLayer < numArrayLayers; arrayLayer++)
         {
-            for (uint32_t face = 0; face < 6; face++)
+            for (uint32_t mip = 0; mip < numMips; mip++)
             {
-                viewport.width = static_cast<float>(dim * std::pow(0.5f, mip));
-                viewport.height = static_cast<float>(dim * std::pow(0.5f, mip));
-                vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+                for (uint32_t face = 0; face < 6; face++)
+                {
+                    viewport.width = static_cast<float>(dim * std::pow(0.5f, mip));
+                    viewport.height = static_cast<float>(dim * std::pow(0.5f, mip));
+                    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-                vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    pushBlock.arrayLayer = arrayLayer;
+                    pushBlock.mvp = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 512.0f) * glm::mat4(glm::mat3(captureViews[face]));
+                    vkCmdPushConstants(commandBuffer, pipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushBlock), &pushBlock);
 
-                pushBlock.mvp = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 512.0f) * glm::mat4(glm::mat3(captureViews[face]));
-                vkCmdPushConstants(commandBuffer, pipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushBlock), &pushBlock);
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
 
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipeline());
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+                    MeshDrawInfo meshInfo = skyboxMesh.GetDrawInfo();
+                    VkBuffer vertexBuffers[] = {meshInfo.vertexBuffer};
+                    VkDeviceSize offsets[] = {0};
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                MeshDrawInfo meshInfo = skyboxMesh.GetDrawInfo();
-                VkBuffer vertexBuffers[] = {meshInfo.vertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-                vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
 
-                vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), 1, 0, 0, 0);
+                    vkCmdEndRenderPass(commandBuffer);
 
-                vkCmdEndRenderPass(commandBuffer);
+                    offscreenImage.TransitionLayout(
+                        context.GetDevice(),
+                        commandBuffer,
+                        context.GetGraphicsQueue(),
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
-                offscreenImage.TransitionLayout(
-                    context.GetDevice(),
-                    commandBuffer,
-                    context.GetGraphicsQueue(),
-                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                    VkImageBlit blitRegion{};
+                    blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    blitRegion.srcSubresource.baseArrayLayer = 0;
+                    blitRegion.srcSubresource.mipLevel = 0;
+                    blitRegion.srcSubresource.layerCount = 1;
+                    blitRegion.srcOffsets[0] = {0, 0, 0};
+                    blitRegion.srcOffsets[1] = {static_cast<int32_t>(viewport.width), static_cast<int32_t>(viewport.height), 1};
 
-                VkImageCopy copyRegion{};
-                copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                copyRegion.srcSubresource.baseArrayLayer = 0;
-                copyRegion.srcSubresource.mipLevel = 0;
-                copyRegion.srcSubresource.layerCount = 1;
-                copyRegion.srcOffset = {0, 0, 0};
+                    blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    blitRegion.dstSubresource.baseArrayLayer = arrayLayer * 6 + face;
+                    blitRegion.dstSubresource.mipLevel = mip;
+                    blitRegion.dstSubresource.layerCount = 1;
+                    blitRegion.dstOffsets[0] = {0, 0, 0};
+                    blitRegion.dstOffsets[1] = {static_cast<int32_t>(viewport.width), static_cast<int32_t>(viewport.height), 1};
 
-                copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                copyRegion.dstSubresource.baseArrayLayer = face;
-                copyRegion.dstSubresource.mipLevel = mip;
-                copyRegion.dstSubresource.layerCount = 1;
-                copyRegion.dstOffset = {0, 0, 0};
+                    vkCmdBlitImage(commandBuffer, offscreenImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
 
-                copyRegion.extent = {static_cast<uint32_t>(viewport.width), static_cast<uint32_t>(viewport.height), 1};
-
-                vkCmdCopyImage(commandBuffer, offscreenImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-                offscreenImage.TransitionLayout(
-                    context.GetDevice(),
-                    commandBuffer,
-                    context.GetGraphicsQueue(),
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                    offscreenImage.TransitionLayout(
+                        context.GetDevice(),
+                        commandBuffer,
+                        context.GetGraphicsQueue(),
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                }
             }
         }
 
@@ -381,6 +444,208 @@ namespace Vultron
         auto tEnd = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
         std::cout << "Irradiance map generation took " << duration << "ms" << std::endl;
+
+        return image;
+    }
+
+    std::vector<SHData> VulkanEnvironmentMap::GenerateIrradianceSHs(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const VulkanImage &environmentMap)
+    {
+        assert(environmentMap.GetInfo().layers % 6 == 0 && "Environment map must be a cubemap array");
+        size_t numProbes = environmentMap.GetInfo().layers / 6;
+
+        std::vector<SHData> shData(numProbes);
+
+        VulkanBuffer shBuffer = VulkanBuffer::Create({
+            .allocator = context.GetAllocator(),
+            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .size = sizeof(SHData) * shData.size(),
+            .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU,
+        });
+
+        struct PushBlock
+        {
+            float deltaPhi = (2.0f * glm::pi<float>()) / 2048.0f;
+            float deltaTheta = (glm::pi<float>()) / 2048.0f;
+        } pushBlock;
+
+        auto shader = VulkanShader::CreateFromFile(context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/irradianceSH.comp.spv"});
+        VulkanComputePipeline pipeline = VulkanComputePipeline::Create(
+            context,
+            {
+                .shader = shader,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageBuffer,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                },
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                        .offset = 0,
+                        .size = sizeof(PushBlock),
+                    },
+                },
+            });
+
+        VkSamplerCreateInfo samplerCI{};
+        samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerCI.magFilter = VK_FILTER_LINEAR;
+        samplerCI.minFilter = VK_FILTER_LINEAR;
+        samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerCI.minLod = 0.0f;
+        samplerCI.maxLod = 1.0f;
+        samplerCI.maxAnisotropy = 1.0f;
+        samplerCI.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+
+        VkSampler sampler;
+        VK_CHECK(vkCreateSampler(context.GetDevice(), &samplerCI, nullptr, &sampler));
+
+        VkUtil::TransitionImageLayout(
+            context.GetDevice(),
+            commandPool,
+            context.GetGraphicsQueue(),
+            environmentMap.GetImage(),
+            environmentMap.GetInfo().format,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            environmentMap.GetInfo().mipLevels,
+            environmentMap.GetInfo().layers);
+
+        VkDescriptorSet descriptorSet = VkInit::CreateDescriptorSet(
+            context.GetDevice(), descriptorPool, pipeline.GetDescriptorSetLayout(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = environmentMap.GetImageView(),
+                    .sampler = sampler,
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = shBuffer.GetBuffer(),
+                    .size = shBuffer.GetSize(),
+                },
+            });
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.GetPipeline());
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, pipeline.GetPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushBlock), &pushBlock);
+
+        vkCmdDispatch(commandBuffer, static_cast<uint32_t>(numProbes), 1, 1);
+
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
+
+        shBuffer.Map(context.GetAllocator());
+        std::memcpy(shData.data(), shBuffer.GetMapped<SHData>(), shBuffer.GetSize());
+        shBuffer.Unmap(context.GetAllocator());
+
+        shBuffer.Destroy(context.GetAllocator());
+        vkDestroySampler(context.GetDevice(), sampler, nullptr);
+        pipeline.Destroy(context);
+        shader.Destroy(context);
+
+        return shData;
+    }
+
+    VulkanImage VulkanEnvironmentMap::GenerateCubemapFromSHs(const VulkanContext &context, VkCommandPool commandPool, VkDescriptorPool descriptorPool, const VulkanMesh &skyboxMesh, const std::vector<SHData> &shData)
+    {
+        VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        uint32_t dim = 512;
+
+        // This image will store the output of the ciompute shader that will convert SHs to cubemap
+        VulkanImage image = VulkanImage::Create(
+            context,
+            {
+                .info = {
+                    .width = dim,
+                    .height = dim,
+                    .depth = 1,
+                    .mipLevels = 1,
+                    .format = format,
+                    .layers = 6 * static_cast<uint32_t>(shData.size()),
+                },
+                .type = ImageType::CubemapArray,
+                .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            });
+
+        image.TransitionLayout(
+            context.GetDevice(),
+            commandPool,
+            context.GetGraphicsQueue(),
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_GENERAL);
+
+        VulkanBuffer shBuffer = VulkanBuffer::Create({
+            .allocator = context.GetAllocator(),
+            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .size = sizeof(SHData) * shData.size(),
+            .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU,
+        });
+
+        shBuffer.UploadStaged(context.GetDevice(), commandPool, context.GetGraphicsQueue(), context.GetAllocator(), shData.data(), shData.size() * sizeof(SHData));
+
+        VulkanShader shader = VulkanShader::CreateFromFile(context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/sh_cubemap.comp.spv"});
+        VulkanComputePipeline pipeline = VulkanComputePipeline::Create(
+            context,
+            {
+                .shader = shader,
+                .bindings = {
+                    {
+                        .binding = 0,
+                        .type = DescriptorType::StorageBuffer,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                    {
+                        .binding = 1,
+                        .type = DescriptorType::StorageImage,
+                        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
+                },
+            });
+
+        VkDescriptorSet descriptorSet = VkInit::CreateDescriptorSet(
+            context.GetDevice(), descriptorPool, pipeline.GetDescriptorSetLayout(),
+            {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = shBuffer.GetBuffer(),
+                    .size = shBuffer.GetSize(),
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageImage,
+                    .imageView = image.GetImageView(),
+                },
+            });
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.GetPipeline());
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.GetPipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+
+        vkCmdDispatch(commandBuffer, dim, dim, 6 * shData.size());
+
+        VkUtil::EndSingleTimeCommands(context.GetDevice(), commandPool, context.GetGraphicsQueue(), commandBuffer);
+
+        shBuffer.Destroy(context.GetAllocator());
+        pipeline.Destroy(context);
+        shader.Destroy(context);
 
         return image;
     }
@@ -522,7 +787,7 @@ namespace Vultron
         {
             glm::mat4 mvp;
             float roughness;
-            uint32_t numSamples = 32u;
+            uint32_t numSamples = 1024u;
         } pushBlock;
 
         VulkanShader vertexShader = VulkanShader::CreateFromFile(context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/filtercube.vert.spv"});

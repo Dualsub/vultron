@@ -175,4 +175,21 @@ namespace Vultron
         glm::vec4 color = glm::vec4(1.0f);
     };
 
+    struct VolumeData
+    {
+        glm::vec4 min;
+        glm::vec4 max;
+        glm::uvec4 numCells;
+    };
+
+    struct SHData
+    {
+        glm::vec4 sh[9];
+    };
+
+    struct IrradianceVolumeData
+    {
+        VolumeData volume;
+        std::vector<SHData> shs;
+    };
 }

@@ -212,6 +212,7 @@ namespace Vultron
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
         deviceFeatures2.features.independentBlend = VK_TRUE;
+        deviceFeatures2.features.imageCubeArray = VK_TRUE;
         deviceFeatures2.pNext = &descriptorIndexingFeatures;
 
         VkDeviceCreateInfo createInfo{};

@@ -4,11 +4,12 @@
 
 layout (location = 0) in vec3 inPos;
 layout (location = 0) out vec4 outColor;
-layout (binding = 0) uniform samplerCube samplerEnv;
+layout (binding = 0) uniform samplerCubeArray samplerEnv;
 
 layout(push_constant) uniform PushConsts {
 	layout (offset = 64) float deltaPhi;
 	layout (offset = 68) float deltaTheta;
+	layout (offset = 72) uint arrayLayer;
 } consts;
 
 #define PI 3.1415926535897932384626433832795
@@ -29,7 +30,7 @@ void main()
 		for (float theta = 0.0; theta < HALF_PI; theta += consts.deltaTheta) {
 			vec3 tempVec = cos(phi) * right + sin(phi) * up;
 			vec3 sampleVector = cos(theta) * N + sin(theta) * tempVec;
-			color += texture(samplerEnv, sampleVector).rgb * cos(theta) * sin(theta);
+			color += texture(samplerEnv, vec4(sampleVector, consts.arrayLayer)).rgb * cos(theta) * sin(theta);
 			sampleCount++;
 		}
 	}

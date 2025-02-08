@@ -5,8 +5,8 @@
 #include "Vultron/Vulkan/VulkanUtils.h"
 #include "Vultron/Vulkan/VulkanInitializers.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #include <fstream>
 #include <iostream>
@@ -62,10 +62,10 @@ namespace Vultron
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.flags = createInfo.createFlags;
-        if (createInfo.type == ImageType::Cubemap)
+        if (createInfo.type == ImageType::Cubemap || createInfo.type == ImageType::CubemapArray)
         {
             imageInfo.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-            assert(createInfo.info.layers == 6 && "Cubemaps must have 6 layers");
+            assert(createInfo.info.layers % 6 == 0 && "Cubemap array layers must be a multiple of 6.");
         }
 
         VkImage image;
@@ -94,6 +94,9 @@ namespace Vultron
             break;
         case ImageType::Texture2DArray:
             viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            break;
+        case ImageType::CubemapArray:
+            viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
             break;
         default:
             viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -185,7 +188,7 @@ namespace Vultron
 
         const uint32_t targetStartMip = 2u;
         // Make sure that the target start mip is not greater than the number of mips in the image.
-        const uint32_t startMip = std::min(createInfo.useAllMips ? 0 : targetStartMip, header.numMipLevels - 1);
+        const uint32_t startMip = (std::min)(createInfo.useAllMips ? 0 : targetStartMip, header.numMipLevels - 1);
         VulkanImage image = VulkanImage::Create(
             context,
             {
@@ -349,47 +352,8 @@ namespace Vultron
         s_memoryUsage -= m_memoryUsage;
     }
 
-    void VulkanImage::SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath)
+    void VulkanImage::SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath, bool saveAsCompressed)
     {
-        std::fstream file(filepath, std::ios::out | std::ios::binary);
-
-        ImageFileHeader header;
-        header.width = image.m_info.width;
-        header.height = image.m_info.height;
-        header.numMipLevels = image.m_info.mipLevels;
-        header.numLayers = image.m_info.layers;
-
-        switch (image.m_info.format)
-        {
-        case VK_FORMAT_R8G8B8A8_UNORM:
-            header.numChannels = 4;
-            header.numBytesPerChannel = 1;
-            break;
-        case VK_FORMAT_R32G32B32_SFLOAT:
-            header.numChannels = 3;
-            header.numBytesPerChannel = 4;
-            break;
-        case VK_FORMAT_R32G32B32A32_SFLOAT:
-            header.numChannels = 4;
-            header.numBytesPerChannel = 4;
-            break;
-        case VK_FORMAT_R32G32_SFLOAT:
-            header.numChannels = 2;
-            header.numBytesPerChannel = 4;
-            break;
-        case VK_FORMAT_R16G16_SFLOAT:
-            header.numChannels = 2;
-            header.numBytesPerChannel = 2;
-            break;
-        default:
-            header.numChannels = 4;
-            header.numBytesPerChannel = 1;
-            break;
-        }
-        header.type = image.m_info.layers == 6 ? ImageType::Cubemap : ImageType::Texture2D;
-
-        file.write(reinterpret_cast<char *>(&header), sizeof(header));
-
         ImageTransition transition = VkInit::CreateImageTransitionBarrier(
             image.GetImage(),
             image.m_info.format,
@@ -404,52 +368,145 @@ namespace Vultron
             context.GetGraphicsQueue(),
             transition);
 
-        // Copy image to buffer
-        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = image.m_info.width * image.m_info.height * header.numChannels * header.numBytesPerChannel, .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU});
-
-        const char *data;
-        vmaMapMemory(context.GetAllocator(), stagingBuffer.GetAllocation(), (void **)&data);
-        for (uint32_t i = 0; i < header.numLayers; i++)
+        uint32_t numChannels;
+        uint32_t numBytesPerChannel;
+        bool isHdr = false;
+        switch (image.m_info.format)
         {
-            for (uint32_t j = 0; j < header.numMipLevels; j++)
-            {
-                size_t mipWidth = header.width >> j;
-                size_t mipHeight = header.height >> j;
-                size_t mipSize = mipWidth * mipHeight * header.numChannels * header.numBytesPerChannel;
-
-                VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
-
-                VkBufferImageCopy region{};
-                region.bufferOffset = 0;
-                region.bufferRowLength = 0;
-                region.bufferImageHeight = 0;
-
-                region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                region.imageSubresource.mipLevel = j;
-                region.imageSubresource.baseArrayLayer = i;
-                region.imageSubresource.layerCount = 1;
-
-                region.imageOffset = {0, 0, 0};
-                region.imageExtent = {static_cast<uint32_t>(mipWidth), static_cast<uint32_t>(mipHeight), 1};
-
-                vkCmdCopyImageToBuffer(commandBuffer,
-                                       image.GetImage(),
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                       stagingBuffer.GetBuffer(),
-                                       1,
-                                       &region);
-
-                VkUtil::EndSingleTimeCommands(
-                    context.GetDevice(),
-                    commandPool,
-                    context.GetGraphicsQueue(),
-                    commandBuffer);
-
-                file.write(data, mipSize);
-            }
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            numChannels = 4;
+            numBytesPerChannel = 1;
+            break;
+        case VK_FORMAT_R32G32B32_SFLOAT:
+            numChannels = 3;
+            numBytesPerChannel = 4;
+            isHdr = true;
+            break;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            numChannels = 4;
+            numBytesPerChannel = 4;
+            isHdr = true;
+            break;
+        case VK_FORMAT_R32G32_SFLOAT:
+            numChannels = 2;
+            numBytesPerChannel = 4;
+            isHdr = true;
+            break;
+        case VK_FORMAT_R16G16_SFLOAT:
+            numChannels = 2;
+            numBytesPerChannel = 2;
+            isHdr = true;
+            break;
+        default:
+            numChannels = 4;
+            numBytesPerChannel = 1;
+            break;
         }
 
-        file.close();
+        // Copy image to buffer
+        VulkanBuffer stagingBuffer = VulkanBuffer::Create({.allocator = context.GetAllocator(), .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = image.m_info.width * image.m_info.height * numChannels * numBytesPerChannel, .allocationUsage = VMA_MEMORY_USAGE_GPU_TO_CPU});
+
+        const void *data;
+        vmaMapMemory(context.GetAllocator(), stagingBuffer.GetAllocation(), const_cast<void **>(&data));
+
+        if (!saveAsCompressed)
+        {
+            std::fstream file(filepath, std::ios::out | std::ios::binary);
+
+            ImageFileHeader header;
+            header.width = image.m_info.width;
+            header.height = image.m_info.height;
+            header.numMipLevels = image.m_info.mipLevels;
+            header.numLayers = image.m_info.layers;
+            header.numChannels = numChannels;
+            header.numBytesPerChannel = numBytesPerChannel;
+
+            header.type = image.m_info.layers == 6 ? ImageType::Cubemap : ImageType::Texture2D;
+
+            file.write(reinterpret_cast<char *>(&header), sizeof(header));
+
+            for (uint32_t i = 0; i < header.numLayers; i++)
+            {
+                for (uint32_t j = 0; j < header.numMipLevels; j++)
+                {
+                    size_t mipWidth = header.width >> j;
+                    size_t mipHeight = header.height >> j;
+                    size_t mipSize = mipWidth * mipHeight * header.numChannels * header.numBytesPerChannel;
+
+                    VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
+
+                    VkBufferImageCopy region{};
+                    region.bufferOffset = 0;
+                    region.bufferRowLength = 0;
+                    region.bufferImageHeight = 0;
+
+                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    region.imageSubresource.mipLevel = j;
+                    region.imageSubresource.baseArrayLayer = i;
+                    region.imageSubresource.layerCount = 1;
+
+                    region.imageOffset = {0, 0, 0};
+                    region.imageExtent = {static_cast<uint32_t>(mipWidth), static_cast<uint32_t>(mipHeight), 1};
+
+                    vkCmdCopyImageToBuffer(commandBuffer,
+                                           image.GetImage(),
+                                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                           stagingBuffer.GetBuffer(),
+                                           1,
+                                           &region);
+
+                    VkUtil::EndSingleTimeCommands(
+                        context.GetDevice(),
+                        commandPool,
+                        context.GetGraphicsQueue(),
+                        commandBuffer);
+
+                    file.write(reinterpret_cast<const char *>(data), mipSize);
+                }
+            }
+
+            file.close();
+        }
+        else
+        {
+            // Only copy first layer and mip level 0 to png
+            VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(context.GetDevice(), commandPool);
+
+            VkBufferImageCopy region{};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {static_cast<uint32_t>(image.m_info.width), static_cast<uint32_t>(image.m_info.height), 1};
+
+            vkCmdCopyImageToBuffer(commandBuffer,
+                                   image.GetImage(),
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   stagingBuffer.GetBuffer(),
+                                   1,
+                                   &region);
+
+            VkUtil::EndSingleTimeCommands(
+                context.GetDevice(),
+                commandPool,
+                context.GetGraphicsQueue(),
+                commandBuffer);
+
+            if (isHdr)
+            {
+                stbi_write_hdr(filepath.c_str(), image.m_info.width, image.m_info.height, numChannels, reinterpret_cast<const float *>(data));
+            }
+            else
+            {
+                stbi_write_png(filepath.c_str(), image.m_info.width, image.m_info.height, numChannels, data, image.m_info.width * numChannels);
+            }
+        }
 
         vmaUnmapMemory(context.GetAllocator(), stagingBuffer.GetAllocation());
 

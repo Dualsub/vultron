@@ -15,13 +15,23 @@ namespace Vultron
     {
         const size_t verticesSize = sizeof(createInfo.vertices[0]) * createInfo.vertices.size();
         auto vertexBuffer = VulkanBuffer::Create({.allocator = createInfo.allocator, .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = verticesSize});
+
+        glm::vec3 minBounds = glm::vec3(std::numeric_limits<float>::max());
+        glm::vec3 maxBounds = glm::vec3(std::numeric_limits<float>::min());
+
+        for (const auto &vertex : createInfo.vertices)
+        {
+            minBounds = glm::min(minBounds, vertex.position);
+            maxBounds = glm::max(maxBounds, vertex.position);
+        }
+
         vertexBuffer.UploadStaged(createInfo.device, createInfo.commandPool, createInfo.queue, createInfo.allocator, createInfo.vertices.data(), verticesSize, VMA_MEMORY_USAGE_GPU_ONLY);
 
         const size_t indiciesSize = sizeof(createInfo.indices[0]) * createInfo.indices.size();
         auto indexBuffer = VulkanBuffer::Create({.allocator = createInfo.allocator, .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = indiciesSize, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
         indexBuffer.UploadStaged(createInfo.device, createInfo.commandPool, createInfo.queue, createInfo.allocator, createInfo.indices.data(), indiciesSize);
 
-        return VulkanMesh(vertexBuffer, indexBuffer);
+        return VulkanMesh(vertexBuffer, indexBuffer, minBounds, maxBounds);
     }
 
     Ptr<VulkanMesh> VulkanMesh::CreatePtr(const MeshCreateInfo &createInfo)

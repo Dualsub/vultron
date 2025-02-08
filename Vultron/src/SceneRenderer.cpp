@@ -398,6 +398,7 @@ namespace Vultron
             .sdfBatches = sdfBatches,
             .spriteInstances = spriteInstances,
             .particleEmitters = m_particleEmitters,
+            .skybox = m_skybox,
             .environmentMap = m_environmentMap,
             .particleAtlasMaterial = m_particleAtlasMaterial,
             .pointLights = m_pointLights,
@@ -645,6 +646,13 @@ namespace Vultron
         return mesh.GetBoneCount();
     }
 
+    glm::vec3 SceneRenderer::GetMeshCenterOffset(const RenderHandle &mesh) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &m = rp.GetMesh(mesh);
+        return m.GetCenter();
+    }
+
     void SceneRenderer::Shutdown()
     {
         m_backend.Shutdown();
@@ -681,13 +689,19 @@ namespace Vultron
         return m_backend.LoadFontAtlas(path);
     }
 
-    RenderHandle SceneRenderer::LoadEnvironmentMap(const std::string &path, const std::string &irradiancePath, const std::string &prefilteredPath)
+    RenderHandle SceneRenderer::LoadEnvironmentMap(const std::string &name, const std::string &irradianceFilepath, const std::string &prefilteredFilepath, const VolumeData &irradianceVolumeData, const std::vector<glm::vec3> &probePositions)
     {
-        return m_backend.LoadEnvironmentMap(path, irradiancePath, prefilteredPath);
+        return m_backend.LoadEnvironmentMap(name, irradianceFilepath, prefilteredFilepath, irradianceVolumeData, probePositions);
     }
 
     RenderHandle SceneRenderer::LoadAnimation(const std::string &path)
     {
         return m_backend.LoadAnimation(path);
+    }
+
+    const VolumeData &SceneRenderer::GetIrradianceVolume(RenderHandle environmentMap) const
+    {
+        const VulkanEnvironmentMap &envMap = m_backend.GetResourcePool().GetEnvironmentMap(environmentMap);
+        return envMap.GetIrradianceVolume();
     }
 }

@@ -17,6 +17,7 @@ namespace Vultron
         Texture2D = 0,
         Cubemap = 1,
         Texture2DArray = 2,
+        CubemapArray = 3,
 
         // These must be last
         MaxImageTypes,
@@ -120,7 +121,7 @@ namespace Vultron
 
         const ImageInfo &GetInfo() const { return m_info; }
 
-        static void SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath);
+        static void SaveImageToFile(const VulkanContext &context, VkCommandPool commandPool, const VulkanImage &image, const std::string &filepath, bool saveAsCompressed = false);
 
         static size_t GetMemoryUsage() { return s_memoryUsage; }
     };

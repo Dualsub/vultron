@@ -35,6 +35,18 @@ FORMATS = {
 class ImageTypes:
     Texture2D = 0
     Cubemap = 1
+    Texture2DArray = 2
+    CubemapArray = 3
+
+def get_dtype(itemsize):
+    if itemsize == 1:
+        return np.uint8
+    elif itemsize == 2:
+        return np.float16
+    elif itemsize == 4:
+        return np.float32
+    else:
+        raise ValueError("Unsupported itemsize")
 
 def pack_image(image_files, output_file, resize = None, mips = -1, flip = False, flip_horizontal = False, invert = False, cubemap = False):
     
@@ -82,10 +94,13 @@ def pack_image(image_files, output_file, resize = None, mips = -1, flip = False,
             print("Inverting image")
             image = 1 - image
 
-        if (cubemap and (i == 2 or i == 3)):
-            print("Flipping image horizontally")
-            image = cv.flip(image, 1)
-            image = cv.flip(image, 0)
+        if cubemap:
+        #     print("Flipping image horizontally")
+            if (i == 2 or i == 3):
+                image = cv.flip(image, 0)
+            else:
+                image = cv.flip(image, 1)
+        #     image = cv.flip(image, 0)
 
         if flip:
             print("Flipping image vertically")
@@ -154,9 +169,94 @@ def pack_all(dir):
             except Exception as e:
                 failed_files.append((file, e))
 
+def view_image(file):
+    if not file.endswith(".dat"):
+        # Try open it with opencv
+        image = cv.imread(file, cv.IMREAD_UNCHANGED)
+        # Convert from RGBA to BGRA
+        if image.shape[2] == 4:
+            image = cv.cvtColor(image, cv.COLOR_RGBA2BGRA)
+        else:
+            image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+
+        if image is None:
+            print("Failed to open image")
+            return
+        
+        cv.imshow("Image", image)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
+        
+        return
+    
+    with open(file, "rb") as f:
+        width = struct.unpack("I", f.read(4))[0]
+        height = struct.unpack("I", f.read(4))[0]
+        channels = struct.unpack("I", f.read(4))[0]
+        itemsize = struct.unpack("I", f.read(4))[0]
+        layers = struct.unpack("I", f.read(4))[0]
+        mipmaps = struct.unpack("I", f.read(4))[0]
+        imageType = struct.unpack("I", f.read(4))[0]
+        print(f"Image dimensions: {width}x{height}x{channels}")
+        print(f"Itemsize: {itemsize}")
+        print(f"Layers: {layers}")
+        print(f"Mipmaps: {mipmaps}")
+        print(f"Image type: {imageType}")
+        for i in range(layers):
+            for j in range(mipmaps):
+                mip_width = width // (2 ** j)
+                mip_height = height // (2 ** j)
+                data = f.read(mip_width * mip_height * channels * itemsize)
+                dtype = get_dtype(itemsize)
+                image = np.frombuffer(data, dtype=dtype).reshape((mip_height, mip_width, channels))
+                if image.shape[2] == 4:
+                    image = cv.cvtColor(image, cv.COLOR_RGBA2BGRA)
+                else:
+                    image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+                cv.imshow(f"Layer {i}, Mipmap {j}", image)
+                cv.waitKey(0)
+                cv.destroyAllWindows()
+
+def combine_cubemaps_to_array(files, output):
+    # Read .dat files and combine them into a cubemap array
+    cubemap_array_layers = []
+    for file in files:
+        with open(file, "rb") as f:
+            width = struct.unpack("I", f.read(4))[0]
+            height = struct.unpack("I", f.read(4))[0]
+            channels = struct.unpack("I", f.read(4))[0]
+            itemsize = struct.unpack("I", f.read(4))[0]
+            dtype = get_dtype(itemsize)
+            layers = struct.unpack("I", f.read(4))[0]
+            mipmaps = struct.unpack("I", f.read(4))[0]
+            imageType = struct.unpack("I", f.read(4))[0]
+            print(f"Image dimensions: {width}x{height}x{channels}")
+            print(f"Itemsize: {itemsize}")
+            print(f"Dtype: {dtype}")
+            print(f"Layers: {layers}")
+            print(f"Mipmaps: {mipmaps}")
+            print(f"Image type: {imageType}")
+            for i in range(layers):
+                mips = []
+                for j in range(mipmaps):
+                    mip_width = width // (2 ** j)
+                    mip_height = height // (2 ** j)
+                    data = f.read(mip_width * mip_height * channels * itemsize)
+                    image = np.frombuffer(data, dtype=dtype).reshape((mip_height, mip_width, channels))
+                    mips.append(image)
+
+                cubemap_array_layers.append(mips)
+                
+    with open(output, "wb") as f:
+        write_layers(f, cubemap_array_layers, ImageTypes.CubemapArray)
+
 def execute(args):
-    if args.all:
+    if args.view:
+        view_image(args.input[0])
+    elif args.all:
         pack_all(args.input[0])
+    elif args.combine_cubemaps:
+        combine_cubemaps_to_array(args.input, args.output)
     elif args.cubemap:
         sides = ["px", "nx", "py", "ny", "pz", "nz"]
         base_path = args.input[0]
@@ -210,6 +310,11 @@ def main():
         "-c", "--cubemap", help="Pack the image as a cubemap", action="store_true")
     parser.add_argument(
         "--all", help="Pack all images in a directory", action="store_true")
+    parser.add_argument(
+        "--view", help="View the image file", action="store_true")
+    # Arguments for combining cubemaps
+    parser.add_argument(
+        "--combine-cubemaps", help="Combine cubemap images into a cubemap array", action="store_true")
 
     args = parser.parse_args()
     if args.input[0].endswith(".json"):

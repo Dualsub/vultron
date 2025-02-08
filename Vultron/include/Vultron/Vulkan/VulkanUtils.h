@@ -58,7 +58,7 @@ namespace Vultron::VkUtil
     size_t GetAlignedSize(size_t offset, size_t alignment);
 
     void BufferBarrier(VkCommandBuffer commandBuffer, VkBuffer buffer, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDeviceSize offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
-    
+
     struct ImageBarrierInfo
     {
         VkImageLayout oldLayout;
@@ -70,7 +70,8 @@ namespace Vultron::VkUtil
         VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     };
 
-    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage& image, const ImageBarrierInfo &info);
+    void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage &image, const ImageBarrierInfo &info);
+    void ImageBarrier(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, uint32_t layers, const ImageBarrierInfo &info);
 
     VkDescriptorType GetDescriptorType(DescriptorType type);
 }

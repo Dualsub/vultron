@@ -50,6 +50,7 @@ namespace Vultron
         std::vector<LineData> m_lines;
         std::vector<RibbonVertex> m_ribbonVertices;
         std::vector<uint32_t> m_ribbonIndices;
+        std::optional<RenderHandle> m_skybox;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
         std::array<PointLightData, 4> m_pointLights;
@@ -70,6 +71,7 @@ namespace Vultron
         void PostInitialize();
         void BeginFrame();
         void SetEnvironmentMap(const std::optional<RenderHandle> &environmentMap) { m_environmentMap = environmentMap; }
+        void SetSkybox(const std::optional<RenderHandle> &skybox) { m_skybox = skybox; }
         void SetParticleAtlasMaterial(const std::optional<RenderHandle> &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
         void SetPointLights(const std::array<PointLightData, 4> &pointLights) { m_pointLights = pointLights; }
         void SubmitRenderJob(const StaticRenderJob &job);
@@ -100,11 +102,16 @@ namespace Vultron
         // Animation stuff
         float GetAnimationDuration(const RenderHandle &animation) const;
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
-        // --NOTE: Expensive
+        // NOTE: Expensive
         glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const;
         uint32_t GetBoneCount(RenderHandle skeletalMesh) const;
 
-        glm::mat4 GetProjectionMatrix() const { return m_backend.GetProjectionMatrix(); }
+        glm::vec3 GetMeshCenterOffset(const RenderHandle &mesh) const;
+
+        glm::mat4 GetProjectionMatrix() const
+        {
+            return m_backend.GetProjectionMatrix();
+        }
         glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }
 
         void SetFramebufferResized(bool resized) { m_backend.SetFramebufferResized(resized); }
@@ -116,12 +123,13 @@ namespace Vultron
 
         void WaitAndResetImageTransitionQueue() { m_backend.WaitAndResetImageTransitionQueue(); }
 
+        bool IsResourceValid(const RenderHandle &handle) const { return m_backend.IsResourceValid(handle); }
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
         RenderHandle LoadMesh(const std::string &path);
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path, ImageType type = ImageType::None, bool useAllMips = false);
         RenderHandle LoadFontAtlas(const std::string &path);
-        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
+        RenderHandle LoadEnvironmentMap(const std::string &name, const std::string &irradianceFilepath, const std::string &prefilteredFilepath, const VolumeData &irradianceVolumeData, const std::vector<glm::vec3> &probePositions);
         RenderHandle LoadAnimation(const std::string &path);
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
@@ -149,6 +157,16 @@ namespace Vultron
         }
 
         void Destroy(const RenderHandle &handle) { m_backend.Destroy(handle); }
+
+        RenderHandle CreateCaptureCubemap(std::string name, uint32_t width, uint32_t height, uint32_t numCubemaps = 1) { return m_backend.CreateCaptureCubemap(name, width, height, numCubemaps); }
+        void CaptureSceneToCubemap(RenderHandle cubemap, uint32_t faceIndex) { m_backend.CaptureSceneToCubemap(cubemap, faceIndex); }
+
+        void SaveScreenshot(const std::string &filepath, bool saveAsCompressed) { m_backend.SaveScreenshot(filepath, saveAsCompressed); }
+        void SaveImage(const RenderHandle &image, const std::string &filepath, bool saveAsCompressed) { m_backend.SaveImage(image, filepath, saveAsCompressed); }
+
+        std::vector<SHData> GenerateIrradianceSHs(RenderHandle environmentImageArray) { return m_backend.GenerateIrradianceSHs(environmentImageArray); }
+        RenderHandle GenerateIrradianceMap(RenderHandle environmentMap, const std::string &name) { return m_backend.GenerateIrradianceMap(environmentMap, name); }
+        const VolumeData &GetIrradianceVolume(RenderHandle environmentMap) const;
 
         size_t GetImageMemoryUsage() const { return m_backend.GetImageMemoryUsage(); }
         size_t GetBufferMemoryUsage() const { return m_backend.GetBufferMemoryUsage(); }

@@ -30,10 +30,12 @@ namespace Vultron
     private:
         VulkanBuffer m_vertexBuffer;
         VulkanBuffer m_IndexBuffer;
+        glm::vec3 m_minBounds;
+        glm::vec3 m_maxBounds;
 
     public:
-        VulkanMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer)
-            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer)
+        VulkanMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer, const glm::vec3 &minBounds, const glm::vec3 &maxBounds)
+            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer), m_minBounds(minBounds), m_maxBounds(maxBounds)
         {
         }
         VulkanMesh() = default;
@@ -79,6 +81,12 @@ namespace Vultron
                 .indexCount = static_cast<uint32_t>(GetIndexCount()),
             };
         }
+
+        glm::vec3 GetMinBounds() const { return m_minBounds; }
+        glm::vec3 GetMaxBounds() const { return m_maxBounds; }
+
+        glm::vec3 GetCenter() const { return (m_minBounds + m_maxBounds) * 0.5f; }
+        glm::vec3 GetSize() const { return m_maxBounds - m_minBounds; }
     };
 
 #pragma endregion

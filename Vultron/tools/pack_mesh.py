@@ -52,12 +52,13 @@ def main():
     # pack_mesh.py inputmesh.gltf -o outputmesh.bin
     parser.add_argument("input", help="The input gltf or glb file")
     parser.add_argument("-o", "--output", help="The output vultron mesh file", default="mesh.bin")
+    parser.add_argument("--scale", help="Scale the vertices by this factor", type=float, default=1)
     args = parser.parse_args()
 
     assert args.input != args.output, "Input and output file cannot be the same"
 
     with load(args.input, processing=MODEL_FLAGS) as scene:
-        pack_mesh(scene.meshes, args.output)
+        pack_mesh(scene.meshes, args.output, vertex_scale=[args.scale, args.scale, args.scale])
 
 
 

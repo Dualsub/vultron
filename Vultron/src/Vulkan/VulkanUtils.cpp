@@ -263,19 +263,23 @@ namespace Vultron::VkUtil
     void ImageBarrier(VkCommandBuffer commandBuffer, const VulkanImage &image, const ImageBarrierInfo &info)
     {
         const ImageInfo &imageInfo = image.GetInfo();
+        ImageBarrier(commandBuffer, image.GetImage(), imageInfo.mipLevels, imageInfo.layers, info);
+    }
 
+    void ImageBarrier(VkCommandBuffer commandBuffer, VkImage image, uint32_t mipLevels, uint32_t layers, const ImageBarrierInfo &info)
+    {
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = info.oldLayout;
         barrier.newLayout = info.newLayout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image.GetImage();
+        barrier.image = image,
         barrier.subresourceRange.aspectMask = info.aspectMask;
         barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = imageInfo.mipLevels;
+        barrier.subresourceRange.levelCount = mipLevels;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = imageInfo.layers;
+        barrier.subresourceRange.layerCount = layers;
         barrier.srcAccessMask = info.srcAccessMask;
         barrier.dstAccessMask = info.dstAccessMask;
 

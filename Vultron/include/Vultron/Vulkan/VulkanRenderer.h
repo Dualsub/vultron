@@ -66,11 +66,13 @@ namespace Vultron
 
     constexpr uint32_t c_maxLines = 4096 * 4;
 
-    constexpr uint32_t c_maxRibbonVertices = 4096 * 4;
+    constexpr uint32_t c_maxRibbonVertices = 4096 * 4 * 2;
 
     constexpr uint32_t c_maxBloomMipLevels = 6;
 
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
+
+    constexpr VkFormat c_sceneImageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 
     struct SpriteMaterial
     {
@@ -134,6 +136,7 @@ namespace Vultron
         struct Parameters
         {
             alignas(16) glm::vec4 albedoColor;
+            alignas(16) glm::vec4 emissiveColor;
             alignas(8) glm::vec2 metallicMinMax;
             alignas(8) glm::vec2 roughnessMinMax;
             alignas(8) glm::vec2 aoMinMax;
@@ -145,6 +148,8 @@ namespace Vultron
         glm::vec4 albedoColor = glm::vec4(1.0f);
         RenderHandle normal;
         RenderHandle metallicRoughnessAO;
+        RenderHandle emissive = c_invalidHandle;
+        glm::vec4 emissiveColor = glm::vec4(1.0f);
         float metallicMin = 0.0f;
         float metallicMax = 1.0f;
         float roughnessMin = 0.0f;
@@ -157,9 +162,14 @@ namespace Vultron
 
         std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
         {
+
             const auto &albedoImage = pool.GetImage(albedo);
             const auto &normalImage = pool.GetImage(normal);
             const auto &metallicRoughnessAOImage = pool.GetImage(metallicRoughnessAO);
+
+            constexpr RenderHandle c_defaultEmissive = ResourcePool::CreateHandle("null");
+            const auto &emissiveImage = emissive != c_invalidHandle ? pool.GetImage(emissive) : pool.GetImage(c_defaultEmissive);
+
             return {
                 {
                     .binding = 0,
@@ -179,6 +189,12 @@ namespace Vultron
                     .imageView = metallicRoughnessAOImage.GetImageView(),
                     .sampler = sampler,
                 },
+                {
+                    .binding = 3,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = emissiveImage.GetImageView(),
+                    .sampler = sampler,
+                },
             };
         }
 
@@ -186,6 +202,7 @@ namespace Vultron
         {
             Parameters materialData = {
                 .albedoColor = albedoColor,
+                .emissiveColor = emissiveColor,
                 .metallicMinMax = glm::vec2(metallicMin, metallicMax),
                 .roughnessMinMax = glm::vec2(roughnessMin, roughnessMax),
                 .aoMinMax = glm::vec2(aoMin, aoMax),
@@ -203,7 +220,35 @@ namespace Vultron
 
         std::vector<RenderHandle> GetReferencedResources() const
         {
-            return {albedo, normal, metallicRoughnessAO};
+            return {albedo, normal, metallicRoughnessAO, emissive};
+        }
+    };
+
+    struct SkyboxMaterial
+    {
+        RenderHandle cubemap;
+
+        std::vector<DescriptorSetBinding> GetBindings(const ResourcePool &pool, VkSampler sampler) const
+        {
+            const auto &map = pool.GetImage(cubemap);
+            return {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = map.GetImageView(),
+                    .sampler = sampler,
+                },
+            };
+        }
+
+        std::vector<char> GetMaterialData() const
+        {
+            return {};
+        }
+
+        std::vector<RenderHandle> GetReferencedResources() const
+        {
+            return {cubemap};
         }
     };
 
@@ -453,6 +498,7 @@ namespace Vultron
         const std::vector<RenderBatch> &sdfBatches;
         const std::vector<SpriteInstanceData> &spriteInstances;
         const std::vector<ParticleEmitterData> &particleEmitters;
+        const std::optional<RenderHandle> skybox;
         const std::optional<RenderHandle> environmentMap;
         const std::optional<RenderHandle> particleAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
@@ -729,16 +775,24 @@ namespace Vultron
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath, ImageType type = ImageType::None, bool useAllMips = false);
         RenderHandle LoadFontAtlas(const std::string &filepath);
-        RenderHandle LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath);
+        RenderHandle LoadEnvironmentMap(const std::string &name, const std::string &irradianceFilepath, const std::string &prefilteredFilepath, const VolumeData &irradianceVolumeData, const std::vector<glm::vec3> &probePositions);
 
         RenderHandle GenerateIrradianceMap(RenderHandle environmentImage, const std::string &name);
+        std::vector<SHData> GenerateIrradianceSHs(RenderHandle environmentImageArray);
+        RenderHandle GenerateCubemapFromSHs(const std::vector<SHData> &shs, const std::string &name);
         RenderHandle GeneratePrefilteredMap(RenderHandle environmentImage, const std::string &name);
-        void SaveImage(RenderHandle image, const std::string &filepath);
+        // Functions for capturing cubemaps, maybe move to another place
+        RenderHandle CreateCaptureCubemap(const std::string &name, uint32_t width, uint32_t height, uint32_t numCubemaps);
+        void CaptureSceneToCubemap(RenderHandle cubemap, uint32_t faceIndex);
+
+        void SaveImage(RenderHandle image, const std::string &filepath, bool saveAsCompressed);
+        void SaveScreenshot(const std::string &filepath, bool saveAsCompressed);
 
         uint32_t ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout = 16);
         void WaitAndResetImageTransitionQueue();
 
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
+        bool IsResourceValid(RenderHandle id) const { return m_resourcePool.IsValid(id); }
 
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
@@ -797,6 +851,28 @@ namespace Vultron
             std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
             auto materialInstance = VulkanMaterialInstance::Create(
                 m_context, m_descriptorPool, m_spritePipeline,
+                {
+                    bindings,
+                    materialData,
+                    referencedResources,
+                });
+
+            return m_resourcePool.AddMaterialInstance(name, materialInstance);
+        }
+
+        template <>
+        RenderHandle CreateMaterial(const std::string &name, const SkyboxMaterial &materialCreateInfo)
+        {
+            if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+            {
+                return handle.value();
+            }
+
+            std::vector<DescriptorSetBinding> bindings = materialCreateInfo.GetBindings(m_resourcePool, m_textureSampler);
+            std::vector<char> materialData = materialCreateInfo.GetMaterialData();
+            std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
+            auto materialInstance = VulkanMaterialInstance::Create(
+                m_context, m_descriptorPool, m_skyboxPipeline,
                 {
                     bindings,
                     materialData,

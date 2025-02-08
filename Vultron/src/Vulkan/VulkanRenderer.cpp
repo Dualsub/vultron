@@ -297,7 +297,7 @@ namespace Vultron
                     // Color attachment
                     {
                         // HDR format
-                        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                        .format = c_sceneImageFormat,
                         // Layout for texture to be used in bloom pass
                         .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                     },
@@ -496,6 +496,12 @@ namespace Vultron
                     .type = DescriptorType::CombinedImageSampler,
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
+                {
+                    // Probe data
+                    .binding = 2,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
             });
 
         m_particleSetLayout = VkInit::CreateDescriptorSetLayout(
@@ -611,9 +617,15 @@ namespace Vultron
                 .type = DescriptorType::CombinedImageSampler,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             },
-            // Roughness, metallic, AO
+            // AO, Roughness, Metalness(ARM)
             {
                 .binding = 2,
+                .type = DescriptorType::CombinedImageSampler,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            // Emissive
+            {
+                .binding = 3,
                 .type = DescriptorType::CombinedImageSampler,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             },
@@ -926,18 +938,27 @@ namespace Vultron
                 .fragmentShader = m_fragmentShader,
                 .descriptorSetLayouts = {m_particleSetLayout, m_environmentSetLayout},
                 .bindings = {
+                    // Albedo
                     {
                         .binding = 0,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
+                    // Normal
                     {
                         .binding = 1,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
+                    // ARM
                     {
                         .binding = 2,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    // Emissive
+                    {
+                        .binding = 3,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
@@ -971,18 +992,27 @@ namespace Vultron
                 .fragmentShader = m_fragmentShader,
                 .descriptorSetLayouts = {m_ribbonSetLayout, m_environmentSetLayout},
                 .bindings = {
+                    // Albedo
                     {
                         .binding = 0,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
+                    // Normal
                     {
                         .binding = 1,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
+                    // ARM
                     {
                         .binding = 2,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    },
+                    // Emissive
+                    {
+                        .binding = 3,
                         .type = DescriptorType::CombinedImageSampler,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     },
@@ -1078,7 +1108,7 @@ namespace Vultron
                     .height = m_swapchain.GetExtent().height,
                     .depth = 1,
                     .mipLevels = 1,
-                    .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                    .format = c_sceneImageFormat,
                 },
                 .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
                 .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
@@ -1149,7 +1179,7 @@ namespace Vultron
                         .height = height >> (i + 1),
                         .depth = 1,
                         .mipLevels = 1,
-                        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                        .format = c_sceneImageFormat,
                     },
                     .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
                     .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
@@ -1877,7 +1907,34 @@ namespace Vultron
         // Sprite
         m_spriteQuadMesh = VulkanQuadMesh::Create(m_context, m_commandPool);
 
-        // Skybox
+        {
+
+            // Black 1x1 texture
+            auto blackImage = VulkanImage::Create(
+                m_context,
+                {
+                    .info = {
+                        .width = 1,
+                        .height = 1,
+                        .depth = 1,
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    },
+                    .type = ImageType::Texture2DArray,
+                    .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .additionalUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                });
+
+            std::vector<std::vector<MipInfo>> layers;
+            layers.resize(1);
+            layers[0].resize(1);
+            layers[0][0].width = 1;
+            layers[0][0].height = 1;
+            layers[0][0].mipLevel = 0;
+            layers[0][0].data = std::unique_ptr<uint8_t>(new uint8_t[4]{0, 0, 0, 0});
+            blackImage.UploadData(m_context, m_commandPool, nullptr, 4 * sizeof(uint8_t), layers);
+
+            m_resourcePool.AddImage("null", blackImage);
+        }
 
         return true;
     }
@@ -2309,7 +2366,7 @@ namespace Vultron
             glm::uvec2 viewportSize = {m_swapchain.GetExtent().width, m_swapchain.GetExtent().height};
 
             std::array<VkClearValue, 3> clearValues{};
-            clearValues[0].color = {{0.07f, 0.07f, 0.07f, 1.0f}};
+            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
             clearValues[1].color = {{0.0f}};
             clearValues[2].depthStencil = {1.0f, 0};
 
@@ -2318,12 +2375,17 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+            if (renderData.skybox.has_value())
+            {
+                const VulkanMaterialInstance &skybox = m_resourcePool.GetMaterialInstance(renderData.skybox.value());
+                DrawSkybox(commandBuffer, {frame.skyboxDescriptorSet, skybox.GetDescriptorSet()}, viewportSize);
+            }
+
             if (renderData.environmentMap.has_value())
             {
                 const VulkanEnvironmentMap &environmentMap = m_resourcePool.GetEnvironmentMap(renderData.environmentMap.value());
                 VkDescriptorSet environmentDescriptorSet = environmentMap.GetEnvironmentDescriptorSet();
 
-                DrawSkybox(commandBuffer, {frame.skyboxDescriptorSet, environmentMap.GetSkyboxDescriptorSet()}, viewportSize);
                 DrawWithPipeline<VulkanMesh>(commandBuffer, {frame.staticDescriptorSet, environmentDescriptorSet}, m_staticPipeline, renderData.staticBatches, viewportSize);
                 DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, {frame.skeletalDescriptorSet, environmentDescriptorSet}, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
                 if (renderData.particleAtlasMaterial.has_value())
@@ -2362,7 +2424,7 @@ namespace Vultron
                 commandBuffer,
                 m_context.GetGraphicsQueue(),
                 m_sceneImage.GetImage(),
-                VK_FORMAT_R16G16B16A16_SFLOAT,
+                c_sceneImageFormat,
                 VK_IMAGE_LAYOUT_GENERAL,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -2372,7 +2434,7 @@ namespace Vultron
                 commandBuffer,
                 m_context.GetGraphicsQueue(),
                 m_bloomMipChain[0].GetImage(),
-                VK_FORMAT_R16G16B16A16_SFLOAT,
+                c_sceneImageFormat,
                 VK_IMAGE_LAYOUT_GENERAL,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
@@ -2431,7 +2493,7 @@ namespace Vultron
             commandBuffer,
             m_context.GetGraphicsQueue(),
             m_bloomMipChain[0].GetImage(),
-            VK_FORMAT_R16G16B16A16_SFLOAT,
+            c_sceneImageFormat,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             VK_IMAGE_LAYOUT_GENERAL);
     }
@@ -2798,8 +2860,8 @@ namespace Vultron
             // Uniform buffer
             UniformBufferData ubo = m_uniformBufferData;
             const glm::vec3 viewPos = m_camera.position;
-            const glm::vec3 viewDir = m_camera.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
-            ubo.view = glm::lookAt(viewPos, viewPos + viewDir, glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 cameraTransform = glm::translate(glm::mat4(1.0f), viewPos) * glm::mat4_cast(m_camera.rotation);
+            ubo.view = glm::inverse(cameraTransform);
             ubo.viewPos = viewPos;
             glm::mat4 lightCamProj = glm::perspective(glm::radians(m_camera.fov), m_camera.aspectRatio, 10.0f, 4000.0f);
             lightCamProj[1][1] *= -1;
@@ -3150,27 +3212,28 @@ namespace Vultron
         return m_resourcePool.AddFontAtlas(filepath, std::move(fontAtlas));
     }
 
-    RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath)
+    RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &name, const std::string &irradianceFilepath, const std::string &prefilteredFilepath, const VolumeData &irradianceVolumeData, const std::vector<glm::vec3> &probePositions)
     {
-        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
         {
             return handle.value();
         }
 
         VulkanEnvironmentMap environmentMap = VulkanEnvironmentMap::CreateFromFile(
             m_context,
-            m_transferCommandPool, m_descriptorPool,
-            m_skyboxMesh,
-            m_environmentSetLayout, m_skyboxPipeline.GetDescriptorSetLayout(),
+            m_transferCommandPool,
+            m_descriptorPool,
+            m_environmentSetLayout,
             m_cubemapSampler,
             {
-                .filepath = filepath,
                 .irradianceFilepath = irradianceFilepath,
                 .prefilteredFilepath = prefilteredFilepath,
+                .irradianceVolumeData = irradianceVolumeData,
+                .probePositions = probePositions,
                 .imageTransitionQueue = &m_imageTransitionQueue,
             });
 
-        return m_resourcePool.AddEnvironmentMap(filepath, std::move(environmentMap));
+        return m_resourcePool.AddEnvironmentMap(name, std::move(environmentMap));
     }
 
     RenderHandle VulkanRenderer::GenerateIrradianceMap(RenderHandle environmentImage, const std::string &name)
@@ -3181,6 +3244,19 @@ namespace Vultron
         return m_resourcePool.AddImage(name, std::move(irradiance));
     }
 
+    std::vector<SHData> VulkanRenderer::GenerateIrradianceSHs(RenderHandle environmentImageArray)
+    {
+        VulkanImage environment = m_resourcePool.GetImage(environmentImageArray);
+        return VulkanEnvironmentMap::GenerateIrradianceSHs(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, environment);
+    }
+
+    RenderHandle VulkanRenderer::GenerateCubemapFromSHs(const std::vector<SHData> &shs, const std::string &name)
+    {
+        VulkanImage cubemap = VulkanEnvironmentMap::GenerateCubemapFromSHs(m_context, m_commandPool, m_descriptorPool, m_skyboxMesh, shs);
+
+        return m_resourcePool.AddImage(name, std::move(cubemap));
+    }
+
     RenderHandle VulkanRenderer::GeneratePrefilteredMap(RenderHandle environmentImage, const std::string &name)
     {
         VulkanImage environment = m_resourcePool.GetImage(environmentImage);
@@ -3189,10 +3265,223 @@ namespace Vultron
         return m_resourcePool.AddImage(name, std::move(prefiltered));
     }
 
-    void VulkanRenderer::SaveImage(RenderHandle imageHandle, const std::string &filepath)
+    RenderHandle VulkanRenderer::CreateCaptureCubemap(const std::string &name, uint32_t width, uint32_t height, uint32_t numCubemaps)
+    {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+        {
+            return handle.value();
+        }
+
+        VulkanImage cubemap = VulkanImage::Create(
+            m_context,
+            {
+                .info = {
+                    .width = width,
+                    .height = height,
+                    .mipLevels = 1,
+                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                    .layers = numCubemaps * 6,
+                },
+                .type = numCubemaps > 1 ? ImageType::CubemapArray : ImageType::Cubemap,
+                .additionalUsageFlags = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            });
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(m_context.GetDevice(), m_commandPool);
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            cubemap,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkUtil::EndSingleTimeCommands(m_context.GetDevice(), m_commandPool, m_context.GetTransferQueue(), commandBuffer);
+
+        return m_resourcePool.AddImage(name, std::move(cubemap));
+    }
+
+    void VulkanRenderer::CaptureSceneToCubemap(RenderHandle cubemap, uint32_t faceIndex)
+    {
+        // Wait for the current frame to finish rendering
+        vkWaitForFences(m_context.GetDevice(), 1, &m_frames[m_currentFrameIndex].inFlightFence, VK_TRUE, (std::numeric_limits<uint32_t>::max)());
+
+        VulkanImage cubemapImage = m_resourcePool.GetImage(cubemap);
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(m_context.GetDevice(), m_commandPool);
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            1,
+            1,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkImageSubresourceLayers subresourceLayers{};
+        subresourceLayers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subresourceLayers.mipLevel = 0;
+        subresourceLayers.baseArrayLayer = faceIndex;
+        subresourceLayers.layerCount = 1;
+
+        VkImageBlit blit{};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = 0;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.srcOffsets[0] = {0, 0, 0};
+        blit.srcOffsets[1] = {static_cast<int32_t>(m_sceneImage.GetInfo().width), static_cast<int32_t>(m_sceneImage.GetInfo().height), 1};
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = 0;
+        blit.dstSubresource.baseArrayLayer = faceIndex;
+        blit.dstSubresource.layerCount = 1;
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {static_cast<int32_t>(cubemapImage.GetInfo().width), static_cast<int32_t>(cubemapImage.GetInfo().height), 1};
+
+        vkCmdBlitImage(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            cubemapImage.GetImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &blit,
+            VK_FILTER_LINEAR);
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            1,
+            1,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkUtil::EndSingleTimeCommands(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), commandBuffer);
+    }
+
+    void VulkanRenderer::SaveImage(RenderHandle imageHandle, const std::string &filepath, bool saveAsCompressed)
     {
         VulkanImage image = m_resourcePool.GetImage(imageHandle);
-        VulkanImage::SaveImageToFile(m_context, m_commandPool, image, filepath);
+        VulkanImage::SaveImageToFile(m_context, m_commandPool, image, filepath, saveAsCompressed);
+    }
+
+    void VulkanRenderer::SaveScreenshot(const std::string &filepath, bool saveAsCompressed)
+    {
+        // Wait for the current frame to finish rendering
+        vkWaitForFences(m_context.GetDevice(), 1, &m_frames[m_currentFrameIndex].inFlightFence, VK_TRUE, (std::numeric_limits<uint32_t>::max)());
+
+        VulkanImage outputImage = VulkanImage::Create(
+            m_context,
+            {
+                .info = {
+                    .width = m_sceneImage.GetInfo().width,
+                    .height = m_sceneImage.GetInfo().height,
+                    .mipLevels = 1,
+                    .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                },
+                .additionalUsageFlags = VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            });
+
+        VkCommandBuffer commandBuffer = VkUtil::BeginSingleTimeCommands(m_context.GetDevice(), m_commandPool);
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            outputImage,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            1,
+            1,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = {0, 0, 0};
+        blit.srcOffsets[1] = {static_cast<int32_t>(m_swapchain.GetExtent().width), static_cast<int32_t>(m_swapchain.GetExtent().height), 1};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = 0;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {static_cast<int32_t>(m_swapchain.GetExtent().width), static_cast<int32_t>(m_swapchain.GetExtent().height), 1};
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = 0;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+
+        vkCmdBlitImage(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            outputImage.GetImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &blit,
+            VK_FILTER_LINEAR);
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            outputImage,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkUtil::ImageBarrier(
+            commandBuffer,
+            m_sceneImage.GetImage(),
+            1,
+            1,
+            {
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+                .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            });
+
+        VkUtil::EndSingleTimeCommands(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), commandBuffer);
+
+        VulkanImage::SaveImageToFile(m_context, m_commandPool, outputImage, filepath, saveAsCompressed);
+
+        // Destroy the output image
+        outputImage.Destroy(m_context);
     }
 
     uint32_t VulkanRenderer::ProcessImageTransitions(VkCommandBuffer commandBuffer, VkFence fence, const VkSemaphore *imageTransitionFinishedSemaphores, uint32_t timeout)

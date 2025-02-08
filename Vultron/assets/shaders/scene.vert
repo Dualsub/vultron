@@ -10,6 +10,9 @@ layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec4 fragLightSpacePos;
 layout(location = 4) out vec4 fragColor;
 layout(location = 5) out vec4 fragEmissiveColor;
+layout(location = 6) out ivec4 fragClosestProbes;
+layout(location = 7) out vec4 fragProbeWeights;
+layout(location = 8) out uint irradianceVolumeIndex;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -37,20 +40,104 @@ layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
     InstanceData instances[];
 };
 
+struct IrradianceVolume {
+	vec3 volumeMin;
+	vec3 volumeMax;
+	uvec3 numCells;
+};
+
+layout(std430, set = 1, binding = 2) readonly buffer ProbeBuffer {
+    IrradianceVolume irradianceVolume;
+    vec3 probePositions[];
+};
+
 const mat4 biasMat = mat4( 
 	0.5, 0.0, 0.0, 0.0,
 	0.0, 0.5, 0.0, 0.0,
 	0.0, 0.0, 1.0, 0.0,
 	0.5, 0.5, 0.0, 1.0 );
 
+void find4NearestProbes(in vec3 worldPos, 
+                        out ivec4 outIndices, 
+                        out vec4 outWeights)
+{
+    uint probeCount = probePositions.length();
+
+    // We allocate some space for the distances and indices
+    float distArr[64];
+    int   idxArr[64];
+
+    for (int i = 0; i < probeCount; i++) {
+        distArr[i] = distance(worldPos, probePositions[i]);
+        idxArr[i]  = i;
+    }
+
+    for (int i = 0; i < probeCount; i++) {
+        for (int j = i + 1; j < probeCount; j++) {
+            if (distArr[i] > distArr[j]) {
+                // Swap distances
+                float tmpDist = distArr[i];
+                distArr[i] = distArr[j];
+                distArr[j] = tmpDist;
+                // Swap indices
+                int tmpIdx = idxArr[i];
+                idxArr[i] = idxArr[j];
+                idxArr[j] = tmpIdx;
+            }
+        }
+    }
+
+    float d0 = distArr[0];
+    float d1 = distArr[1];
+    float d2 = distArr[2];
+    float d3 = distArr[3];
+    int i0 = idxArr[0];
+    int i1 = idxArr[1];
+    int i2 = idxArr[2];
+    int i3 = idxArr[3];
+
+    float w0 = 1.0 / (d0 + 0.0001);
+    float w1 = 1.0 / (d1 + 0.0001);
+    float w2 = 1.0 / (d2 + 0.0001);
+    float w3 = 1.0 / (d3 + 0.0001);
+
+    float sumW = w0 + w1 + w2 + w3 + 1e-8;
+    w0 /= sumW;
+    w1 /= sumW;
+    w2 /= sumW;
+    w3 /= sumW;
+
+    outIndices = ivec4(i0, i1, i2, i3);
+    outWeights = vec4(w0, w1, w2, w3);
+}
+
+uint GetIrradianceVolumeIndex(vec3 worldPos)
+{
+	vec3 volumeSize = irradianceVolume.volumeMax - irradianceVolume.volumeMin;
+	vec3 volumePos = worldPos - irradianceVolume.volumeMin;
+	vec3 cellSize = volumeSize / vec3(irradianceVolume.numCells);
+	ivec3 cell = ivec3(volumePos / cellSize);
+	cell = clamp(cell, ivec3(0), ivec3(irradianceVolume.numCells - 1));
+	return cell.x + cell.y * irradianceVolume.numCells.x + cell.z * irradianceVolume.numCells.x * irradianceVolume.numCells.y;
+}
+
 void main()  
 {
     vec4 pos = instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * pos;
-    fragWorldPos = pos.xyz;
+    fragWorldPos = pos.xyz / pos.w;
     fragTexCoord = vec3(inTexCoord.xy * instances[gl_InstanceIndex].texOffsetAndSize.zw + instances[gl_InstanceIndex].texOffsetAndSize.xy, inTexCoord.z);
     fragNormal = normalize(mat3(transpose(inverse(instances[gl_InstanceIndex].model))) * inNormal);
     fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * pos;
     fragColor = instances[gl_InstanceIndex].color;
     fragEmissiveColor = instances[gl_InstanceIndex].emissiveColor;
+
+    ivec4 closestProbes;
+    vec4 probeWeights;
+
+    find4NearestProbes(vec3(instances[gl_InstanceIndex].model * vec4(0.0,0.0,0.0,1.0)), closestProbes, probeWeights);
+
+    fragClosestProbes = closestProbes;
+    fragProbeWeights = probeWeights;
+    irradianceVolumeIndex = GetIrradianceVolumeIndex(fragWorldPos);
 }

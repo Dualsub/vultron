@@ -112,6 +112,7 @@ namespace Vultron
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
         void SetBloomSettings(const BloomSettings &bloomSettings) { m_backend.SetBloomSettings(bloomSettings); }
+        void SetDebugCallback(std::function<void(const std::string &)> callback) { m_backend.SetDebugCallback(callback); }
 
         void WaitAndResetImageTransitionQueue() { m_backend.WaitAndResetImageTransitionQueue(); }
 

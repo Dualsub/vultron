@@ -31,6 +31,7 @@ struct InstanceData {
     ivec4 boneAndInstanceOffsetAndCount;
     int boneOutputOffset;
     vec4 color;
+    vec4 emissiveColor;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {

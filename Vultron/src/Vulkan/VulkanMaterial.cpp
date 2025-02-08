@@ -230,7 +230,7 @@ namespace Vultron
     VulkanMaterialInstance VulkanMaterialInstance::Create(const VulkanContext &context, VkDescriptorPool descriptorPool, const VulkanMaterialPipeline &pipeline, const MaterialInstanceCreateInfo &createInfo)
     {
         auto descriptorSet = VkInit::CreateDescriptorSet(context.GetDevice(), descriptorPool, pipeline.GetDescriptorSetLayout(), createInfo.bindings);
-        return VulkanMaterialInstance(descriptorSet, createInfo.materialData);
+        return VulkanMaterialInstance(descriptorSet, createInfo.materialData, createInfo.referencedResources);
     }
 
 }

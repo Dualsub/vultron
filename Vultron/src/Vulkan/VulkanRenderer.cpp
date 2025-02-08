@@ -1846,11 +1846,27 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeDebugMessenger()
     {
+        auto DebugCallback = [](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData) -> VkBool32
+        {
+            VulkanRenderer *renderer = reinterpret_cast<VulkanRenderer *>(pUserData);
+            if (renderer->m_debugCallback)
+            {
+                std::string message = pCallbackData->pMessage;
+                renderer->m_debugCallback(message);
+            }
+            else
+            {
+                std::cerr << "[VALIDATION LAYER]: " << pCallbackData->pMessage << std::endl;
+            }
+            return VK_FALSE;
+        };
+
         VkDebugUtilsMessengerCreateInfoEXT createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
         createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = VulkanDebugCallback;
+        createInfo.pUserData = this;
+        createInfo.pfnUserCallback = DebugCallback;
         VK_CHECK(CreateDebugUtilsMessengerEXT(m_context.GetInstance(), &createInfo, nullptr, &m_debugMessenger));
 
         return true;
@@ -3033,6 +3049,11 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
             {.device = m_context.GetDevice(),
              .commandPool = m_transferCommandPool,
@@ -3045,6 +3066,11 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadQuad(const std::string &name)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+        {
+            return handle.value();
+        }
+
         std::vector<StaticMeshVertex> vertices = {
             {.position = {-1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {0.0f, 0.0f, 0.0f}},
             {.position = {1.0f, -1.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .texCoord = {1.0f, 0.0f, 0.0f}},
@@ -3068,6 +3094,11 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadSkeletalMesh(const std::string &filepath)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         VulkanSkeletalMesh mesh = VulkanSkeletalMesh::CreateFromFile(m_context, m_transferCommandPool, m_bones, {.filepath = filepath});
 
         return m_resourcePool.AddSkeletalMesh(filepath, std::move(mesh));
@@ -3075,11 +3106,21 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadAnimation(const std::string &filepath)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         return m_resourcePool.AddAnimation(filepath, VulkanAnimation::CreateFromFile(m_animationFrames, {.filepath = filepath}));
     }
 
     RenderHandle VulkanRenderer::LoadImage(const std::string &filepath, ImageType type, bool useAllMips)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         VulkanImage image = VulkanImage::CreateFromFile(
             m_context, m_transferCommandPool,
             {
@@ -3094,6 +3135,11 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadFontAtlas(const std::string &filepath)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         auto fontAtlas = VulkanFontAtlas::CreateFromFile(
             m_context, m_transferCommandPool,
             {
@@ -3106,6 +3152,11 @@ namespace Vultron
 
     RenderHandle VulkanRenderer::LoadEnvironmentMap(const std::string &filepath, const std::string &irradianceFilepath, const std::string &prefilteredFilepath)
     {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
+        {
+            return handle.value();
+        }
+
         VulkanEnvironmentMap environmentMap = VulkanEnvironmentMap::CreateFromFile(
             m_context,
             m_transferCommandPool, m_descriptorPool,
@@ -3159,9 +3210,8 @@ namespace Vultron
         uint32_t imageCount = 0;
 
         ImageTransition transition;
-        while (m_imageTransitionQueue.Peek(transition) && imageCount < c_maxImageTransitionsPerFrame)
+        while (m_imageTransitionQueue.Pop(transition) && imageCount < c_maxImageTransitionsPerFrame)
         {
-
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -3190,8 +3240,6 @@ namespace Vultron
 
             vkDestroySemaphore(m_context.GetDevice(), transition.semaphore, nullptr);
             imageCount++;
-
-            m_imageTransitionQueue.Dequeue();
 
             if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count() > timeout)
             {

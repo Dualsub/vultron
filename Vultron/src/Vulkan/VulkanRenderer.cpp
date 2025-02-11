@@ -1936,6 +1936,34 @@ namespace Vultron
             m_resourcePool.AddImage("null", blackImage);
         }
 
+        {
+            // White 1x1 texture
+            auto whiteImage = VulkanImage::Create(
+                m_context,
+                {
+                    .info = {
+                        .width = 1,
+                        .height = 1,
+                        .depth = 1,
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    },
+                    .type = ImageType::Texture2DArray,
+                    .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .additionalUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                });
+
+            std::vector<std::vector<MipInfo>> layers;
+            layers.resize(1);
+            layers[0].resize(1);
+            layers[0][0].width = 1;
+            layers[0][0].height = 1;
+            layers[0][0].mipLevel = 0;
+            layers[0][0].data = std::unique_ptr<uint8_t>(new uint8_t[4]{255, 255, 255, 255});
+            whiteImage.UploadData(m_context, m_commandPool, nullptr, 4 * sizeof(uint8_t), layers);
+
+            m_resourcePool.AddImage("white", whiteImage);
+        }
+
         return true;
     }
 

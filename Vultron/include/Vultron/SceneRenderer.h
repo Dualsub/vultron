@@ -95,6 +95,8 @@ namespace Vultron
             float duration = 0.0f;
         };
 
+        float GetAspectRatio() const { return m_backend.GetAspectRatio(); }
+
         // Font stuff
         std::vector<FontGlyph> GetTextGlyphs(const RenderHandle &font, const std::string &text) const;
         FontGlyph GetGlyph(const RenderHandle &font, const std::string &name) const;

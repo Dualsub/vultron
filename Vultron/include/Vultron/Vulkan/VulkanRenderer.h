@@ -768,6 +768,7 @@ namespace Vultron
         const glm::mat4 &GetViewMatrix() const { return m_uniformBufferData.view; }
         Camera &GetCamera() { return m_camera; }
         const BloomSettings &GetBloomSettings() const { return m_bloomSettings; }
+        float GetAspectRatio() const { return static_cast<float>(m_swapchain.GetExtent().width) / static_cast<float>(m_swapchain.GetExtent().height); }
 
         RenderHandle LoadMesh(const std::string &filepath);
         RenderHandle LoadQuad(const std::string &name);

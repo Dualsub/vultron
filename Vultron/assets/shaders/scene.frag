@@ -3,11 +3,10 @@
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec3 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in vec4 fragLightSpacePos;
-layout(location = 4) in vec4 fragColor;
-layout(location = 5) in vec4 fragEmissiveColor;
-layout(location = 6) flat in ivec4 fragClosestProbes;
-layout(location = 7) in vec4 fragProbeWeights;
+layout(location = 3) in vec4 fragColor;
+layout(location = 4) in vec4 fragEmissiveColor;
+layout(location = 5) flat in ivec4 fragClosestProbes;
+layout(location = 6) in vec4 fragProbeWeights;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out float outDepth;
@@ -43,11 +42,12 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrices[4];
+	vec4 lightCascadeSplits;
 	PointLight pointLights[4];
 } ubo;
 
-layout(set = 0, binding = 2) uniform sampler2D shadowMap;
+layout(set = 0, binding = 2) uniform sampler2DArray shadowMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 
 layout(set = 1, binding = 0) uniform samplerCubeArray irradianceMap;
@@ -65,23 +65,23 @@ layout(set = 2, binding = 3) uniform sampler2DArray emissiveMap;
 
 const float PI = 3.14159265359;
 
-float textureProj(vec4 shadowCoord, vec2 off)
+float textureProj(vec4 shadowCoord, vec2 off, uint cascadeIndex)
 {
 	float shadow = 1.0;
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
 	{
-		float dist = texture( shadowMap, shadowCoord.xy + off ).r + 0.005;
-		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z ) 
+		float dist = texture(shadowMap, vec3(shadowCoord.xy + off, cascadeIndex)).r; 
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z - 0.005 ) 
 		{
-			shadow = 0.1;
+			shadow = 0.0;
 		}
 	}
 	return shadow;
 }
 
-float GetShadow(vec4 sc)
+float GetShadow(vec4 sc, uint cascadeIndex)
 {
-	ivec2 texDim = textureSize(shadowMap, 0);
+	ivec2 texDim = textureSize(shadowMap, 0).xy;
 	float scale = 2.0;
 	float dx = scale * 1.0 / float(texDim.x);
 	float dy = scale * 1.0 / float(texDim.y);
@@ -94,12 +94,24 @@ float GetShadow(vec4 sc)
 	{
 		for (int y = -range; y <= range; y++)
 		{
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y), cascadeIndex);
 			count++;
 		}
 	
 	}
 	return shadowFactor / count;
+}
+
+uint GetShadowCascadeIndex(float depth)
+{
+	uint cascadeIndex = 0;
+	for(uint i = 0; i < 4 - 1; ++i) {
+		if(depth < ubo.lightCascadeSplits[i]) {
+			cascadeIndex = i + 1;
+		}
+	}
+
+	return cascadeIndex;
 }
 
 vec3 GetNormalFromMap()
@@ -327,6 +339,12 @@ vec3 GetIrradicanceVolumeDebugColor()
 	return color;
 }
 
+const mat4 biasMat = mat4( 
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.5, 0.5, 0.0, 1.0 );
+
 void main() {
     vec4 texColor = texture(albedoMap, fragTexCoord) * materialParams.albedoColor * fragColor;
 	vec3 albedo = pow(texColor.rgb, vec3(2.2));
@@ -334,7 +352,17 @@ void main() {
     float roughness = mix(materialParams.roughnessMinMax.x, materialParams.roughnessMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).g);
     float ao = mix(materialParams.aoMinMax.x, materialParams.aoMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).r);
 
-    float shadow = GetShadow(fragLightSpacePos / fragLightSpacePos.w);
+	uint cascadeIndex = GetShadowCascadeIndex((ubo.view * vec4(fragWorldPos, 1.0)).z);
+	vec4 lightSpacePos = biasMat * ubo.lightSpaceMatrices[cascadeIndex] * vec4(fragWorldPos, 1.0);
+    float shadow = GetShadow(lightSpacePos / lightSpacePos.w, cascadeIndex);
+
+	// vec4 cascadeColors[4] = vec4[4](
+	// 	vec4(1.0, 0.0, 0.0, 1.0), 
+	// 	vec4(0.0, 1.0, 0.0, 1.0), 
+	// 	vec4(0.0, 0.0, 1.0, 1.0), 
+	// 	vec4(1.0, 1.0, 0.0, 1.0)
+	// );
+	// albedo *= cascadeColors[cascadeIndex].rgb;
 
 	vec3 N = GetNormalFromMap();
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
@@ -371,7 +399,7 @@ void main() {
 
 	vec3 kD = 1.0 - F;
 	kD *= 1.0 - metallic;	  
-	vec3 ambient = (kD * diffuse + specular) * ao;
+	vec3 ambient = (kD * diffuse + specular) * ao * 0.25;
 	
 	vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * materialParams.emissiveColor.rgb + fragEmissiveColor.rgb;
 

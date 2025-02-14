@@ -22,7 +22,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrices[4];
+    vec3 lightCascadeEnds;
 	PointLight pointLights[4];
 } ubo;
 
@@ -33,6 +34,11 @@ struct InstanceData {
     vec4 color;
     vec4 emissiveColor;
 };
+
+// Push constants for cascaded shadow mapping
+layout(push_constant) uniform PushConstants {
+    uint cascadeIndex;
+} pc;
 
 layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
     InstanceData instances[];
@@ -62,6 +68,6 @@ void main()  {
         boneMatrix += boneTransform * inWeights[j];
     }
 
-
-    gl_Position = ubo.lightSpaceMatrix * instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
+    mat4 lightSpaceMatrix = ubo.lightSpaceMatrices[pc.cascadeIndex];
+    gl_Position = lightSpaceMatrix * instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
 }

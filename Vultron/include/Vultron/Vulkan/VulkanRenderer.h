@@ -70,6 +70,8 @@ namespace Vultron
 
     constexpr uint32_t c_maxBloomMipLevels = 6;
 
+    constexpr uint32_t c_numShadowCascades = 4;
+
     constexpr uint32_t c_maxImageTransitionsPerFrame = 32;
 
     constexpr VkFormat c_sceneImageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -444,6 +446,8 @@ namespace Vultron
         glm::quat rotation;
         float fov = 45.0f;
         float aspectRatio = 16.0f / 9.0f;
+        float nearPlane = 0.5f;
+        float farPlane = 10000.0f;
     };
 
     struct PointLightData
@@ -471,7 +475,8 @@ namespace Vultron
         float random = 0.0f;
         glm::vec3 lightColor = glm::vec3(1.0f);
         float _padding2;
-        glm::mat4 lightViewProjection = glm::mat4(1.0f);
+        std::array<glm::mat4, c_numShadowCascades> lightViewProjections = {};
+        std::array<float, c_numShadowCascades> lightCascadeSplits = {};
         std::array<PointLightData, 4> pointLights = {};
     };
 
@@ -522,8 +527,11 @@ namespace Vultron
 
         // Shadow map
         VulkanImage m_shadowMap;
+        std::array<VkImageView, c_numShadowCascades> m_shadowCascadeImageViews;
+        std::array<glm::mat4, c_numShadowCascades> m_shadowCascadeMatrices;
+        std::array<float, c_numShadowCascades> m_shadowCascadeSplits;
+        std::array<VkFramebuffer, c_numShadowCascades> m_shadowCascadeFramebuffers;
         VkSampler m_shadowSampler;
-        VkFramebuffer m_shadowFramebuffer;
 
         // Render passes
         VulkanRenderPass m_shadowPass;

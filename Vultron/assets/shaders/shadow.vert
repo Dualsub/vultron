@@ -15,7 +15,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrices[4];
+    vec3 lightCascadeEnds;
 	PointLight pointLights[4];
 } ubo;
 
@@ -30,6 +31,12 @@ layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
     InstanceData instances[];
 };
 
-void main()  {
-    gl_Position = ubo.lightSpaceMatrix * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
+layout(push_constant) uniform PushConstants {
+    uint cascadeIndex;
+} pc;
+
+void main() 
+{
+    mat4 lightSpaceMatrix = ubo.lightSpaceMatrices[pc.cascadeIndex];
+    gl_Position = lightSpaceMatrix * instances[gl_InstanceIndex].model * vec4(inPosition, 1.0);
 }

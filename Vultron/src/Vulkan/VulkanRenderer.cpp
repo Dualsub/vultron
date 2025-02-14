@@ -58,20 +58,110 @@ namespace Vultron
             float distance = glm::length(frustumCorners[i] - frustumCenter);
             radius = glm::max(radius, distance);
         }
+
         radius = std::ceil(radius * 16.0f) / 16.0f;
 
         glm::vec3 maxExtents = glm::vec3(radius);
         glm::vec3 minExtents = -maxExtents;
-
-        const float zMultiplier = 1.0f; // To make sure things even outside the frustum are included
-        minExtents.z = -radius * zMultiplier;
-        maxExtents.z = radius * zMultiplier;
 
         glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter - lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
         glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
         glm::mat4 lightProjMatrix = lightOrthoMatrix * lightViewMatrix;
 
         return lightProjMatrix;
+    }
+
+    void UpdateShadowCascades(
+        const glm::mat4 &camProj,
+        const glm::mat4 &camView,
+        float nearPlane,
+        float farPlane,
+        const glm::vec3 &lightDir,
+        std::array<glm::mat4, c_numShadowCascades> &lightViewProjections,
+        std::array<float, c_numShadowCascades> &cascadeSplits)
+    {
+        constexpr float c_cascadeSplitLambda = 0.95f;
+
+        float clipRange = farPlane - nearPlane;
+
+        float minZ = nearPlane;
+        float maxZ = nearPlane + clipRange;
+
+        float range = maxZ - minZ;
+        float ratio = maxZ / minZ;
+
+        std::array<float, c_numShadowCascades> splits{};
+        // Calculate split depths based on view camera frustum
+        // Based on method presented in https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch10.html
+        for (uint32_t i = 0; i < c_numShadowCascades; i++)
+        {
+            float p = (i + 1) / static_cast<float>(c_numShadowCascades);
+            float log = minZ * std::pow(ratio, p);
+            float uniform = minZ + range * p;
+            float d = c_cascadeSplitLambda * (log - uniform) + uniform;
+            splits[i] = (d - nearPlane) / clipRange;
+        }
+
+        // Calculate orthographic projection matrix for each cascade
+        glm::mat4 invCam = glm::inverse(camProj * camView);
+        float lastSplitDist = 0.0;
+        for (uint32_t i = 0; i < c_numShadowCascades; i++)
+        {
+            float splitDist = splits[i];
+
+            glm::vec3 frustumCorners[8] = {
+                glm::vec3(-1.0f, 1.0f, 0.0f),
+                glm::vec3(1.0f, 1.0f, 0.0f),
+                glm::vec3(1.0f, -1.0f, 0.0f),
+                glm::vec3(-1.0f, -1.0f, 0.0f),
+                glm::vec3(-1.0f, 1.0f, 1.0f),
+                glm::vec3(1.0f, 1.0f, 1.0f),
+                glm::vec3(1.0f, -1.0f, 1.0f),
+                glm::vec3(-1.0f, -1.0f, 1.0f),
+            };
+
+            // Project frustum corners into world space
+            for (uint32_t j = 0; j < 8; j++)
+            {
+                glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[j], 1.0f);
+                frustumCorners[j] = invCorner / invCorner.w;
+            }
+
+            for (uint32_t j = 0; j < 4; j++)
+            {
+                glm::vec3 dist = frustumCorners[j + 4] - frustumCorners[j];
+                frustumCorners[j + 4] = frustumCorners[j] + (dist * splitDist);
+                frustumCorners[j] = frustumCorners[j] + (dist * lastSplitDist);
+            }
+
+            // Get frustum center
+            glm::vec3 frustumCenter = glm::vec3(0.0f);
+            for (uint32_t j = 0; j < 8; j++)
+            {
+                frustumCenter += frustumCorners[j];
+            }
+            frustumCenter /= 8.0f;
+
+            float radius = 0.0f;
+            for (uint32_t j = 0; j < 8; j++)
+            {
+                float distance = glm::length(frustumCorners[j] - frustumCenter);
+                radius = glm::max(radius, distance);
+            }
+            radius = std::ceil(radius * 16.0f) / 16.0f;
+
+            glm::vec3 maxExtents = glm::vec3(radius);
+            glm::vec3 minExtents = -maxExtents;
+
+            glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter - lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
+
+            // Store split distance and matrix in cascade
+            cascadeSplits[i] = (nearPlane + splitDist * clipRange) * -1.0f;
+            lightViewProjections[i] = lightOrthoMatrix * lightViewMatrix;
+
+            lastSplitDist = splits[i];
+        }
     }
 
     bool VulkanRenderer::Initialize(const Window &window)
@@ -672,6 +762,13 @@ namespace Vultron
                 .fragmentShader = m_shadowFragmentShader,
                 .descriptorSetLayouts = {m_staticSetLayout},
                 .bindings = {},
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                        .offset = 0,
+                        .size = sizeof(uint32_t),
+                    },
+                },
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .outputToSceneImage = false,
@@ -684,6 +781,13 @@ namespace Vultron
                 .fragmentShader = m_shadowFragmentShader,
                 .descriptorSetLayouts = {m_skeletalSetLayout},
                 .bindings = {},
+                .pushConstantRanges = {
+                    {
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                        .offset = 0,
+                        .size = sizeof(uint32_t),
+                    },
+                },
                 .vertexDescription = SkeletalMeshVertex::GetVertexDescription(),
                 .cullMode = CullMode::Front,
                 .outputToSceneImage = false,
@@ -1136,26 +1240,45 @@ namespace Vultron
             m_context,
             {
                 .info = {
-                    .width = 2048 * 2,
-                    .height = 2048 * 2,
+                    .width = 2048 * 4,
+                    .height = 2048 * 4,
                     .depth = 1,
                     .mipLevels = 1,
                     .format = VK_FORMAT_D32_SFLOAT,
+                    .layers = c_numShadowCascades,
                 },
+                .type = ImageType::Texture2DArray,
                 .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
                 .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             });
 
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = m_shadowPass.GetRenderPass();
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = &m_shadowMap.GetImageView();
-        framebufferInfo.width = m_shadowMap.GetInfo().width;
-        framebufferInfo.height = m_shadowMap.GetInfo().height;
-        framebufferInfo.layers = 1;
+        for (size_t i = 0; i < c_numShadowCascades; i++)
+        {
+            // Create image view
+            VkImageViewCreateInfo imageViewInfo{};
+            imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            imageViewInfo.image = m_shadowMap.GetImage();
+            imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            imageViewInfo.format = VK_FORMAT_D32_SFLOAT;
+            imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            imageViewInfo.subresourceRange.baseMipLevel = 0;
+            imageViewInfo.subresourceRange.levelCount = 1;
+            imageViewInfo.subresourceRange.baseArrayLayer = i;
+            imageViewInfo.subresourceRange.layerCount = 1;
 
-        VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &m_shadowFramebuffer));
+            VK_CHECK(vkCreateImageView(m_context.GetDevice(), &imageViewInfo, nullptr, &m_shadowCascadeImageViews[i]));
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = m_shadowPass.GetRenderPass();
+            framebufferInfo.attachmentCount = 1;
+            framebufferInfo.pAttachments = &m_shadowCascadeImageViews[i];
+            framebufferInfo.width = m_shadowMap.GetInfo().width;
+            framebufferInfo.height = m_shadowMap.GetInfo().height;
+            framebufferInfo.layers = 1;
+
+            VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &framebufferInfo, nullptr, &m_shadowCascadeFramebuffers[i]));
+        }
 
         return true;
     }
@@ -1506,7 +1629,15 @@ namespace Vultron
 
         m_uniformBufferData.lightDir = glm::normalize(glm::vec3(1.0f, -1.0f, 1.0f));
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 4.0f;
-        m_uniformBufferData.lightViewProjection = ComputeLightProjectionMatrix(m_uniformBufferData.proj, m_uniformBufferData.view, m_uniformBufferData.lightDir);
+        // m_uniformBufferData.lightViewProjection = ComputeLightProjectionMatrix(m_uniformBufferData.proj, m_uniformBufferData.view, m_uniformBufferData.lightDir);
+        UpdateShadowCascades(
+            m_uniformBufferData.proj,
+            m_uniformBufferData.view,
+            m_camera.nearPlane,
+            m_camera.farPlane,
+            m_uniformBufferData.lightDir,
+            m_uniformBufferData.lightViewProjections,
+            m_uniformBufferData.lightCascadeSplits);
 
         return true;
     }
@@ -2358,11 +2489,13 @@ namespace Vultron
     {
         const FrameData &frame = m_frames[m_currentFrameIndex];
 
-        { // Shadow pass
+        for (uint32_t i = 0; i < c_numShadowCascades; i++)
+        {
+            // Shadow pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = m_shadowPass.GetRenderPass();
-            renderPassInfo.framebuffer = m_shadowFramebuffer;
+            renderPassInfo.framebuffer = m_shadowCascadeFramebuffers[i];
 
             renderPassInfo.renderArea.offset = {0, 0};
             const ImageInfo &shadowMapInfo = m_shadowMap.GetInfo();
@@ -2377,7 +2510,9 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+            vkCmdPushConstants(commandBuffer, m_staticShadowPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &i);
             DrawWithPipeline<VulkanMesh>(commandBuffer, {frame.staticDescriptorSet}, m_staticShadowPipeline, renderData.staticBatches, viewportSize, true);
+            vkCmdPushConstants(commandBuffer, m_skeletalShadowPipeline.GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &i);
             DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, {frame.skeletalDescriptorSet}, m_skeletalShadowPipeline, renderData.skeletalBatches, viewportSize, true);
 
             vkCmdEndRenderPass(commandBuffer);
@@ -2851,7 +2986,7 @@ namespace Vultron
 
     void VulkanRenderer::CalculateProjectionMatrix()
     {
-        m_uniformBufferData.proj = glm::perspective(glm::radians(m_camera.fov), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, 10.0f, 6000.0f);
+        m_uniformBufferData.proj = glm::perspective(glm::radians(m_camera.fov), (float)m_swapchain.GetExtent().width / (float)m_swapchain.GetExtent().height, m_camera.nearPlane, m_camera.farPlane);
         m_uniformBufferData.proj[1][1] *= -1;
     }
 
@@ -2891,9 +3026,15 @@ namespace Vultron
             glm::mat4 cameraTransform = glm::translate(glm::mat4(1.0f), viewPos) * glm::mat4_cast(m_camera.rotation);
             ubo.view = glm::inverse(cameraTransform);
             ubo.viewPos = viewPos;
-            glm::mat4 lightCamProj = glm::perspective(glm::radians(m_camera.fov), m_camera.aspectRatio, 10.0f, 4000.0f);
-            lightCamProj[1][1] *= -1;
-            ubo.lightViewProjection = ComputeLightProjectionMatrix(lightCamProj, ubo.view, ubo.lightDir);
+            UpdateShadowCascades(
+                ubo.proj,
+                ubo.view,
+                m_camera.nearPlane,
+                m_camera.farPlane,
+                m_uniformBufferData.lightDir,
+                ubo.lightViewProjections,
+                ubo.lightCascadeSplits);
+
             static std::random_device rd;
             static std::mt19937 gen(rd());
             static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
@@ -3126,7 +3267,11 @@ namespace Vultron
         m_scenePass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);
         m_compositePass.Destroy(m_context);
-        vkDestroyFramebuffer(m_context.GetDevice(), m_shadowFramebuffer, nullptr);
+        for (uint32_t i = 0; i < c_numShadowCascades; i++)
+        {
+            vkDestroyImageView(m_context.GetDevice(), m_shadowCascadeImageViews[i], nullptr);
+            vkDestroyFramebuffer(m_context.GetDevice(), m_shadowCascadeFramebuffers[i], nullptr);
+        }
         DestorySwapchain();
 
         if (c_validationLayersEnabled)

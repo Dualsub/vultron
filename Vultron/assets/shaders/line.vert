@@ -16,7 +16,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrices[4];
+    vec3 lightCascadeEnds;
 	PointLight pointLights[4];
 } ubo;
 

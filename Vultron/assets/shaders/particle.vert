@@ -7,11 +7,10 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragTexCoord;
 layout(location = 2) out vec3 fragNormal;
-layout(location = 3) out vec4 fragLightSpacePos;
-layout(location = 4) out vec4 fragColor;
-layout(location = 5) out vec4 fragEmissiveColor;
-layout(location = 6) out ivec4 fragClosestProbes;
-layout(location = 7) out vec4 fragProbeWeights;
+layout(location = 3) out vec4 fragColor;
+layout(location = 4) out vec4 fragEmissiveColor;
+layout(location = 5) out ivec4 fragClosestProbes;
+layout(location = 6) out vec4 fragProbeWeights;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -24,7 +23,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 viewPos;
     vec3 lightDir;
     vec3 lightColor;
-    mat4 lightSpaceMatrix;
+    mat4 lightSpaceMatrices[4];
+    vec3 lightCascadeEnds;
 	PointLight pointLights[4];
 } ubo;
 
@@ -55,12 +55,6 @@ layout(std430, set = 1, binding = 2) readonly buffer ProbeBuffer {
     IrradianceVolume irradianceVolume;
     vec3 probePositions[];
 };
-
-const mat4 biasMat = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 );
 
 void find4NearestProbes(in vec3 worldPos, 
                         out ivec4 outIndices, 
@@ -213,7 +207,6 @@ void main()
     vec2 texCoord = instance.texCoordAndSize.xy + uvec2(frameX, frameY) * instance.texCoordAndSize.zw;
     fragTexCoord = vec3(inTexCoord * instance.texCoordAndSize.zw + texCoord, 0.0);
     fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
-    fragLightSpacePos = biasMat * ubo.lightSpaceMatrix * worldPosition;
     vec4 color = mix(instance.startColor, instance.endColor, clamp(timeElapsed / instance.lifeDurationAndNumFramesAndFrameRate.x, 0.0, 1.0));
     fragColor = vec4(color.rgb, color.a * opacityIn * opacityOut);
     fragEmissiveColor = vec4(0.0);

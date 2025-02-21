@@ -120,6 +120,7 @@ namespace Vultron
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = static_cast<VkCullModeFlags>(cullMode);
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthClampEnable = VK_TRUE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
         VkPipelineMultisampleStateCreateInfo multisampling{};

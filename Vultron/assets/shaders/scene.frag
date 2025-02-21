@@ -352,7 +352,8 @@ void main() {
     float roughness = mix(materialParams.roughnessMinMax.x, materialParams.roughnessMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).g);
     float ao = mix(materialParams.aoMinMax.x, materialParams.aoMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).r);
 
-	uint cascadeIndex = GetShadowCascadeIndex((ubo.view * vec4(fragWorldPos, 1.0)).z);
+	float depth = (ubo.view * vec4(fragWorldPos, 1.0)).z;
+	uint cascadeIndex = GetShadowCascadeIndex(depth);
 	vec4 lightSpacePos = biasMat * ubo.lightSpaceMatrices[cascadeIndex] * vec4(fragWorldPos, 1.0);
     float shadow = GetShadow(lightSpacePos / lightSpacePos.w, cascadeIndex);
 
@@ -405,6 +406,14 @@ void main() {
 
 	vec3 color = ambient + Lo * shadow + emissive;
     
+	vec4 fogColor = vec4(vec3(0.0), 1.0);
+	float fogStart = 2000.0;
+	float fogEnd = 3000.0;
+	float fogDensity = 0.005;
+	float fogFactor = clamp((depth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+	vec3 fog = mix(fogColor.rgb, color, fogFactor);
+	color = mix(fog, color, exp(-fogDensity * fogDensity * fogDensity * depth * depth));
+	
 	// float depth = gl_FragCoord.z;
     // float near = 0.1;
     // float far = 3200.0;

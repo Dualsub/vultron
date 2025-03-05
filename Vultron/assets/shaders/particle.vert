@@ -139,7 +139,8 @@ void main()
 
     mat4 rotation = mat4(1.0);
 
-    if (instance.positionAndLifeTime.y > 10.0) {
+    // if (instance.positionAndLifeTime.y > 10.0) 
+    {
         mat3 viewRotation = mat3(ubo.view);
 
         rotation[0][0] = viewRotation[0][0];
@@ -154,26 +155,26 @@ void main()
         rotation[2][1] = viewRotation[1][2];
         rotation[2][2] = viewRotation[2][2];
     }
-    else
-    {
-        // Emulate lying on floor by pointing z-axis up
-        vec3 up = vec3(0.0, 0.0, 1.0);
-        vec3 forward = vec3(0.0, 1.0, 0.0);
-        vec3 right = cross(up, forward);
-        up = cross(forward, right);
+    // else
+    // {
+    //     // Emulate lying on floor by pointing z-axis up
+    //     vec3 up = vec3(0.0, 0.0, 1.0);
+    //     vec3 forward = vec3(0.0, 1.0, 0.0);
+    //     vec3 right = cross(up, forward);
+    //     up = cross(forward, right);
 
-        rotation[0][0] = right.x;
-        rotation[0][1] = right.y;
-        rotation[0][2] = right.z;
+    //     rotation[0][0] = right.x;
+    //     rotation[0][1] = right.y;
+    //     rotation[0][2] = right.z;
 
-        rotation[1][0] = up.x;
-        rotation[1][1] = up.y;
-        rotation[1][2] = up.z;
+    //     rotation[1][0] = up.x;
+    //     rotation[1][1] = up.y;
+    //     rotation[1][2] = up.z;
 
-        rotation[2][0] = forward.x;
-        rotation[2][1] = forward.y;
-        rotation[2][2] = forward.z;
-    }
+    //     rotation[2][0] = forward.x;
+    //     rotation[2][1] = forward.y;
+    //     rotation[2][2] = forward.z;
+    // }
 
     // Simple rotation around the z-axis
     float angle = instance.sizeAndRotation.z;

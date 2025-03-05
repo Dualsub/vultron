@@ -402,7 +402,7 @@ void main() {
 	kD *= 1.0 - metallic;	  
 	vec3 ambient = (kD * diffuse + specular) * ao * 0.25;
 	
-	vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * materialParams.emissiveColor.rgb + fragEmissiveColor.rgb;
+	vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * materialParams.emissiveColor.rgb * fragEmissiveColor.rgb;
 
 	vec3 color = ambient + Lo * shadow + emissive;
     

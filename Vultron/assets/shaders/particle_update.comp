@@ -50,7 +50,7 @@ void main()  {
     vec2 texCoord = instance.texCoordAndSize.xy;
     vec2 size = instance.texCoordAndSize.zw;
 
-    const float groundLevel = 10.0;
+    const float groundLevel = -10000000.0;
 
     lifeTime -= deltaTime;
     

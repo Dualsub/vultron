@@ -653,6 +653,20 @@ namespace Vultron
         return m.GetCenter();
     }
 
+    const std::vector<glm::vec3> &SceneRenderer::GetMeshVertices(const RenderHandle &mesh) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &m = rp.GetMesh(mesh);
+        return m.GetVertices();
+    }
+
+    const std::vector<uint32_t> &SceneRenderer::GetMeshIndices(const RenderHandle &mesh) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &m = rp.GetMesh(mesh);
+        return m.GetIndices();
+    }
+
     void SceneRenderer::Shutdown()
     {
         m_backend.Shutdown();
@@ -668,9 +682,9 @@ namespace Vultron
         m_backend.SetProjection(projection);
     }
 
-    RenderHandle SceneRenderer::LoadMesh(const std::string &path)
+    RenderHandle SceneRenderer::LoadMesh(const std::string &path, bool keepInMemory)
     {
-        return m_backend.LoadMesh(path);
+        return m_backend.LoadMesh(path, keepInMemory);
     }
 
     RenderHandle SceneRenderer::LoadSkeletalMesh(const std::string &path)

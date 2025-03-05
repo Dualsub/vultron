@@ -109,6 +109,8 @@ namespace Vultron
         uint32_t GetBoneCount(RenderHandle skeletalMesh) const;
 
         glm::vec3 GetMeshCenterOffset(const RenderHandle &mesh) const;
+        const std::vector<glm::vec3> &GetMeshVertices(const RenderHandle &mesh) const;
+        const std::vector<uint32_t> &GetMeshIndices(const RenderHandle &mesh) const;
 
         glm::mat4 GetProjectionMatrix() const
         {
@@ -127,7 +129,7 @@ namespace Vultron
 
         bool IsResourceValid(const RenderHandle &handle) const { return m_backend.IsResourceValid(handle); }
         RenderHandle GetQuadMesh() const { return m_quadMesh; }
-        RenderHandle LoadMesh(const std::string &path);
+        RenderHandle LoadMesh(const std::string &path, bool keepInMemory = false);
         RenderHandle LoadSkeletalMesh(const std::string &path);
         RenderHandle LoadImage(const std::string &path, ImageType type = ImageType::None, bool useAllMips = false);
         RenderHandle LoadFontAtlas(const std::string &path);

@@ -33,9 +33,12 @@ namespace Vultron
         glm::vec3 m_minBounds;
         glm::vec3 m_maxBounds;
 
+        std::vector<glm::vec3> m_vertices;
+        std::vector<uint32_t> m_indices;
+
     public:
-        VulkanMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer, const glm::vec3 &minBounds, const glm::vec3 &maxBounds)
-            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer), m_minBounds(minBounds), m_maxBounds(maxBounds)
+        VulkanMesh(const VulkanBuffer &vertexBuffer, const VulkanBuffer &indexBuffer, const glm::vec3 &minBounds, const glm::vec3 &maxBounds, const std::vector<glm::vec3> &vertices, const std::vector<uint32_t> &indices)
+            : m_vertexBuffer(vertexBuffer), m_IndexBuffer(indexBuffer), m_minBounds(minBounds), m_maxBounds(maxBounds), m_vertices(vertices), m_indices(indices)
         {
         }
         VulkanMesh() = default;
@@ -49,6 +52,7 @@ namespace Vultron
             VmaAllocator allocator{VK_NULL_HANDLE};
             const std::vector<StaticMeshVertex> &vertices;
             const std::vector<uint32_t> &indices;
+            bool keepInMemory = false;
         };
 
         static VulkanMesh Create(const MeshCreateInfo &createInfo);
@@ -61,6 +65,7 @@ namespace Vultron
             VkQueue queue{VK_NULL_HANDLE};
             VmaAllocator allocator{VK_NULL_HANDLE};
             const std::string &filepath;
+            bool keepInMemory = false;
         };
 
         static VulkanMesh CreateFromFile(const MeshFromFilesCreateInfo &createInfo);
@@ -87,6 +92,9 @@ namespace Vultron
 
         glm::vec3 GetCenter() const { return (m_minBounds + m_maxBounds) * 0.5f; }
         glm::vec3 GetSize() const { return m_maxBounds - m_minBounds; }
+
+        const std::vector<glm::vec3> &GetVertices() const { return m_vertices; }
+        const std::vector<uint32_t> &GetIndices() const { return m_indices; }
     };
 
 #pragma endregion

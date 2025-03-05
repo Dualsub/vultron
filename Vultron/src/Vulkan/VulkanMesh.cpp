@@ -31,7 +31,17 @@ namespace Vultron
         auto indexBuffer = VulkanBuffer::Create({.allocator = createInfo.allocator, .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, .size = indiciesSize, .allocationUsage = VMA_MEMORY_USAGE_GPU_ONLY});
         indexBuffer.UploadStaged(createInfo.device, createInfo.commandPool, createInfo.queue, createInfo.allocator, createInfo.indices.data(), indiciesSize);
 
-        return VulkanMesh(vertexBuffer, indexBuffer, minBounds, maxBounds);
+        std::vector<glm::vec3> vertices;
+        if (createInfo.keepInMemory)
+        {
+            vertices.reserve(createInfo.vertices.size());
+            for (const auto &vertex : createInfo.vertices)
+            {
+                vertices.push_back(vertex.position);
+            }
+        }
+
+        return VulkanMesh(vertexBuffer, indexBuffer, minBounds, maxBounds, vertices, createInfo.keepInMemory ? createInfo.indices : std::vector<uint32_t>());
     }
 
     Ptr<VulkanMesh> VulkanMesh::CreatePtr(const MeshCreateInfo &createInfo)
@@ -69,7 +79,7 @@ namespace Vultron
 
         file.close();
 
-        return VulkanMesh::Create({.device = createInfo.device, .commandPool = createInfo.commandPool, .queue = createInfo.queue, .allocator = createInfo.allocator, .vertices = vertices, .indices = indices});
+        return VulkanMesh::Create({.device = createInfo.device, .commandPool = createInfo.commandPool, .queue = createInfo.queue, .allocator = createInfo.allocator, .vertices = vertices, .indices = indices, .keepInMemory = createInfo.keepInMemory});
     }
 
     Ptr<VulkanMesh> VulkanMesh::CreatePtrFromFile(const MeshFromFilesCreateInfo &createInfo)

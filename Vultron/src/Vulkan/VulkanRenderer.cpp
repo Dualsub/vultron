@@ -2095,6 +2095,34 @@ namespace Vultron
             m_resourcePool.AddImage("white", whiteImage);
         }
 
+        {
+            // White 1x1 sprite
+            auto whiteSprite = VulkanImage::Create(
+                m_context,
+                {
+                    .info = {
+                        .width = 1,
+                        .height = 1,
+                        .depth = 1,
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    },
+                    .type = ImageType::Texture2D,
+                    .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .additionalUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
+                });
+
+            std::vector<std::vector<MipInfo>> layers;
+            layers.resize(1);
+            layers[0].resize(1);
+            layers[0][0].width = 1;
+            layers[0][0].height = 1;
+            layers[0][0].mipLevel = 0;
+            layers[0][0].data = std::unique_ptr<uint8_t>(new uint8_t[4]{255, 255, 255, 255});
+            whiteSprite.UploadData(m_context, m_commandPool, nullptr, 4 * sizeof(uint8_t), layers);
+
+            m_resourcePool.AddImage("white_sprite", whiteSprite);
+        }
+
         return true;
     }
 
@@ -3282,7 +3310,7 @@ namespace Vultron
         m_context.Destroy();
     }
 
-    RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath)
+    RenderHandle VulkanRenderer::LoadMesh(const std::string &filepath, bool keepInMemory)
     {
         if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(filepath))
         {
@@ -3290,11 +3318,14 @@ namespace Vultron
         }
 
         VulkanMesh mesh = VulkanMesh::CreateFromFile(
-            {.device = m_context.GetDevice(),
-             .commandPool = m_transferCommandPool,
-             .queue = m_context.GetTransferQueue(),
-             .allocator = m_context.GetAllocator(),
-             .filepath = filepath});
+            {
+                .device = m_context.GetDevice(),
+                .commandPool = m_transferCommandPool,
+                .queue = m_context.GetTransferQueue(),
+                .allocator = m_context.GetAllocator(),
+                .filepath = filepath,
+                .keepInMemory = keepInMemory,
+            });
 
         return m_resourcePool.AddMesh(filepath, std::move(mesh));
     }

@@ -406,13 +406,13 @@ void main() {
 
 	vec3 color = ambient + Lo * shadow + emissive;
     
-	vec4 fogColor = vec4(vec3(0.0), 1.0);
-	float fogStart = 2000.0;
-	float fogEnd = 3000.0;
-	float fogDensity = 0.005;
-	float fogFactor = clamp((depth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
-	vec3 fog = mix(fogColor.rgb, color, fogFactor);
-	color = mix(fog, color, exp(-fogDensity * fogDensity * fogDensity * depth * depth));
+	// vec4 fogColor = vec4(vec3(0.0), 1.0);
+	// float fogStart = 2000.0;
+	// float fogEnd = 3000.0;
+	// float fogDensity = 0.005;
+	// float fogFactor = clamp((depth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+	// vec3 fog = mix(fogColor.rgb, color, fogFactor);
+	// color = mix(fog, color, exp(-fogDensity * fogDensity * fogDensity * depth * depth));
 	
 	// float depth = gl_FragCoord.z;
     // float near = 0.1;

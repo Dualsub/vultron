@@ -1627,7 +1627,7 @@ namespace Vultron
 
         CalculateProjectionMatrix();
 
-        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(0.001f, -1.0f, 0.001f));
+        m_uniformBufferData.lightDir = glm::normalize(glm::vec3(1.0f, -1.0f, 1.0f));
         m_uniformBufferData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 4.0f;
         // m_uniformBufferData.lightViewProjection = ComputeLightProjectionMatrix(m_uniformBufferData.proj, m_uniformBufferData.view, m_uniformBufferData.lightDir);
         UpdateShadowCascades(

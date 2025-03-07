@@ -145,7 +145,7 @@ namespace Vultron
         auto &instancedJob = m_skeletalJobs[hash];
 
         // Filter out animations with 0 blend factor
-        std::vector<AnimationInstance> animations;
+        std::vector<AnimationJob> animations;
         for (const auto &animation : job.animations)
         {
             if (animation.blendFactor != 0.0f)
@@ -491,7 +491,7 @@ namespace Vultron
     }
 
     // NOTE: Expensive
-    glm::mat4 SceneRenderer::GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const
+    glm::mat4 SceneRenderer::GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationJob> &animationInstances, uint32_t boneIndex) const
     {
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(skeletalMesh);

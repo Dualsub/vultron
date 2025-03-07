@@ -79,7 +79,7 @@ namespace Vultron
         void SubmitRenderJob(const SpriteRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
-        void SubmitRenderJob(const AnimationInstance &job);
+        void SubmitRenderJob(const AnimationJob &job);
         void SubmitRenderJob(const RibbonRenderJob &job);
         void SubmitRenderJob(const LineRenderJob &job);
         void EndFrame();
@@ -105,7 +105,7 @@ namespace Vultron
         float GetAnimationDuration(const RenderHandle &animation) const;
         AnimationTiming GetAnimationTiming(const RenderHandle &animation, float time, bool loop = true) const;
         // NOTE: Expensive
-        glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationInstance> &animationInstances, uint32_t boneIndex) const;
+        glm::mat4 GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationJob> &animationInstances, uint32_t boneIndex) const;
         uint32_t GetBoneCount(RenderHandle skeletalMesh) const;
 
         glm::vec3 GetMeshCenterOffset(const RenderHandle &mesh) const;

@@ -58,7 +58,7 @@ namespace Vultron
         }
     };
 
-    struct AnimationInstance
+    struct AnimationJob
     {
         RenderHandle animation = {};
         uint32_t frame1 = 0;
@@ -75,7 +75,7 @@ namespace Vultron
         RenderHandle mesh = {};
         RenderHandle material = {};
         glm::mat4 transform = {};
-        std::vector<AnimationInstance> animations = {};
+        std::vector<AnimationJob> animations = {};
         std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
         glm::vec4 color = glm::vec4(1.0f);
         glm::vec4 emissiveColor = glm::vec4(1.0f);

@@ -68,6 +68,9 @@ namespace Vultron
 
         RenderHandle referenceAnimation = {};
         int32_t referenceFrame = -1;
+
+        uint32_t boneIntervalStart = 0;
+        uint32_t boneIntervalEnd = 128;
     };
 
     struct SkeletalRenderJob
@@ -76,7 +79,7 @@ namespace Vultron
         RenderHandle material = {};
         glm::mat4 transform = {};
         std::vector<AnimationJob> animations = {};
-        std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
+        std::array<int32_t, 3> bonesToIgnore = { -1, -1, -1 };
         glm::vec4 color = glm::vec4(1.0f);
         glm::vec4 emissiveColor = glm::vec4(1.0f);
 

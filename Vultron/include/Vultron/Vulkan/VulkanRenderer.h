@@ -338,7 +338,7 @@ namespace Vultron
         int32_t referenceFrame;
         float timeFactor;
         float blendFactor;
-        float _padding[2];
+        glm::ivec2 boneInterval;
     };
 
     static_assert(sizeof(SkeletalInstanceData) % 16 == 0);

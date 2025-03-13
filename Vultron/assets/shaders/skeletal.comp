@@ -34,6 +34,7 @@ layout(std140, set = 0, binding = 2) readonly buffer AnimationBufferObject {
 struct AnimationInstance {
     ivec4 frameOffsetAnd1And2AndRef;
     vec2 timeAndBlendFactor;
+    ivec2 boneInterval;
 };
 
 layout(set = 0, binding = 3) uniform AnimationInstanceObject {
@@ -90,6 +91,12 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             int refFrame = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2AndRef.w;
             float frameBlend = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.x;
             float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
+            int boneIntervalStart = animationInstances[animationInstanceOffset + i].boneInterval.x;
+            int boneIntervalEnd = animationInstances[animationInstanceOffset + i].boneInterval.y;
+
+            if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd) {
+                continue;
+            }
 
             if (currBoneIndex == bonesToIgnore.x || currBoneIndex == bonesToIgnore.y || currBoneIndex == bonesToIgnore.z) {
                 return mat4(1.0 / 0.0);
@@ -138,6 +145,12 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             int refFrame = animationInstances[animationInstanceOffset + i].frameOffsetAnd1And2AndRef.w;
             float frameBlend = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.x;
             float blendFactor = animationInstances[animationInstanceOffset + i].timeAndBlendFactor.y;
+            int boneIntervalStart = animationInstances[animationInstanceOffset + i].boneInterval.x;
+            int boneIntervalEnd = animationInstances[animationInstanceOffset + i].boneInterval.y;
+
+            if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd) {
+                continue;
+            }
 
             if (refFrame == -1 || blendFactor <= 0.0) {
                 continue;

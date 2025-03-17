@@ -200,7 +200,7 @@ namespace Vultron
                 .referenceFrame = referenceFrame,
                 .timeFactor = animation.frameBlendFactor,
                 .blendFactor = animation.blendFactor,
-                .boneInterval = { animation.boneIntervalStart, animation.boneIntervalEnd },
+                .boneInterval = {animation.boneIntervalStart, animation.boneIntervalEnd},
             });
         }
     }
@@ -462,7 +462,7 @@ namespace Vultron
         float frame1Time = 0.0f;
         for (uint32_t i = 0; i < numFrames; i++)
         {
-            if (time < times[i] || i == numFrames - 1)
+            if (newTime < times[i] || i == numFrames - 1)
             {
                 frame1 = i == 0 ? numFrames - 1 : i - 1;
                 frame1Time = times[frame1];
@@ -523,7 +523,8 @@ namespace Vultron
                 const int32_t boneIntervalStart = instance.boneIntervalStart;
                 const int32_t boneIntervalEnd = instance.boneIntervalEnd;
 
-                if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)
+                if ((boneIntervalStart <= boneIntervalEnd && (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)) ||
+                    (boneIntervalStart > boneIntervalEnd && (currBoneIndex >= boneIntervalEnd && currBoneIndex <= boneIntervalStart)))
                 {
                     continue;
                 }
@@ -584,7 +585,8 @@ namespace Vultron
                 const int32_t boneIntervalStart = instance.boneIntervalStart;
                 const int32_t boneIntervalEnd = instance.boneIntervalEnd;
 
-                if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)
+                if ((boneIntervalStart <= boneIntervalEnd && (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)) ||
+                    (boneIntervalStart > boneIntervalEnd && (currBoneIndex >= boneIntervalEnd && currBoneIndex <= boneIntervalStart)))
                 {
                     continue;
                 }

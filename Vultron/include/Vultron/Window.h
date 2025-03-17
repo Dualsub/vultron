@@ -31,6 +31,7 @@ namespace Vultron
         uint32_t m_width = 0;
         uint32_t m_height = 0;
         bool m_resized = false;
+        bool m_fullscreen = false;
 
     public:
         Window() = default;
@@ -87,9 +88,37 @@ namespace Vultron
             return m_resized;
         }
 
+        bool IsFullscreen() const
+        {
+            return m_fullscreen;
+        }
+
         void SetTitle(const std::string &title)
         {
             glfwSetWindowTitle(m_windowHandle, title.c_str());
+        }
+
+        void SetSize(uint32_t width, uint32_t height)
+        {
+            glfwSetWindowSize(m_windowHandle, width, height);
+            // Set position to center
+            const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+            glfwSetWindowPos(m_windowHandle, (mode->width - width) / 2, (mode->height - height) / 2);
+        }
+
+        void SetFullscreen(bool fullscreen)
+        {
+            if (fullscreen)
+            {
+                const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+                glfwSetWindowMonitor(m_windowHandle, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
+            }
+            else
+            {
+                glfwSetWindowMonitor(m_windowHandle, nullptr, 0, 0, m_width, m_height, 0);
+            }
+
+            m_fullscreen = fullscreen;
         }
 
         static void CreateVulkanSurface(const Window &window, VkInstance instance, VkSurfaceKHR *surface);

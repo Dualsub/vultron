@@ -17,6 +17,7 @@ namespace Vultron
         {
             m_width = createInfo.width;
             m_height = createInfo.height;
+            m_fullscreen = false;
 
             m_windowHandle = glfwCreateWindow(createInfo.width, createInfo.height, createInfo.title.c_str(), NULL, NULL);
         }
@@ -25,6 +26,7 @@ namespace Vultron
             const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
             m_width = mode->width;
             m_height = mode->height;
+            m_fullscreen = true;
 
             m_windowHandle = glfwCreateWindow(m_width, m_height, createInfo.title.c_str(), glfwGetPrimaryMonitor(), NULL);
         }

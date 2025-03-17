@@ -94,7 +94,9 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             int boneIntervalStart = animationInstances[animationInstanceOffset + i].boneInterval.x;
             int boneIntervalEnd = animationInstances[animationInstanceOffset + i].boneInterval.y;
 
-            if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd) {
+            if ((boneIntervalStart <= boneIntervalEnd && (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)) ||
+                (boneIntervalStart >  boneIntervalEnd && (currBoneIndex >= boneIntervalEnd && currBoneIndex <= boneIntervalStart)))
+            {
                 continue;
             }
 
@@ -148,7 +150,9 @@ mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIn
             int boneIntervalStart = animationInstances[animationInstanceOffset + i].boneInterval.x;
             int boneIntervalEnd = animationInstances[animationInstanceOffset + i].boneInterval.y;
 
-            if (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd) {
+            if ((boneIntervalStart <= boneIntervalEnd && (currBoneIndex < boneIntervalStart || currBoneIndex > boneIntervalEnd)) ||
+                (boneIntervalStart >  boneIntervalEnd && (currBoneIndex >= boneIntervalEnd && currBoneIndex <= boneIntervalStart)))
+            {
                 continue;
             }
 

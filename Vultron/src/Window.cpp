@@ -11,7 +11,7 @@ namespace Vultron
         }
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        // glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
         if (createInfo.mode == WindowMode::Windowed)
         {
@@ -30,6 +30,8 @@ namespace Vultron
 
             m_windowHandle = glfwCreateWindow(m_width, m_height, createInfo.title.c_str(), glfwGetPrimaryMonitor(), NULL);
         }
+
+        SetPosition(createInfo.position);
 
         if (m_windowHandle == nullptr)
         {

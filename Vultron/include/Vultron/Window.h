@@ -48,6 +48,7 @@ namespace Vultron
             const std::string &title;
             uint32_t width = 1600;
             uint32_t height = 900;
+            glm::uvec2 position = glm::uvec2(0, 0);
             WindowMode mode = WindowMode::Windowed;
         };
 
@@ -101,9 +102,11 @@ namespace Vultron
         void SetSize(uint32_t width, uint32_t height)
         {
             glfwSetWindowSize(m_windowHandle, width, height);
-            // Set position to center
-            const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-            glfwSetWindowPos(m_windowHandle, (mode->width - width) / 2, (mode->height - height) / 2);
+        }
+
+        void SetPosition(glm::uvec2 position)
+        {
+            glfwSetWindowPos(m_windowHandle, position.x, position.y);
         }
 
         void SetFullscreen(bool fullscreen)

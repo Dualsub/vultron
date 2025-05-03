@@ -122,7 +122,7 @@ void main()
     fragWorldPos = worldPosition.xyz;
     fragTexCoord = inTexCoord;
     fragNormal = inNormal;
-    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    fragColor = inColor;
     fragEmissiveColor = inColor;
 
     ivec4 closestProbes;

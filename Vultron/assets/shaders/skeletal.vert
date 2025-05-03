@@ -34,6 +34,7 @@ struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
     int boneOutputOffset;
+    mat4 ikChainMatrices[3];
     vec4 color;
     vec4 emissiveColor;
 };

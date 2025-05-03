@@ -81,6 +81,7 @@ namespace Vultron
         void SubmitRenderJob(const ParticleEmitJob &job);
         void SubmitRenderJob(const AnimationJob &job);
         void SubmitRenderJob(const RibbonRenderJob &job);
+        void SubmitRenderJob(const ParticleRenderJob &job);
         void SubmitRenderJob(const LineRenderJob &job);
         void EndFrame();
         void Shutdown();
@@ -117,6 +118,7 @@ namespace Vultron
             return m_backend.GetProjectionMatrix();
         }
         glm::mat4 GetViewMatrix() const { return m_backend.GetViewMatrix(); }
+        Camera &GetCamera() { return m_backend.GetCamera(); }
 
         void SetFramebufferResized(bool resized) { m_backend.SetFramebufferResized(resized); }
         void SetCamera(const Camera &camera);

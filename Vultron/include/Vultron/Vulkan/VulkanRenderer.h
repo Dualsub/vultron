@@ -323,7 +323,8 @@ namespace Vultron
         int32_t animationInstanceOffset;
         int32_t animationInstanceCount;
         int32_t boneOutputOffset;
-        std::array<int32_t, 3> bonesToIgnore = {-1, -1, -1};
+        std::array<int32_t, 3> ikChainBoneIndices;
+        std::array<glm::mat4, 3> ikChainBoneTransforms;
         glm::vec4 color;
         glm::vec4 emissiveColor;
     };

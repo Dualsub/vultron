@@ -174,7 +174,8 @@ namespace Vultron
             .animationInstanceCount = animationCount,
 
             .boneOutputOffset = boneOutputOffset,
-            .bonesToIgnore = job.bonesToIgnore,
+            .ikChainBoneIndices = job.ikChainBoneIndices,
+            .ikChainBoneTransforms = job.ikChainBoneTransforms,
             .color = job.color,
             .emissiveColor = job.emissiveColor,
         };
@@ -281,6 +282,56 @@ namespace Vultron
             job.texCoord + job.texSize,
             m_ribbonVertices,
             m_ribbonIndices);
+    }
+
+    void SceneRenderer::SubmitRenderJob(const ParticleRenderJob &job)
+    {
+        constexpr std::array<glm::vec3, 4> offsets = {
+            glm::vec3{-1.0f, -1.0f, 0.0f},
+            glm::vec3{1.0f, -1.0f, 0.0f},
+            glm::vec3{1.0f, 1.0f, 0.0f},
+            glm::vec3{-1.0f, 1.0f, 0.0f},
+        };
+
+        constexpr std::array<glm::vec3, 4> normals = {
+            glm::vec3{0.0f, 0.0f, 1.0f},
+            glm::vec3{0.0f, 0.0f, 1.0f},
+            glm::vec3{0.0f, 0.0f, 1.0f},
+            glm::vec3{0.0f, 0.0f, 1.0f},
+        };
+
+        const std::array<glm::vec2, 4> texCoords = {
+            job.texCoord,
+            glm::vec2{job.texCoord.x + job.texSize.x, job.texCoord.y},
+            job.texCoord + job.texSize,
+            glm::vec2{job.texCoord.x, job.texCoord.y + job.texSize.y},
+        };
+
+        const uint32_t numVertices = 4;
+        const uint32_t numIndices = 6;
+
+        const uint32_t vertexOffset = static_cast<uint32_t>(m_ribbonVertices.size());
+        const uint32_t indexOffset = static_cast<uint32_t>(m_ribbonIndices.size());
+
+        m_ribbonVertices.resize(vertexOffset + numVertices);
+        m_ribbonIndices.resize(indexOffset + numIndices);
+
+        for (uint32_t i = 0; i < numVertices; i++)
+        {
+            m_ribbonVertices[vertexOffset + i] = RibbonVertex{
+                .position = job.transform * glm::vec4(offsets[i], 1.0f),
+                .normal = glm::normalize(glm::mat3(glm::transpose(glm::inverse(job.transform))) * normals[i]),
+                .texCoord = glm::vec3(texCoords[i], 0.0f),
+                .color = job.color,
+            };
+        }
+
+        m_ribbonIndices[indexOffset + 0] = vertexOffset + 0;
+        m_ribbonIndices[indexOffset + 1] = vertexOffset + 1;
+        m_ribbonIndices[indexOffset + 2] = vertexOffset + 2;
+        m_ribbonIndices[indexOffset + 3] = vertexOffset + 0;
+        m_ribbonIndices[indexOffset + 4] = vertexOffset + 2;
+        m_ribbonIndices[indexOffset + 5] = vertexOffset + 3;
     }
 
     void SceneRenderer::SubmitRenderJob(const LineRenderJob &job)

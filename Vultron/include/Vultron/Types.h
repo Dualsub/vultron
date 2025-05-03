@@ -79,7 +79,8 @@ namespace Vultron
         RenderHandle material = {};
         glm::mat4 transform = {};
         std::vector<AnimationJob> animations = {};
-        std::array<int32_t, 3> bonesToIgnore = { -1, -1, -1 };
+        std::array<int32_t, 3> ikChainBoneIndices = {-1, -1, -1};
+        std::array<glm::mat4, 3> ikChainBoneTransforms = {glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)};
         glm::vec4 color = glm::vec4(1.0f);
         glm::vec4 emissiveColor = glm::vec4(1.0f);
 
@@ -169,6 +170,14 @@ namespace Vultron
         std::vector<struct RibbonControlPoint> points = {};
         glm::vec2 texCoord = glm::vec2(0.0f);
         glm::vec2 texSize = glm::vec2(1.0f);
+    };
+
+    struct ParticleRenderJob
+    {
+        glm::mat4 transform = {};
+        glm::vec2 texCoord = glm::vec2(0.0f);
+        glm::vec2 texSize = glm::vec2(1.0f);
+        glm::vec4 color = glm::vec4(1.0f);
     };
 
     struct LineRenderJob

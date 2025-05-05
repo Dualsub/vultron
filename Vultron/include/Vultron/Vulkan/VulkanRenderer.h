@@ -536,6 +536,7 @@ namespace Vultron
 
         // Render passes
         VulkanRenderPass m_shadowPass;
+        VulkanRenderPass m_depthPass;
         VulkanRenderPass m_scenePass;
         VulkanRenderPass m_compositePass;
 
@@ -544,6 +545,7 @@ namespace Vultron
         VulkanImage m_depthImage;
         VulkanImage m_depthOutlineImage;
         VkFramebuffer m_sceneFramebuffer;
+        VkFramebuffer m_depthFramebuffer;
 
         // Bloom
         std::vector<VulkanImage> m_bloomMipChain;
@@ -568,16 +570,19 @@ namespace Vultron
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
         VulkanMaterialPipeline m_staticShadowPipeline;
+        VulkanMaterialPipeline m_staticDepthPipeline;
         VkDescriptorSetLayout m_staticSetLayout;
 
         VulkanShader m_staticShadowVertexShader;
         VulkanShader m_skeletalShadowVertexShader;
+        VulkanShader m_staticDepthVertexShader;
+        VulkanShader m_skeletalDepthVertexShader;
         VulkanShader m_shadowFragmentShader;
-        VkDescriptorSetLayout m_spriteSetLayout;
 
         // Skeletal pipeline
         VulkanMaterialPipeline m_skeletalPipeline;
         VulkanMaterialPipeline m_skeletalShadowPipeline;
+        VulkanMaterialPipeline m_skeletalDepthPipeline;
         VkDescriptorSetLayout m_skeletalSetLayout;
         // -- GPU only resources
         std::vector<SkeletonBone> m_bones;
@@ -588,6 +593,7 @@ namespace Vultron
         // Sprite pipeline
         VulkanMaterialPipeline m_spritePipeline;
         VulkanQuadMesh m_spriteQuadMesh = {};
+        VkDescriptorSetLayout m_spriteSetLayout;
         VulkanShader m_spriteVertexShader;
         VulkanShader m_spriteFragmentShader;
 

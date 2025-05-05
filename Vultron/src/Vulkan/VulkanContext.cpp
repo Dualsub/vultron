@@ -213,6 +213,7 @@ namespace Vultron
         deviceFeatures2.features.samplerAnisotropy = VK_TRUE;
         deviceFeatures2.features.independentBlend = VK_TRUE;
         deviceFeatures2.features.imageCubeArray = VK_TRUE;
+        deviceFeatures2.features.depthClamp = VK_TRUE;
         deviceFeatures2.pNext = &descriptorIndexingFeatures;
 
         VkDeviceCreateInfo createInfo{};

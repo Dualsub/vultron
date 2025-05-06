@@ -419,6 +419,72 @@ namespace Vultron
                 },
             });
 
+        m_decalPass = VulkanRenderPass::Create(
+            m_context,
+            {
+                .attachments = {
+                    // Color attachment + mask
+                    {
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    // Normal attachment
+                    {
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    // Metallic-Roughness-AO attachment
+                    {
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    // Depth attachment, input from depth pass
+                    {
+                        .type = VulkanRenderPass::AttachmentType::Depth,
+                        .format = VK_FORMAT_D32_SFLOAT,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                    },
+                },
+                .dependencies = {
+                    {
+                        .srcSubpass = VK_SUBPASS_EXTERNAL,
+                        .dstSubpass = 0,
+                        .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+                        .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                    {
+                        .srcSubpass = 0,
+                        .dstSubpass = VK_SUBPASS_EXTERNAL,
+                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                    },
+                },
+            });
+
         m_scenePass = VulkanRenderPass::Create(
             m_context,
             {
@@ -561,6 +627,24 @@ namespace Vultron
                     .type = DescriptorType::CombinedImageSampler,
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
+                {
+                    // Decal Albedo
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Normal
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Metallic-Roughness-AO
+                    .binding = 6,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
             });
 
         m_skeletalSetLayout = VkInit::CreateDescriptorSetLayout(
@@ -591,10 +675,45 @@ namespace Vultron
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
                 {
-                    // Bone Output
+                    // Decal Albedo
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Normal
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Metallic-Roughness-AO
                     .binding = 6,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Bone Output
+                    .binding = 7,
                     .type = DescriptorType::StorageBuffer,
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                },
+            });
+
+        m_decalSetLayout = VkInit::CreateDescriptorSetLayout(
+            m_context.GetDevice(),
+            {
+                {
+                    // Scene data
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal instance data
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
             });
 
@@ -669,6 +788,24 @@ namespace Vultron
                     .type = DescriptorType::CombinedImageSampler,
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
+                {
+                    // Decal Albedo
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Normal
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Metallic-Roughness-AO
+                    .binding = 6,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
             });
 
         m_ribbonSetLayout = VkInit::CreateDescriptorSetLayout(
@@ -689,6 +826,24 @@ namespace Vultron
                 {
                     // BRDF LUT
                     .binding = 3,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Albedo
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Normal
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Decal Metallic-Roughness-AO
+                    .binding = 6,
                     .type = DescriptorType::CombinedImageSampler,
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
@@ -877,6 +1032,39 @@ namespace Vultron
                 .cullMode = CullMode::Back,
                 .depthFunction = DepthFunction::Less,
                 .depthWriteEnable = true,
+                .outputToSceneImage = false,
+            });
+
+        // Decal
+        m_decalVertexShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/decal.vert.spv"});
+        m_decalFragmentShader = VulkanShader::CreateFromFile(m_context, {.filepath = std::string(VLT_ASSETS_DIR) + "/shaders/decal.frag.spv"});
+
+        m_decalPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_decalPass,
+            {
+                .vertexShader = m_decalVertexShader,
+                .fragmentShader = m_decalFragmentShader,
+                .descriptorSetLayouts = {m_decalSetLayout},
+                .bindings = materialBindings,
+                .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+                .colorBlendAttachments = {
+                    {
+                        .blendEnable = VK_FALSE,
+                        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                    },
+                    {
+                        .blendEnable = VK_FALSE,
+                        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                    },
+                    {
+                        .blendEnable = VK_FALSE,
+                        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                    },
+                },
+                .cullMode = CullMode::None,
+                .depthFunction = DepthFunction::Greater,
+                .depthTestEnable = false,
+                .depthWriteEnable = false,
                 .outputToSceneImage = false,
             });
 
@@ -1307,6 +1495,40 @@ namespace Vultron
             VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &sceneFramebufferInfo, nullptr, &m_depthFramebuffer));
         }
 
+        // Decals
+        {
+            std::array<VulkanImage *, 3> images = {&m_decalAlbedoImage, &m_decalNormalImage, &m_decalARM};
+            for (auto &image : images)
+            {
+                *image = VulkanImage::Create(
+                    m_context,
+                    {
+                        .info = {
+                            .width = m_swapchain.GetExtent().width,
+                            .height = m_swapchain.GetExtent().height,
+                            .depth = 1,
+                            .mipLevels = 1,
+                            .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        },
+                        .aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .additionalUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                    });
+            }
+
+            std::array<VkImageView, 4> attachments = {m_decalAlbedoImage.GetImageView(), m_decalNormalImage.GetImageView(), m_decalARM.GetImageView(), m_depthImage.GetImageView()};
+
+            VkFramebufferCreateInfo decalFramebufferInfo{};
+            decalFramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            decalFramebufferInfo.renderPass = m_decalPass.GetRenderPass();
+            decalFramebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            decalFramebufferInfo.pAttachments = attachments.data();
+            decalFramebufferInfo.width = m_swapchain.GetExtent().width;
+            decalFramebufferInfo.height = m_swapchain.GetExtent().height;
+            decalFramebufferInfo.layers = 1;
+
+            VK_CHECK(vkCreateFramebuffer(m_context.GetDevice(), &decalFramebufferInfo, nullptr, &m_decalFramebuffer));
+        }
+
         // Scene
         {
             m_sceneImage = VulkanImage::Create(
@@ -1570,7 +1792,6 @@ namespace Vultron
 
     bool VulkanRenderer::InitializeSyncObjects()
     {
-
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -1753,6 +1974,7 @@ namespace Vultron
         constexpr size_t instancesSize = sizeof(StaticInstanceData) * c_maxInstances;
         constexpr size_t skeletalInstancesSize = sizeof(SkeletalInstanceData) * c_maxSkeletalInstances;
         constexpr size_t animationInstancesSize = sizeof(AnimationInstanceData) * c_maxAnimationInstances;
+        constexpr size_t decalInstancesSize = sizeof(DecalInstanceData) * c_maxDecalInstances;
         constexpr size_t spriteInstancesSize = sizeof(SpriteInstanceData) * c_maxSpriteInstances;
         constexpr size_t particleInstanceSize = sizeof(ParticleInstanceData);
         constexpr size_t particleEmitterSize = sizeof(ParticleEmitterData) * c_maxParticleEmitters;
@@ -1774,6 +1996,10 @@ namespace Vultron
             VulkanBuffer &boneOutputBuffer = m_frames[i].boneOutputBuffer;
             boneOutputBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = sizeof(glm::mat4) * c_maxBoneOutputs, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             boneOutputBuffer.Map(m_context.GetAllocator());
+
+            VulkanBuffer &decalInstanceBuffer = m_frames[i].decalInstanceBuffer;
+            decalInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = sizeof(DecalInstanceData) * c_maxDecalInstances, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            decalInstanceBuffer.Map(m_context.GetAllocator());
 
             VulkanBuffer &spriteInstanceBuffer = m_frames[i].spriteInstanceBuffer;
             spriteInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = spriteInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
@@ -1856,6 +2082,27 @@ namespace Vultron
                     .sampler = m_textureSampler,
                     .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 },
+                {
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalAlbedoImage.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
+                {
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalNormalImage.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
+                {
+                    .binding = 6,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalARM.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
             };
 
             m_frames[i].staticDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_staticSetLayout, bindings);
@@ -1887,7 +2134,28 @@ namespace Vultron
                     .sampler = m_textureSampler,
                 },
                 {
+                    .binding = 4,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalAlbedoImage.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
+                {
+                    .binding = 5,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalNormalImage.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
+                {
                     .binding = 6,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_decalARM.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                },
+                {
+                    .binding = 7,
                     .type = DescriptorType::StorageBuffer,
                     .buffer = m_frames[i].boneOutputBuffer.GetBuffer(),
                     .size = m_frames[i].boneOutputBuffer.GetSize(),
@@ -1895,6 +2163,23 @@ namespace Vultron
             };
 
             m_frames[i].skeletalDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_skeletalSetLayout, bindings);
+
+            bindings = {
+                {
+                    .binding = 0,
+                    .type = DescriptorType::UniformBuffer,
+                    .buffer = m_frames[i].uniformBuffer.GetBuffer(),
+                    .size = m_frames[i].uniformBuffer.GetSize(),
+                },
+                {
+                    .binding = 1,
+                    .type = DescriptorType::StorageBuffer,
+                    .buffer = m_frames[i].decalInstanceBuffer.GetBuffer(),
+                    .size = m_frames[i].decalInstanceBuffer.GetSize(),
+                },
+            };
+
+            m_frames[i].decalDescriptorSet = VkInit::CreateDescriptorSet(m_context.GetDevice(), m_descriptorPool, m_decalSetLayout, bindings);
 
             bindings = {
                 {
@@ -2050,6 +2335,27 @@ namespace Vultron
                         .sampler = m_textureSampler,
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
+                    {
+                        .binding = 4,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalAlbedoImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 5,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalNormalImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 6,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalARM.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
                 });
 
             m_frames[i].ribbonDescriptorSet = VkInit::CreateDescriptorSet(
@@ -2074,6 +2380,27 @@ namespace Vultron
                         .binding = 3,
                         .type = DescriptorType::CombinedImageSampler,
                         .imageView = m_brdfLUT.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 4,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalAlbedoImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 5,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalNormalImage.GetImageView(),
+                        .sampler = m_textureSampler,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    },
+                    {
+                        .binding = 6,
+                        .type = DescriptorType::CombinedImageSampler,
+                        .imageView = m_decalARM.GetImageView(),
                         .sampler = m_textureSampler,
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
@@ -2677,6 +3004,34 @@ namespace Vultron
             vkCmdEndRenderPass(commandBuffer);
         }
 
+        { // Decal pass
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = m_decalPass.GetRenderPass();
+            renderPassInfo.framebuffer = m_decalFramebuffer;
+
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
+            glm::uvec2 viewportSize = {m_swapchain.GetExtent().width, m_swapchain.GetExtent().height};
+
+            std::array<VkClearValue, 3> clearValues{};
+            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+            clearValues[1].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+            clearValues[2].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
+
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            if (renderData.particleAtlasMaterial.has_value())
+            {
+                DrawDecals(commandBuffer, {frame.decalDescriptorSet}, renderData.particleAtlasMaterial.value(), static_cast<uint32_t>(renderData.decalInstances.size()), viewportSize);
+            }
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
+
         { // Render pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3030,6 +3385,60 @@ namespace Vultron
         vkCmdDraw(commandBuffer, lineCount * 2, 1, 0, 0);
     }
 
+    void VulkanRenderer::DrawDecals(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, uint32_t instanceCount, glm::uvec2 viewportSize)
+    {
+        const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetMaterialInstance(particleAtlasMaterial);
+        if (!material.has_value())
+        {
+            return;
+        }
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_decalPipeline.GetPipeline());
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)viewportSize.x;
+        viewport.height = (float)viewportSize.y;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = {viewportSize.x, viewportSize.y};
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        std::vector<VkDescriptorSet> descriptorSetsCopy = descriptorSets;
+        descriptorSetsCopy.push_back(material->GetDescriptorSet());
+
+        const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSetsCopy.size());
+        for (uint32_t i = 0; i < numDescriptorSets; i++)
+        {
+            if (descriptorSetsCopy[i] == VK_NULL_HANDLE)
+            {
+                continue;
+            }
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_decalPipeline.GetPipelineLayout(), i, 1, &descriptorSetsCopy[i], 0, nullptr);
+        }
+
+        // std::vector<char> materialData = material->GetMaterialData();
+        // if (!materialData.empty())
+        // {
+        //     vkCmdPushConstants(commandBuffer, m_decalPipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
+        // }
+
+        static RenderHandle cubeMesh = ResourcePool::CreateHandle("cube");
+        MeshDrawInfo meshInfo = GetMeshDrawInfo<VulkanMesh>(cubeMesh);
+        VkBuffer vertexBuffers[] = {meshInfo.vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, meshInfo.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshInfo.indexCount), instanceCount, 0, 0, 0);
+    }
+
     void VulkanRenderer::DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize)
     {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_skyboxPipeline.GetPipeline());
@@ -3206,6 +3615,7 @@ namespace Vultron
             COPY_VECTOR_TO_BUFFER(frame.staticInstanceBuffer, renderData.staticInstances, c_maxInstances);
             COPY_VECTOR_TO_BUFFER(frame.skeletalInstanceBuffer, renderData.skeletalInstances, c_maxSkeletalInstances);
             COPY_VECTOR_TO_BUFFER(frame.animationInstanceBuffer, renderData.animationInstances, c_maxAnimationInstances);
+            COPY_VECTOR_TO_BUFFER(frame.decalInstanceBuffer, renderData.decalInstances, c_maxDecalInstances);
             COPY_VECTOR_TO_BUFFER(frame.spriteInstanceBuffer, renderData.spriteInstances, c_maxSpriteInstances);
             COPY_VECTOR_TO_BUFFER(frame.ribbonVertexBuffer, renderData.ribbonVertices, c_maxRibbonVertices);
             COPY_VECTOR_TO_BUFFER(frame.ribbonIndexBuffer, renderData.ribbonIndices, c_maxRibbonVertices);
@@ -3284,6 +3694,9 @@ namespace Vultron
         m_depthImage.Destroy(m_context);
         m_depthOutlineImage.Destroy(m_context);
         m_sceneImage.Destroy(m_context);
+        m_decalAlbedoImage.Destroy(m_context);
+        m_decalNormalImage.Destroy(m_context);
+        m_decalARM.Destroy(m_context);
 
         for (auto &mip : m_bloomMipChain)
         {
@@ -3291,6 +3704,7 @@ namespace Vultron
         }
 
         vkDestroyFramebuffer(m_context.GetDevice(), m_depthFramebuffer, nullptr);
+        vkDestroyFramebuffer(m_context.GetDevice(), m_decalFramebuffer, nullptr);
         vkDestroyFramebuffer(m_context.GetDevice(), m_sceneFramebuffer, nullptr);
 
         m_swapchain.Destroy(m_context);
@@ -3335,6 +3749,9 @@ namespace Vultron
             m_frames[i].boneOutputBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].boneOutputBuffer.Destroy(m_context.GetAllocator());
 
+            m_frames[i].decalInstanceBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].decalInstanceBuffer.Destroy(m_context.GetAllocator());
+
             m_frames[i].spriteInstanceBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].spriteInstanceBuffer.Destroy(m_context.GetAllocator());
 
@@ -3373,6 +3790,8 @@ namespace Vultron
         m_shadowFragmentShader.Destroy(m_context);
         m_staticDepthVertexShader.Destroy(m_context);
         m_skeletalDepthVertexShader.Destroy(m_context);
+        m_decalVertexShader.Destroy(m_context);
+        m_decalFragmentShader.Destroy(m_context);
         m_spriteVertexShader.Destroy(m_context);
         m_spriteFragmentShader.Destroy(m_context);
         m_sdfFragmentShader.Destroy(m_context);
@@ -3397,6 +3816,7 @@ namespace Vultron
         vkDestroyDescriptorPool(m_context.GetDevice(), m_descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_staticSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skeletalSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_decalSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_spriteSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_skyboxSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(m_context.GetDevice(), m_environmentSetLayout, nullptr);
@@ -3414,6 +3834,7 @@ namespace Vultron
         m_skeletalShadowPipeline.Destroy(m_context);
         m_staticDepthPipeline.Destroy(m_context);
         m_skeletalDepthPipeline.Destroy(m_context);
+        m_decalPipeline.Destroy(m_context);
         m_spritePipeline.Destroy(m_context);
         m_sdfPipeline.Destroy(m_context);
         m_skyboxPipeline.Destroy(m_context);
@@ -3489,6 +3910,52 @@ namespace Vultron
             .allocator = m_context.GetAllocator(),
             .vertices = vertices,
             .indices = indices,
+        });
+
+        return m_resourcePool.AddMesh(name, std::move(mesh));
+    }
+
+    RenderHandle VulkanRenderer::LoadCube(const std::string &name)
+    {
+        if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
+        {
+            return handle.value();
+        }
+
+        std::vector<StaticMeshVertex> vertices = {
+            {.position = {-0.5f, -0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {0.5f, -0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {0.5f, 0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {-0.5f, 0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {-0.5f, -0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {0.5f, -0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {0.5f, 0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            {.position = {-0.5f, 0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+        };
+
+        // 12 triangles  (counter‑clockwise winding), 36 indices
+        std::vector<uint32_t> indices = {
+            // -Z face
+            0, 1, 2, 2, 3, 0,
+            // +Z face
+            4, 5, 6, 6, 7, 4,
+            // -Y face
+            0, 4, 5, 5, 1, 0,
+            // +Y face
+            3, 2, 6, 6, 7, 3,
+            // -X face
+            0, 3, 7, 7, 4, 0,
+            // +X face
+            1, 5, 6, 6, 2, 1};
+
+        VulkanMesh mesh = VulkanMesh::Create({
+            .device = m_context.GetDevice(),
+            .commandPool = m_transferCommandPool,
+            .queue = m_context.GetTransferQueue(),
+            .allocator = m_context.GetAllocator(),
+            .vertices = vertices,
+            .indices = indices,
+            .keepInMemory = true,
         });
 
         return m_resourcePool.AddMesh(name, std::move(mesh));

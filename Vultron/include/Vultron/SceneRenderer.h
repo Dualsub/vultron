@@ -47,6 +47,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
+        std::vector<DecalInstanceData> m_decalInstances;
         std::vector<LineData> m_lines;
         std::vector<RibbonVertex> m_ribbonVertices;
         std::vector<uint32_t> m_ribbonIndices;
@@ -76,6 +77,7 @@ namespace Vultron
         void SetPointLights(const std::array<PointLightData, 4> &pointLights) { m_pointLights = pointLights; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
+        void SubmitRenderJob(const DecalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);

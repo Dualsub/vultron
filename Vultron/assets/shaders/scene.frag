@@ -49,6 +49,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(set = 0, binding = 2) uniform sampler2DArray shadowMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
+layout(set = 0, binding = 4) uniform sampler2D decalAlbedoMap;
+layout(set = 0, binding = 5) uniform sampler2D decalNormalMap;
+layout(set = 0, binding = 6) uniform sampler2D decalMetallicRoughnessAoMap;
 
 layout(set = 1, binding = 0) uniform samplerCubeArray irradianceMap;
 layout(set = 1, binding = 1) uniform samplerCubeArray prefilterMap;
@@ -114,10 +117,8 @@ uint GetShadowCascadeIndex(float depth)
 	return cascadeIndex;
 }
 
-vec3 GetNormalFromMap()
+vec3 GetNormalFromMap(vec3 tangentNormal)
 {
-    vec3 tangentNormal = texture(normalMap, fragTexCoord).xyz * 2.0 - 1.0;
-
 	vec3 Q1 = dFdx(fragWorldPos);
 	vec3 Q2 = dFdy(fragWorldPos);
 	vec2 st1 = dFdx(fragTexCoord.xy);
@@ -351,6 +352,18 @@ void main() {
     float metallic = mix(materialParams.metallicMinMax.x, materialParams.metallicMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).b);
     float roughness = mix(materialParams.roughnessMinMax.x, materialParams.roughnessMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).g);
     float ao = mix(materialParams.aoMinMax.x, materialParams.aoMinMax.y, texture(metallicRoughnessAoMap, fragTexCoord).r);
+	vec3 normal = texture(normalMap, fragTexCoord).xyz * 2.0 - 1.0;
+
+	// Adding decals
+	vec2 decalTexCoord = (gl_FragCoord.xy + 0.5) / vec2(textureSize(decalAlbedoMap, 0).xy); 
+	vec4 decalAlbedo = texture(decalAlbedoMap, decalTexCoord);
+	float decalMask = decalAlbedo.a;
+
+	albedo = mix(albedo, decalAlbedo.rgb, decalMask);
+	metallic = mix(metallic, texture(decalMetallicRoughnessAoMap, decalTexCoord).b, decalMask);
+	roughness = mix(roughness, texture(decalMetallicRoughnessAoMap, decalTexCoord).g, decalMask);
+	ao = mix(ao, texture(decalMetallicRoughnessAoMap, decalTexCoord).r, decalMask);
+	normal = mix(normal, texture(decalNormalMap, decalTexCoord).xyz * 2.0 - 1.0, decalMask);
 
 	float depth = (ubo.view * vec4(fragWorldPos, 1.0)).z;
 	uint cascadeIndex = GetShadowCascadeIndex(depth);
@@ -365,7 +378,7 @@ void main() {
 	// );
 	// albedo *= cascadeColors[cascadeIndex].rgb;
 
-	vec3 N = GetNormalFromMap();
+	vec3 N = GetNormalFromMap(normal);
     vec3 V = normalize(ubo.viewPos - fragWorldPos);
     vec3 R = reflect(-V, N); 
 

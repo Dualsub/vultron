@@ -24,6 +24,7 @@ namespace Vultron
                 createInfo.vertexDescription,
                 createInfo.descriptorSetLayouts,
                 createInfo.pushConstantRanges,
+                createInfo.colorBlendAttachments,
                 createInfo.cullMode,
                 createInfo.blendEnable,
                 createInfo.depthFunction,
@@ -59,7 +60,20 @@ namespace Vultron
         return true;
     }
 
-    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(const VulkanContext &context, const VulkanRenderPass &renderPass, const VertexDescription &vertexDescription, const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts, const std::vector<VkPushConstantRange> &pushConstantRanges, CullMode cullMode, bool blendEnable, DepthFunction depthFunction, bool depthTestEnable, bool depthWriteEnable, Topology topology, bool outputToSceneImage)
+    bool VulkanMaterialPipeline::InitializeGraphicsPipeline(
+        const VulkanContext &context,
+        const VulkanRenderPass &renderPass,
+        const VertexDescription &vertexDescription,
+        const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts,
+        const std::vector<VkPushConstantRange> &pushConstantRanges,
+        const std::vector<VkPipelineColorBlendAttachmentState> &colorBlendAttachments,
+        CullMode cullMode,
+        bool blendEnable,
+        DepthFunction depthFunction,
+        bool depthTestEnable,
+        bool depthWriteEnable,
+        Topology topology,
+        bool outputToSceneImage)
     {
         VkPipelineShaderStageCreateInfo shaderStages[] = {
             {
@@ -128,42 +142,53 @@ namespace Vultron
         multisampling.sampleShadingEnable = VK_FALSE;
         multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-        if (blendEnable)
-        {
-            colorBlendAttachment.blendEnable = VK_TRUE;
-            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-            colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-            colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-        }
-        else
-        {
-            colorBlendAttachment.blendEnable = VK_FALSE;
-            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-            colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-            colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-            colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-        }
-
-        VkPipelineColorBlendAttachmentState outlineDepthAttachment = {};
-        outlineDepthAttachment.blendEnable = VK_FALSE;
-        outlineDepthAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT; // Since depth is stored in the red component
-
-        std::array<VkPipelineColorBlendAttachmentState, 2> attachments = {colorBlendAttachment, outlineDepthAttachment};
-
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         colorBlending.logicOpEnable = VK_FALSE;
         colorBlending.logicOp = VK_LOGIC_OP_COPY;
-        colorBlending.attachmentCount = outputToSceneImage ? static_cast<uint32_t>(attachments.size()) : static_cast<uint32_t>(attachments.size()) - 1u; // If we're not outputting to the scene image, we don't need to blend the depth attachment
-        colorBlending.pAttachments = attachments.data();
+
+        std::array<VkPipelineColorBlendAttachmentState, 2> attachments = {};
+        if (colorBlendAttachments.size() > 0)
+        {
+            colorBlending.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+            colorBlending.pAttachments = colorBlendAttachments.data();
+        }
+        else // This path should most likely be removed, however it is keep for legacy reasons
+        {
+            VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+            colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+            if (blendEnable)
+            {
+                colorBlendAttachment.blendEnable = VK_TRUE;
+                colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+                colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+                colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+                colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+            }
+            else
+            {
+                colorBlendAttachment.blendEnable = VK_FALSE;
+                colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+                colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+                colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+                colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+                colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+                colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+            }
+
+            VkPipelineColorBlendAttachmentState outlineDepthAttachment = {};
+            outlineDepthAttachment.blendEnable = VK_FALSE;
+            outlineDepthAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT; // Since depth is stored in the red component
+
+            attachments[0] = colorBlendAttachment;
+            attachments[1] = outlineDepthAttachment;
+
+            colorBlending.attachmentCount = outputToSceneImage ? static_cast<uint32_t>(attachments.size()) : static_cast<uint32_t>(attachments.size()) - 1u; // If we're not outputting to the scene image, we don't need to blend the depth attachment
+            colorBlending.pAttachments = attachments.data();
+        }
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

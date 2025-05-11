@@ -54,6 +54,7 @@ namespace Vultron
         std::optional<RenderHandle> m_skybox;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
+        std::optional<RenderHandle> m_decalAtlasMaterial;
         std::array<PointLightData, 4> m_pointLights;
 
         int32_t m_boneOutputOffset = 0;
@@ -74,6 +75,7 @@ namespace Vultron
         void SetEnvironmentMap(const std::optional<RenderHandle> &environmentMap) { m_environmentMap = environmentMap; }
         void SetSkybox(const std::optional<RenderHandle> &skybox) { m_skybox = skybox; }
         void SetParticleAtlasMaterial(const std::optional<RenderHandle> &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
+        void SetDecalAtlasMaterial(const std::optional<RenderHandle> &decalAtlasMaterial) { m_decalAtlasMaterial = decalAtlasMaterial; }
         void SetPointLights(const std::array<PointLightData, 4> &pointLights) { m_pointLights = pointLights; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
@@ -99,6 +101,7 @@ namespace Vultron
         };
 
         float GetAspectRatio() const { return m_backend.GetAspectRatio(); }
+        glm::uvec2 GetWindowSize() const { return m_backend.GetSwapchainExtent(); }
 
         // Font stuff
         std::vector<FontGlyph> GetTextGlyphs(const RenderHandle &font, const std::string &text) const;

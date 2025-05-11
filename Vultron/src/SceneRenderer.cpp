@@ -212,7 +212,7 @@ namespace Vultron
     {
         m_decalInstances.push_back(DecalInstanceData{
             .model = job.transform,
-            .decalTransform = job.decalTransform,
+            .inverseModel = glm::inverse(job.transform),
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
@@ -467,6 +467,7 @@ namespace Vultron
             .skybox = m_skybox,
             .environmentMap = m_environmentMap,
             .particleAtlasMaterial = m_particleAtlasMaterial,
+            .decalAtlasMaterial = m_decalAtlasMaterial,
             .pointLights = m_pointLights,
             .lines = m_lines,
             .ribbonVertices = m_ribbonVertices,

@@ -5,11 +5,10 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inTexCoord;
 
 layout(location = 0) out vec3 fragWorldPos;
-layout(location = 1) out vec3 fragDecalPos;
-layout(location = 2) out vec4 fragTexRect;
-layout(location = 3) out vec3 fragNormal;
-layout(location = 4) out vec4 fragColor;
-layout(location = 5) out int fragInstanceIndex;
+layout(location = 1) out vec4 fragTexRect;
+layout(location = 2) out vec3 fragNormal;
+layout(location = 3) out vec4 fragColor;
+layout(location = 4) out int fragInstanceIndex;
 
 struct PointLight {
 	vec4 positionAndRadius;
@@ -29,7 +28,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 struct DecalInstanceData {
     mat4 model;
-    mat4 worldToDecal;
+    mat4 invModel;
     vec4 texOffsetAndSize;
     vec4 color;
 };
@@ -43,9 +42,8 @@ void main()
     vec4 pos = decals[gl_InstanceIndex].model * vec4(inPosition, 1.0);
     gl_Position = ubo.proj * ubo.view * pos;
     fragWorldPos = pos.xyz / pos.w;
-    fragDecalPos = (decals[gl_InstanceIndex].worldToDecal * pos).xyz + 0.5;
     fragTexRect = decals[gl_InstanceIndex].texOffsetAndSize;
-    fragNormal = normalize(mat3(transpose(inverse(decals[gl_InstanceIndex].model))) * inNormal);
+    fragNormal = normalize(mat3(transpose(decals[gl_InstanceIndex].invModel)) * inNormal);
     fragColor = decals[gl_InstanceIndex].color;
     fragInstanceIndex = gl_InstanceIndex;
 }

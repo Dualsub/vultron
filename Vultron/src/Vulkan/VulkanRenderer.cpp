@@ -450,29 +450,8 @@ namespace Vultron
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                         .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     },
-                    // Depth attachment, input from depth pass
-                    {
-                        .type = VulkanRenderPass::AttachmentType::Depth,
-                        .format = VK_FORMAT_D32_SFLOAT,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
-                        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                        .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                    },
                 },
                 .dependencies = {
-                    {
-                        .srcSubpass = VK_SUBPASS_EXTERNAL,
-                        .dstSubpass = 0,
-                        .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-                        .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                    },
                     {
                         .srcSubpass = 0,
                         .dstSubpass = VK_SUBPASS_EXTERNAL,
@@ -714,6 +693,12 @@ namespace Vultron
                     .binding = 1,
                     .type = DescriptorType::StorageBuffer,
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                },
+                {
+                    // Depth image
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
             });
 
@@ -1049,7 +1034,13 @@ namespace Vultron
                 .vertexDescription = StaticMeshVertex::GetVertexDescription(),
                 .colorBlendAttachments = {
                     {
-                        .blendEnable = VK_FALSE,
+                        .blendEnable = VK_TRUE,
+                        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .colorBlendOp = VK_BLEND_OP_ADD,
+                        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .alphaBlendOp = VK_BLEND_OP_ADD,
                         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
                     },
                     {
@@ -1062,8 +1053,8 @@ namespace Vultron
                     },
                 },
                 .cullMode = CullMode::None,
-                .depthFunction = DepthFunction::Greater,
-                .depthTestEnable = false,
+                .depthFunction = DepthFunction::LessOrEqual,
+                .depthTestEnable = true,
                 .depthWriteEnable = false,
                 .outputToSceneImage = false,
             });
@@ -1515,7 +1506,7 @@ namespace Vultron
                     });
             }
 
-            std::array<VkImageView, 4> attachments = {m_decalAlbedoImage.GetImageView(), m_decalNormalImage.GetImageView(), m_decalARM.GetImageView(), m_depthImage.GetImageView()};
+            std::array<VkImageView, 3> attachments = {m_decalAlbedoImage.GetImageView(), m_decalNormalImage.GetImageView(), m_decalARM.GetImageView()};
 
             VkFramebufferCreateInfo decalFramebufferInfo{};
             decalFramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1918,7 +1909,7 @@ namespace Vultron
                     .format = depthFormat,
                 },
                 .aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT,
-                .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                .additionalUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
             });
 
         m_depthImage.TransitionLayout(m_context.GetDevice(), m_commandPool, m_context.GetGraphicsQueue(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
@@ -2176,6 +2167,13 @@ namespace Vultron
                     .type = DescriptorType::StorageBuffer,
                     .buffer = m_frames[i].decalInstanceBuffer.GetBuffer(),
                     .size = m_frames[i].decalInstanceBuffer.GetSize(),
+                },
+                {
+                    .binding = 2,
+                    .type = DescriptorType::CombinedImageSampler,
+                    .imageView = m_depthImage.GetImageView(),
+                    .sampler = m_textureSampler,
+                    .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                 },
             };
 
@@ -3004,6 +3002,18 @@ namespace Vultron
             vkCmdEndRenderPass(commandBuffer);
         }
 
+        {
+            // Transition the depth image to shader read only
+            // VkUtil::TransitionImageLayout(
+            //     m_context.GetDevice(),
+            //     commandBuffer,
+            //     m_context.GetGraphicsQueue(),
+            //     m_depthImage.GetImage(),
+            //     VK_FORMAT_D32_SFLOAT,
+            //     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+
         { // Decal pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3024,15 +3034,15 @@ namespace Vultron
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            if (renderData.particleAtlasMaterial.has_value())
+            if (renderData.decalAtlasMaterial.has_value())
             {
-                DrawDecals(commandBuffer, {frame.decalDescriptorSet}, renderData.particleAtlasMaterial.value(), static_cast<uint32_t>(renderData.decalInstances.size()), viewportSize);
+                DrawDecals(commandBuffer, {frame.decalDescriptorSet}, renderData.decalAtlasMaterial.value(), static_cast<uint32_t>(renderData.decalInstances.size()), viewportSize);
             }
 
             vkCmdEndRenderPass(commandBuffer);
         }
 
-        { // Render pass
+        { // Scene pass
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = m_scenePass.GetRenderPass();
@@ -3849,6 +3859,8 @@ namespace Vultron
         m_bloomUpsamplePipeline.Destroy(m_context);
         m_compositePipeline.Destroy(m_context);
 
+        m_depthPass.Destroy(m_context);
+        m_decalPass.Destroy(m_context);
         m_scenePass.Destroy(m_context);
         m_shadowPass.Destroy(m_context);
         m_compositePass.Destroy(m_context);
@@ -3923,30 +3935,87 @@ namespace Vultron
         }
 
         std::vector<StaticMeshVertex> vertices = {
-            {.position = {-0.5f, -0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {0.5f, -0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {0.5f, 0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {-0.5f, 0.5f, -0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {-0.5f, -0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {0.5f, -0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {0.5f, 0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
-            {.position = {-0.5f, 0.5f, 0.5f}, .normal = {0.f, 0.f, 0.f}, .texCoord = {0.f, 0.f, 0.f}},
+            // +Z face (front)
+            {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+            {{+0.5f, -0.5f, +0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+            {{+0.5f, +0.5f, +0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 0.0f}},
+            {{-0.5f, +0.5f, +0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
+
+            // -Z face (back)
+            {{+0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
+            {{-0.5f, +0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f, 0.0f}},
+            {{+0.5f, +0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
+
+            // +X face (right)
+            {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+            {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+            {{+0.5f, +0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 0.0f}},
+            {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+
+            // -X face (left)
+            {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+            {{-0.5f, -0.5f, +0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+            {{-0.5f, +0.5f, +0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 0.0f}},
+            {{-0.5f, +0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+
+            // +Y face (top)
+            {{-0.5f, +0.5f, +0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+            {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+            {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}},
+            {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+
+            // -Y face (bottom)
+            {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+            {{+0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+            {{+0.5f, -0.5f, +0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}},
+            {{-0.5f, -0.5f, +0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
         };
 
-        // 12 triangles  (counter‑clockwise winding), 36 indices
         std::vector<uint32_t> indices = {
-            // -Z face
-            0, 1, 2, 2, 3, 0,
-            // +Z face
-            4, 5, 6, 6, 7, 4,
-            // -Y face
-            0, 4, 5, 5, 1, 0,
-            // +Y face
-            3, 2, 6, 6, 7, 3,
-            // -X face
-            0, 3, 7, 7, 4, 0,
-            // +X face
-            1, 5, 6, 6, 2, 1};
+            // front
+            0,
+            1,
+            2,
+            2,
+            3,
+            0,
+            // back
+            4,
+            5,
+            6,
+            6,
+            7,
+            4,
+            // right
+            8,
+            9,
+            10,
+            10,
+            11,
+            8,
+            // left
+            12,
+            13,
+            14,
+            14,
+            15,
+            12,
+            // top
+            16,
+            17,
+            18,
+            18,
+            19,
+            16,
+            // bottom
+            20,
+            21,
+            22,
+            22,
+            23,
+            20,
+        };
 
         VulkanMesh mesh = VulkanMesh::Create({
             .device = m_context.GetDevice(),

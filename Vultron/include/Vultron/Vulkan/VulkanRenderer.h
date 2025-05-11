@@ -352,7 +352,7 @@ namespace Vultron
     struct DecalInstanceData
     {
         glm::mat4 model;
-        glm::mat4 decalTransform;
+        glm::mat4 inverseModel;
         glm::vec2 texCoord;
         glm::vec2 texSize;
         glm::vec4 color;
@@ -524,6 +524,7 @@ namespace Vultron
         const std::optional<RenderHandle> skybox;
         const std::optional<RenderHandle> environmentMap;
         const std::optional<RenderHandle> particleAtlasMaterial;
+        const std::optional<RenderHandle> decalAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
         const std::vector<LineData> &lines;
         const std::vector<RibbonVertex> &ribbonVertices;
@@ -817,6 +818,7 @@ namespace Vultron
         Camera &GetCamera() { return m_camera; }
         const BloomSettings &GetBloomSettings() const { return m_bloomSettings; }
         float GetAspectRatio() const { return static_cast<float>(m_swapchain.GetExtent().width) / static_cast<float>(m_swapchain.GetExtent().height); }
+        glm::uvec2 GetSwapchainExtent() const { return glm::uvec2(m_swapchain.GetExtent().width, m_swapchain.GetExtent().height); }
 
         RenderHandle LoadMesh(const std::string &filepath, bool keepInMemory = false);
         RenderHandle LoadQuad(const std::string &name);

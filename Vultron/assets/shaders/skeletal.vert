@@ -43,7 +43,7 @@ layout(std140, set = 0, binding = 1) readonly buffer InstanceBufferObject {
     InstanceData instances[];
 };
 
-layout(std140, set = 0, binding = 6) readonly buffer BoneOutputBufferObject {
+layout(std140, set = 0, binding = 7) readonly buffer BoneOutputBufferObject {
     mat4 boneOutput[];
 }; 
 

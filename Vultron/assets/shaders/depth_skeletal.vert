@@ -69,6 +69,5 @@ void main()  {
         boneMatrix += boneTransform * inWeights[j];
     }
 
-    mat4 lightSpaceMatrix = ubo.lightSpaceMatrices[pc.cascadeIndex];
-    gl_Position = lightSpaceMatrix * instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * instances[gl_InstanceIndex].model * boneMatrix * vec4(inPosition, 1.0);
 }

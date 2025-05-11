@@ -69,6 +69,7 @@ namespace Vultron
     {
         bool success = m_backend.Initialize(window);
         m_quadMesh = m_backend.LoadQuad("quad");
+        m_backend.LoadCube("cube");
         return success;
     }
 
@@ -82,6 +83,7 @@ namespace Vultron
         m_staticJobs.clear();
         m_skeletalJobs.clear();
         m_animationInstances.clear();
+        m_decalInstances.clear();
         m_ribbonVertices.clear();
         m_ribbonIndices.clear();
         m_lines.clear();
@@ -204,6 +206,17 @@ namespace Vultron
                 .boneInterval = {animation.boneIntervalStart, animation.boneIntervalEnd},
             });
         }
+    }
+
+    void SceneRenderer::SubmitRenderJob(const DecalRenderJob &job)
+    {
+        m_decalInstances.push_back(DecalInstanceData{
+            .model = job.transform,
+            .inverseModel = glm::inverse(job.transform),
+            .texCoord = job.texCoord,
+            .texSize = job.texSize,
+            .color = job.color,
+        });
     }
 
     void SceneRenderer::SubmitRenderJob(const SpriteRenderJob &job)
@@ -446,6 +459,7 @@ namespace Vultron
             .skeletalBatches = skeletalBatches,
             .skeletalInstances = skeletalInstances,
             .animationInstances = m_animationInstances,
+            .decalInstances = m_decalInstances,
             .spriteBatches = spriteBatches,
             .sdfBatches = sdfBatches,
             .spriteInstances = spriteInstances,
@@ -453,6 +467,7 @@ namespace Vultron
             .skybox = m_skybox,
             .environmentMap = m_environmentMap,
             .particleAtlasMaterial = m_particleAtlasMaterial,
+            .decalAtlasMaterial = m_decalAtlasMaterial,
             .pointLights = m_pointLights,
             .lines = m_lines,
             .ribbonVertices = m_ribbonVertices,

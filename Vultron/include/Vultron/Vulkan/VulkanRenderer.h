@@ -59,6 +59,8 @@ namespace Vultron
     constexpr uint32_t c_maxAnimationFrames = 32 * 1024 * 1024;
     constexpr uint32_t c_maxBoneOutputs = c_maxBones * c_maxSkeletalInstances;
 
+    constexpr uint32_t c_maxDecalInstances = 1024;
+
     constexpr uint32_t c_maxSpriteInstances = 1024 * 10;
 
     constexpr uint32_t c_maxParticleEmitters = 256;
@@ -282,6 +284,9 @@ namespace Vultron
         VulkanBuffer boneOutputBuffer;
         VkDescriptorSet skeletalComputeDescriptorSet;
 
+        VulkanBuffer decalInstanceBuffer;
+        VkDescriptorSet decalDescriptorSet;
+
         VulkanBuffer spriteInstanceBuffer;
         VkDescriptorSet spriteDescriptorSet;
 
@@ -343,6 +348,17 @@ namespace Vultron
     };
 
     static_assert(sizeof(SkeletalInstanceData) % 16 == 0);
+
+    struct DecalInstanceData
+    {
+        glm::mat4 model;
+        glm::mat4 inverseModel;
+        glm::vec2 texCoord;
+        glm::vec2 texSize;
+        glm::vec4 color;
+    };
+
+    static_assert(sizeof(DecalInstanceData) % 16 == 0);
 
     struct SpriteInstanceData
     {
@@ -500,6 +516,7 @@ namespace Vultron
         const std::vector<RenderBatch> &skeletalBatches;
         const std::vector<SkeletalInstanceData> &skeletalInstances;
         const std::vector<AnimationInstanceData> &animationInstances;
+        const std::vector<DecalInstanceData> &decalInstances;
         const std::vector<RenderBatch> &spriteBatches;
         const std::vector<RenderBatch> &sdfBatches;
         const std::vector<SpriteInstanceData> &spriteInstances;
@@ -507,6 +524,7 @@ namespace Vultron
         const std::optional<RenderHandle> skybox;
         const std::optional<RenderHandle> environmentMap;
         const std::optional<RenderHandle> particleAtlasMaterial;
+        const std::optional<RenderHandle> decalAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
         const std::vector<LineData> &lines;
         const std::vector<RibbonVertex> &ribbonVertices;
@@ -536,14 +554,25 @@ namespace Vultron
 
         // Render passes
         VulkanRenderPass m_shadowPass;
+        VulkanRenderPass m_depthPass;
+        VulkanRenderPass m_decalPass;
         VulkanRenderPass m_scenePass;
         VulkanRenderPass m_compositePass;
 
         // Scene
         VulkanImage m_sceneImage;
-        VulkanImage m_depthImage;
         VulkanImage m_depthOutlineImage;
         VkFramebuffer m_sceneFramebuffer;
+
+        // Depth
+        VulkanImage m_depthImage;
+        VkFramebuffer m_depthFramebuffer;
+
+        // Decal
+        VulkanImage m_decalAlbedoImage;
+        VulkanImage m_decalNormalImage;
+        VulkanImage m_decalARM;
+        VkFramebuffer m_decalFramebuffer;
 
         // Bloom
         std::vector<VulkanImage> m_bloomMipChain;
@@ -568,16 +597,19 @@ namespace Vultron
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
         VulkanMaterialPipeline m_staticShadowPipeline;
+        VulkanMaterialPipeline m_staticDepthPipeline;
         VkDescriptorSetLayout m_staticSetLayout;
 
         VulkanShader m_staticShadowVertexShader;
         VulkanShader m_skeletalShadowVertexShader;
+        VulkanShader m_staticDepthVertexShader;
+        VulkanShader m_skeletalDepthVertexShader;
         VulkanShader m_shadowFragmentShader;
-        VkDescriptorSetLayout m_spriteSetLayout;
 
         // Skeletal pipeline
         VulkanMaterialPipeline m_skeletalPipeline;
         VulkanMaterialPipeline m_skeletalShadowPipeline;
+        VulkanMaterialPipeline m_skeletalDepthPipeline;
         VkDescriptorSetLayout m_skeletalSetLayout;
         // -- GPU only resources
         std::vector<SkeletonBone> m_bones;
@@ -585,9 +617,16 @@ namespace Vultron
         std::vector<AnimationFrame> m_animationFrames;
         VulkanBuffer m_animationFrameBuffer;
 
+        // Decal pipeline
+        VulkanMaterialPipeline m_decalPipeline;
+        VulkanShader m_decalVertexShader;
+        VulkanShader m_decalFragmentShader;
+        VkDescriptorSetLayout m_decalSetLayout;
+
         // Sprite pipeline
         VulkanMaterialPipeline m_spritePipeline;
         VulkanQuadMesh m_spriteQuadMesh = {};
+        VkDescriptorSetLayout m_spriteSetLayout;
         VulkanShader m_spriteVertexShader;
         VulkanShader m_spriteFragmentShader;
 
@@ -729,6 +768,7 @@ namespace Vultron
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
         void DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, uint32_t ribbonIndexCount, glm::uvec2 viewportSize);
         void DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize);
+        void DrawDecals(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, uint32_t instanceCount, glm::uvec2 viewportSize);
         void WriteBloomDownsampleCommands(VkCommandBuffer commandBuffer);
         void WriteBloomUpsampleCommands(VkCommandBuffer commandBuffer);
         void ClearDepthBuffer(VkCommandBuffer commandBuffer, glm::uvec2 viewportSize);
@@ -778,9 +818,11 @@ namespace Vultron
         Camera &GetCamera() { return m_camera; }
         const BloomSettings &GetBloomSettings() const { return m_bloomSettings; }
         float GetAspectRatio() const { return static_cast<float>(m_swapchain.GetExtent().width) / static_cast<float>(m_swapchain.GetExtent().height); }
+        glm::uvec2 GetSwapchainExtent() const { return glm::uvec2(m_swapchain.GetExtent().width, m_swapchain.GetExtent().height); }
 
         RenderHandle LoadMesh(const std::string &filepath, bool keepInMemory = false);
         RenderHandle LoadQuad(const std::string &name);
+        RenderHandle LoadCube(const std::string &name);
         RenderHandle LoadSkeletalMesh(const std::string &filepath);
         RenderHandle LoadAnimation(const std::string &filepath);
         RenderHandle LoadImage(const std::string &filepath, ImageType type = ImageType::None, bool useAllMips = false);

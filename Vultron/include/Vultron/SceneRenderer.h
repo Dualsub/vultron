@@ -47,12 +47,14 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
+        std::vector<DecalInstanceData> m_decalInstances;
         std::vector<LineData> m_lines;
         std::vector<RibbonVertex> m_ribbonVertices;
         std::vector<uint32_t> m_ribbonIndices;
         std::optional<RenderHandle> m_skybox;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
+        std::optional<RenderHandle> m_decalAtlasMaterial;
         std::array<PointLightData, 4> m_pointLights;
 
         int32_t m_boneOutputOffset = 0;
@@ -73,9 +75,11 @@ namespace Vultron
         void SetEnvironmentMap(const std::optional<RenderHandle> &environmentMap) { m_environmentMap = environmentMap; }
         void SetSkybox(const std::optional<RenderHandle> &skybox) { m_skybox = skybox; }
         void SetParticleAtlasMaterial(const std::optional<RenderHandle> &particleAtlasMaterial) { m_particleAtlasMaterial = particleAtlasMaterial; }
+        void SetDecalAtlasMaterial(const std::optional<RenderHandle> &decalAtlasMaterial) { m_decalAtlasMaterial = decalAtlasMaterial; }
         void SetPointLights(const std::array<PointLightData, 4> &pointLights) { m_pointLights = pointLights; }
         void SubmitRenderJob(const StaticRenderJob &job);
         void SubmitRenderJob(const SkeletalRenderJob &job);
+        void SubmitRenderJob(const DecalRenderJob &job);
         void SubmitRenderJob(const SpriteRenderJob &job);
         void SubmitRenderJob(const FontRenderJob &job);
         void SubmitRenderJob(const ParticleEmitJob &job);
@@ -97,6 +101,7 @@ namespace Vultron
         };
 
         float GetAspectRatio() const { return m_backend.GetAspectRatio(); }
+        glm::uvec2 GetWindowSize() const { return m_backend.GetSwapchainExtent(); }
 
         // Font stuff
         std::vector<FontGlyph> GetTextGlyphs(const RenderHandle &font, const std::string &text) const;

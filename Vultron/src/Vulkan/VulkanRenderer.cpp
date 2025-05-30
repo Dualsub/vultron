@@ -1441,6 +1441,8 @@ namespace Vultron
                 .bindings = {},
                 .vertexDescription = LineVertex::GetVertexDescription(),
                 .cullMode = CullMode::None,
+                .depthFunction = DepthFunction::Always,
+                .depthTestEnable = false,
                 .depthWriteEnable = false,
                 .topology = Topology::LineList,
             });

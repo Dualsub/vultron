@@ -210,7 +210,7 @@ void main()
     fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
     vec4 color = mix(instance.startColor, instance.endColor, clamp(timeElapsed / instance.lifeDurationAndNumFramesAndFrameRate.x, 0.0, 1.0));
     fragColor = vec4(color.rgb, color.a * opacityIn * opacityOut);
-    fragEmissiveColor = vec4(0.0);
+    fragEmissiveColor = fragColor;
 
     ivec4 closestProbes;
     vec4 probeWeights;

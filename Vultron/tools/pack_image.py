@@ -282,6 +282,8 @@ def process_json_operations(json_file):
                 self.invert = False
                 self.cubemap = False
                 self.all = False
+                self.view = False
+                self.combine_cubemaps = False
 
         args = Args()
         for key, value in operation.items():

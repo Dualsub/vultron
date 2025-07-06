@@ -47,6 +47,7 @@ namespace Vultron
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
+        std::vector<glm::mat4> m_boneInputTransforms;
         std::vector<DecalInstanceData> m_decalInstances;
         std::vector<LineData> m_lines;
         std::vector<RibbonVertex> m_ribbonVertices;
@@ -61,6 +62,10 @@ namespace Vultron
         std::unordered_map<RenderHandle, int32_t> m_spriteMaterialToLayer;
         std::set<RenderHandle> m_transparentMaterials;
         RenderHandle m_quadMesh = {};
+
+        mutable std::mutex m_boneTransformCacheMutex;
+        mutable std::unordered_map<size_t, glm::mat4> m_boneTransformsCache;
+        mutable size_t m_numTimesCachedBoneTransform = 0;
 
         // Function that generates vertices for a ribbon, and then appends it to the list of ribbon vertices
         void GenerateRibbonVertices(const std::vector<RibbonControlPoint> &points, const glm::vec2 &uvStart, const glm::vec2 &uvEnd, std::vector<RibbonVertex> &vertices, std::vector<uint32_t> &indices);
@@ -182,6 +187,8 @@ namespace Vultron
         size_t GetImageMemoryUsage() const { return m_backend.GetImageMemoryUsage(); }
         size_t GetBufferMemoryUsage() const { return m_backend.GetBufferMemoryUsage(); }
         size_t GetMemoryUsage() const { return m_backend.GetImageMemoryUsage() + m_backend.GetBufferMemoryUsage(); }
+
+        void InvalidateBoneCache();
     };
 
 }

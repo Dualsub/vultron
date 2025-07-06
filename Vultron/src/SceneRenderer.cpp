@@ -90,6 +90,7 @@ namespace Vultron
         m_spriteJobs.clear();
         m_fontJobs.clear();
         m_boneOutputOffset = 0;
+        m_boneInputTransforms.clear();
     }
 
     void SceneRenderer::SubmitRenderJob(const StaticRenderJob &job)
@@ -165,6 +166,12 @@ namespace Vultron
         int32_t boneOutputOffset = m_boneOutputOffset;
         m_boneOutputOffset += mesh.GetBoneCount();
 
+        int32_t boneInputOffset = job.inputBones.empty() ? -1 : static_cast<int32_t>(m_boneInputTransforms.size());
+        if (boneInputOffset != -1)
+        {
+            m_boneInputTransforms.insert(m_boneInputTransforms.end(), job.inputBones.begin(), job.inputBones.end());
+        }
+
         SkeletalInstanceData instance = {
             .model = job.transform,
             // We are settings these per instance for now, but we only need to do it per batch.
@@ -176,8 +183,11 @@ namespace Vultron
             .animationInstanceCount = animationCount,
 
             .boneOutputOffset = boneOutputOffset,
-            .ikChainBoneIndices = job.ikChainBoneIndices,
-            .ikChainBoneTransforms = job.ikChainBoneTransforms,
+            .boneInputOffset = boneInputOffset,
+            .boneInputInterval = {
+                job.animations.empty() ? 0 : job.inputBoneIndex,
+                job.animations.empty() ? 0 : (job.inputBoneIndex + static_cast<int32_t>(job.inputBones.size()) - 1),
+            },
             .color = job.color,
             .emissiveColor = job.emissiveColor,
         };
@@ -459,6 +469,7 @@ namespace Vultron
             .skeletalBatches = skeletalBatches,
             .skeletalInstances = skeletalInstances,
             .animationInstances = m_animationInstances,
+            .boneInputTransforms = m_boneInputTransforms,
             .decalInstances = m_decalInstances,
             .spriteBatches = spriteBatches,
             .sdfBatches = sdfBatches,
@@ -476,6 +487,7 @@ namespace Vultron
 
         m_particleEmitters.clear();
         m_backend.SetDeltaTime(0.0f);
+        InvalidateBoneCache();
     }
 
     std::vector<FontGlyph> SceneRenderer::GetTextGlyphs(const RenderHandle &font, const std::string &text) const
@@ -557,9 +569,42 @@ namespace Vultron
         return {frame1, frame2, frameBlendFactor, newTime, anim.GetDuration()};
     }
 
+    size_t GetAnimationInstanceHash(RenderHandle skeletalMesh, const std::vector<AnimationJob> &animationInstances)
+    {
+        size_t hash = std::hash<RenderHandle>()(skeletalMesh);
+        for (const auto &instance : animationInstances)
+        {
+            hash ^= std::hash<RenderHandle>()(instance.animation);
+            hash ^= std::hash<uint32_t>()(instance.frame1);
+            hash ^= std::hash<uint32_t>()(instance.frame2);
+            hash ^= std::hash<int32_t>()(instance.referenceFrame);
+            hash ^= std::hash<RenderHandle>()(instance.referenceAnimation);
+            hash ^= std::hash<float>()(instance.frameBlendFactor);
+            hash ^= std::hash<float>()(instance.blendFactor);
+            hash ^= std::hash<int32_t>()(instance.boneIntervalStart);
+            hash ^= std::hash<int32_t>()(instance.boneIntervalEnd);
+        }
+        return hash;
+    }
+
+    size_t GetBoneTransformHash(size_t animationInstanceHash, uint32_t boneIndex)
+    {
+        size_t hash = animationInstanceHash;
+        hash ^= std::hash<uint32_t>()(boneIndex);
+        return hash;
+    }
+
+    size_t GetBoneTransformHash(RenderHandle skeletalMesh, const std::vector<AnimationJob> &animationInstances, uint32_t boneIndex)
+    {
+        size_t animationInstanceHash = GetAnimationInstanceHash(skeletalMesh, animationInstances);
+        return GetBoneTransformHash(animationInstanceHash, boneIndex);
+    }
+
     // NOTE: Expensive
     glm::mat4 SceneRenderer::GetBoneTransform(RenderHandle skeletalMesh, const std::vector<AnimationJob> &animationInstances, uint32_t boneIndex) const
     {
+        size_t animationInstanceHash = GetAnimationInstanceHash(skeletalMesh, animationInstances);
+
         const auto &rp = m_backend.GetResourcePool();
         const auto &mesh = rp.GetSkeletalMesh(skeletalMesh);
 
@@ -571,6 +616,19 @@ namespace Vultron
         uint32_t currBoneIndex = boneIndex;
         for (uint32_t b = 0; b < mesh.GetBoneCount(); b++)
         {
+            size_t boneHash = GetBoneTransformHash(animationInstanceHash, currBoneIndex);
+
+            {
+                std::lock_guard<std::mutex> lock(m_boneTransformCacheMutex);
+                auto boneIt = m_boneTransformsCache.find(boneHash);
+                if (boneIt != m_boneTransformsCache.end())
+                {
+                    // boneTransform = boneIt->second * boneTransform;
+                    // m_numTimesCachedBoneTransform++;
+                    // break;
+                }
+            }
+
             float totalBlendFactor = 0.0f;
             glm::vec3 accPosition = glm::vec3(0.0f);
             glm::quat accRotation = glm::quat(0.0f, 0.0f, 0.0f, 0.0f);
@@ -707,9 +765,15 @@ namespace Vultron
                 additiveMatrix = refrenceMatrix * glm::translate(glm::mat4(1.0f), addPosition) * glm::mat4_cast(addRotation) * glm::scale(glm::mat4(1.0f), addScale);
             }
 
-            glm::mat4 noAdditive = baseMatrix * boneTransform;
-            glm::mat4 withAdditive = baseMatrix * additiveMatrix * boneTransform;
-            boneTransform = (1.0f - totalBlendFactor) * noAdditive + totalBlendFactor * withAdditive;
+            glm::mat4 noAdditive = baseMatrix;
+            glm::mat4 withAdditive = baseMatrix * additiveMatrix;
+            glm::mat4 localBoneTransform = ((1.0f - totalBlendFactor) * noAdditive + totalBlendFactor * withAdditive);
+            boneTransform = localBoneTransform * boneTransform;
+
+            {
+                std::lock_guard<std::mutex> lock(m_boneTransformCacheMutex);
+                m_boneTransformsCache[boneHash] = boneTransform;
+            }
 
             currBoneIndex = bones[mesh.GetBoneOffset() + currBoneIndex].parentID;
 
@@ -800,5 +864,18 @@ namespace Vultron
     {
         const VulkanEnvironmentMap &envMap = m_backend.GetResourcePool().GetEnvironmentMap(environmentMap);
         return envMap.GetIrradianceVolume();
+    }
+
+    void SceneRenderer::InvalidateBoneCache()
+    {
+        constexpr size_t c_maxCacheSize = 256;
+
+        std::lock_guard<std::mutex> lock(m_boneTransformCacheMutex);
+        if (m_boneTransformsCache.size() > c_maxCacheSize)
+        {
+            m_boneTransformsCache.clear();
+            std::cout << m_numTimesCachedBoneTransform << " bone transforms were cached." << std::endl;
+            m_numTimesCachedBoneTransform = 0;
+        }
     }
 }

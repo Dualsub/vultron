@@ -3,8 +3,7 @@
 struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
-    ivec4 boneOutputOffsetAndIkChainBoneIndices;
-    mat4[3] ikChainMatrices;
+    ivec4 boneIOAndInterval;
     vec4 color;
     vec4 emissiveColor;
 };
@@ -46,6 +45,10 @@ layout(std140, set = 0, binding = 4) writeonly buffer BoneOutputBufferObject {
     mat4 boneOutput[];
 };
 
+layout(std140, set = 0, binding = 5) readonly buffer BoneInputBufferObject {
+    mat4 boneInput[];
+};
+
 vec3 QMulV(vec4 q, vec3 v) {
     return q.xyz * 2.0f * dot(q.xyz, v) +
            v * (q.w * q.w - dot(q.xyz, q.xyz)) +
@@ -75,22 +78,19 @@ struct BonePose {
     vec3 scale;
 };
 
-mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount, ivec3 ikChainBoneIndices, mat4[3] ikChainMatrices) 
+mat4 GetPose(int animationInstanceOffset, int animationInstanceCount, int boneIndex, int boneOffset, int boneCount, int boneInputOffset, ivec2 boneInputInterval) 
 {
     mat4 boneMatrix = mat4(1.0);
     int currBoneIndex = boneIndex;
 
+    int boneInputStart = boneInputInterval.x;
+    int boneInputEnd = boneInputInterval.y;
+
     for (int b = 0; b < boneCount; b++)
     {
-        if (currBoneIndex == ikChainBoneIndices[0] || currBoneIndex == ikChainBoneIndices[1] || currBoneIndex == ikChainBoneIndices[2]) {
-            
-            for (int j = 0; j < 3; j++) {
-                if (currBoneIndex == ikChainBoneIndices[j]) {
-                    boneMatrix = ikChainMatrices[j] * boneMatrix;
-                    break;
-                }
-            }
-
+        if ((currBoneIndex >= boneInputStart) && (currBoneIndex <= boneInputEnd)) {
+            int boneInputIndex = boneInputOffset + currBoneIndex - boneInputStart;
+            boneMatrix = boneInput[boneInputIndex] * boneMatrix;
             break;
         }
 
@@ -222,9 +222,11 @@ void main()  {
         int boneOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.x;
         int animationInstanceOffset = instances[instanceIndex].boneAndInstanceOffsetAndCount.z;
         int animationInstanceCount = instances[instanceIndex].boneAndInstanceOffsetAndCount.w;
-        int boneOutputOffset = instances[instanceIndex].boneOutputOffsetAndIkChainBoneIndices.x;
+        int boneOutputOffset = instances[instanceIndex].boneIOAndInterval.x;
+        int boneInputOffset = instances[instanceIndex].boneIOAndInterval.y;
+        ivec2 boneInputInterval = instances[instanceIndex].boneIOAndInterval.zw;
 
         mat4 offset = bones[boneOffset + boneIndex].offset;
-        boneOutput[boneOutputOffset + boneIndex] = GetPose(animationInstanceOffset, animationInstanceCount, boneIndex, boneOffset, boneCount, instances[instanceIndex].boneOutputOffsetAndIkChainBoneIndices.yzw, instances[instanceIndex].ikChainMatrices) * offset;
+        boneOutput[boneOutputOffset + boneIndex] = GetPose(animationInstanceOffset, animationInstanceCount, boneIndex, boneOffset, boneCount, boneInputOffset, boneInputInterval) * offset;
     }
 }

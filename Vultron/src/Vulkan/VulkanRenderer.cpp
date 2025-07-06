@@ -1208,6 +1208,12 @@ namespace Vultron
                         .type = DescriptorType::StorageBuffer,
                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                     },
+                    {
+                        // Input bone data
+                        .binding = 5,
+                        .type = DescriptorType::StorageBuffer,
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                    },
                 },
             });
 
@@ -1986,6 +1992,10 @@ namespace Vultron
             animationInstanceBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, .size = animationInstancesSize, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             animationInstanceBuffer.Map(m_context.GetAllocator());
 
+            VulkanBuffer &boneInputBuffer = m_frames[i].boneInputBuffer;
+            boneInputBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = sizeof(glm::mat4) * c_maxBoneOutputs, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
+            boneInputBuffer.Map(m_context.GetAllocator());
+
             VulkanBuffer &boneOutputBuffer = m_frames[i].boneOutputBuffer;
             boneOutputBuffer = VulkanBuffer::Create({.allocator = m_context.GetAllocator(), .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, .size = sizeof(glm::mat4) * c_maxBoneOutputs, .allocationUsage = VMA_MEMORY_USAGE_CPU_TO_GPU});
             boneOutputBuffer.Map(m_context.GetAllocator());
@@ -2237,6 +2247,12 @@ namespace Vultron
                         .type = DescriptorType::StorageBuffer,
                         .buffer = m_frames[i].boneOutputBuffer.GetBuffer(),
                         .size = m_frames[i].boneOutputBuffer.GetSize(),
+                    },
+                    {
+                        .binding = 5,
+                        .type = DescriptorType::StorageBuffer,
+                        .buffer = m_frames[i].boneInputBuffer.GetBuffer(),
+                        .size = m_frames[i].boneInputBuffer.GetSize(),
                     },
                 });
 
@@ -3627,6 +3643,7 @@ namespace Vultron
             COPY_VECTOR_TO_BUFFER(frame.staticInstanceBuffer, renderData.staticInstances, c_maxInstances);
             COPY_VECTOR_TO_BUFFER(frame.skeletalInstanceBuffer, renderData.skeletalInstances, c_maxSkeletalInstances);
             COPY_VECTOR_TO_BUFFER(frame.animationInstanceBuffer, renderData.animationInstances, c_maxAnimationInstances);
+            COPY_VECTOR_TO_BUFFER(frame.boneInputBuffer, renderData.boneInputTransforms, c_maxBoneOutputs);
             COPY_VECTOR_TO_BUFFER(frame.decalInstanceBuffer, renderData.decalInstances, c_maxDecalInstances);
             COPY_VECTOR_TO_BUFFER(frame.spriteInstanceBuffer, renderData.spriteInstances, c_maxSpriteInstances);
             COPY_VECTOR_TO_BUFFER(frame.ribbonVertexBuffer, renderData.ribbonVertices, c_maxRibbonVertices);
@@ -3760,6 +3777,9 @@ namespace Vultron
 
             m_frames[i].boneOutputBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].boneOutputBuffer.Destroy(m_context.GetAllocator());
+
+            m_frames[i].boneInputBuffer.Unmap(m_context.GetAllocator());
+            m_frames[i].boneInputBuffer.Destroy(m_context.GetAllocator());
 
             m_frames[i].decalInstanceBuffer.Unmap(m_context.GetAllocator());
             m_frames[i].decalInstanceBuffer.Destroy(m_context.GetAllocator());

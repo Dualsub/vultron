@@ -30,8 +30,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 struct InstanceData {
     mat4 model;
     ivec4 boneAndInstanceOffsetAndCount;
-    int boneOutputOffset;
-    mat4 ikChainMatrices[3];
+    ivec4 boneIOAndInterval;
     vec4 color;
     vec4 emissiveColor;
 };
@@ -58,7 +57,7 @@ void main()  {
     int boneCount = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.y;
     int animationInstanceOffset = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.z;
     int animationInstanceCount = instances[gl_InstanceIndex].boneAndInstanceOffsetAndCount.w;
-    int boneOutputOffset = instances[gl_InstanceIndex].boneOutputOffset;
+    int boneOutputOffset = instances[gl_InstanceIndex].boneIOAndInterval.x;
 
     for (int j = 0; j < 4; j++) {
         if (inBoneIDs[j] == -1) {

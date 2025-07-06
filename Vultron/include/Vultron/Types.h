@@ -79,8 +79,8 @@ namespace Vultron
         RenderHandle material = {};
         glm::mat4 transform = {};
         std::vector<AnimationJob> animations = {};
-        std::array<int32_t, 3> ikChainBoneIndices = {-1, -1, -1};
-        std::array<glm::mat4, 3> ikChainBoneTransforms = {glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)};
+        int32_t inputBoneIndex = -1;
+        std::vector<glm::mat4> inputBones = {};
         glm::vec4 color = glm::vec4(1.0f);
         glm::vec4 emissiveColor = glm::vec4(1.0f);
 

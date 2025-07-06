@@ -280,6 +280,7 @@ namespace Vultron
 
         VulkanBuffer skeletalInstanceBuffer;
         VulkanBuffer animationInstanceBuffer;
+        VulkanBuffer boneInputBuffer;
         VkDescriptorSet skeletalDescriptorSet;
         VulkanBuffer boneOutputBuffer;
         VkDescriptorSet skeletalComputeDescriptorSet;
@@ -328,8 +329,8 @@ namespace Vultron
         int32_t animationInstanceOffset;
         int32_t animationInstanceCount;
         int32_t boneOutputOffset;
-        std::array<int32_t, 3> ikChainBoneIndices;
-        std::array<glm::mat4, 3> ikChainBoneTransforms;
+        int32_t boneInputOffset;
+        glm::ivec2 boneInputInterval;
         glm::vec4 color;
         glm::vec4 emissiveColor;
     };
@@ -516,6 +517,7 @@ namespace Vultron
         const std::vector<RenderBatch> &skeletalBatches;
         const std::vector<SkeletalInstanceData> &skeletalInstances;
         const std::vector<AnimationInstanceData> &animationInstances;
+        const std::vector<glm::mat4> &boneInputTransforms;
         const std::vector<DecalInstanceData> &decalInstances;
         const std::vector<RenderBatch> &spriteBatches;
         const std::vector<RenderBatch> &sdfBatches;

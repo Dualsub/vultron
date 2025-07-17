@@ -2815,7 +2815,7 @@ namespace Vultron
         {
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleUpdatePipeline.GetPipeline());
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleUpdatePipeline.GetPipelineLayout(), 0, 1, &frame.particleUpdateDescriptorSet, 0, nullptr);
-            vkCmdDispatch(commandBuffer, c_maxParticleInstances / 256, 1, 1);
+            vkCmdDispatch(commandBuffer, c_maxParticleInstances / 128, 1, 1);
         }
 
         // Barrier to ensure update is finished before the new particles are added

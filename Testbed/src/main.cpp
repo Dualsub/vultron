@@ -138,7 +138,26 @@ int main()
             .metallicRoughnessAO = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/helmet_metRoughness_AO_test.dat"),
         });
 
-    Vultron::RenderHandle skyboxTexture = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/textures/skybox.dat");
+    Vultron::RenderHandle skyboxTexture = renderer.CreateMaterial<Vultron::SkyboxMaterial>(
+        "skybox",
+        {
+            .cubemap = renderer.LoadImage(std::string(VLT_ASSETS_DIR) + "/skybox/skybox.dat", Vultron::ImageType::Cubemap),
+        });
+    Vultron::RenderHandle environmentMap = renderer.LoadEnvironmentMap(
+        "environment",
+        std::string(VLT_ASSETS_DIR) + "/skybox/skybox_irradiance.dat",
+        std::string(VLT_ASSETS_DIR) + "/skybox/skybox_prefiltered.dat",
+        {
+            .min = glm::vec4(-1.0f),
+            .max = glm::vec4(1.0f),
+            .numCells = glm::uvec4(1, 1, 1, 0),
+        },
+        {
+            glm::vec3(0.0f, 0.0f, 0.0f),
+        });
+
+    renderer.SetSkybox(skyboxTexture);
+    renderer.SetEnvironmentMap(environmentMap);
 
     const auto loadFuture = std::async(
         std::launch::async,

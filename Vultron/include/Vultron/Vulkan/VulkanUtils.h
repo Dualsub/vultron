@@ -39,6 +39,7 @@ namespace Vultron::VkUtil
     };
 
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+    void PrintQueues(VkPhysicalDevice device);
     SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
     VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice);

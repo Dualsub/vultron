@@ -15,7 +15,7 @@
 #define eBigFlip                        2
 #define eBigDisperse                    3
 
-layout(local_size_x = 128) in; // Set value for local_size_x via specialization constant with id 1
+layout(local_size_x = 64) in; // Set value for local_size_x via specialization constant with id 1
 
 struct ParticleInstanceData {
     vec4 positionAndLifeTime;

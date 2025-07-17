@@ -7,6 +7,16 @@
 
 namespace Vultron::VkUtil
 {
+    template<typename T>
+    void SetOptionalIfEmpty(std::optional<T>& optional, T value)
+    {
+        if (!optional.has_value())
+        {
+            optional.emplace(value);
+        }
+    }
+
+
     QueueFamilies QueryQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
     {
         QueueFamilies families;
@@ -16,7 +26,7 @@ namespace Vultron::VkUtil
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-        int i = 0;
+        uint32_t i = 0;
         for (const auto &queueFamily : queueFamilies)
         {
             if (
@@ -25,13 +35,13 @@ namespace Vultron::VkUtil
                 queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT &&
                 queueFamily.queueCount >= 1)
             {
-                families.graphicsFamily = i;
-                families.computeFamily = i;
+                SetOptionalIfEmpty(families.graphicsFamily, i);
+                SetOptionalIfEmpty(families.computeFamily, i);
             }
 
-            if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT && !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+            if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT && (families.graphicsFamily.has_value() && families.graphicsFamily.value() != i))
             {
-                families.transferFamily = i;
+                SetOptionalIfEmpty(families.transferFamily, i);
             }
 
             VkBool32 presentSupport = false;
@@ -39,7 +49,7 @@ namespace Vultron::VkUtil
 
             if (presentSupport)
             {
-                families.presentFamily = i;
+                SetOptionalIfEmpty(families.presentFamily, i);
             }
 
             if (families.IsComplete())
@@ -51,6 +61,43 @@ namespace Vultron::VkUtil
         }
 
         return families;
+    }
+
+    void PrintQueues(VkPhysicalDevice device)
+    {
+        QueueFamilies families;
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        VkQueueFlagBits queueTypes[] = {
+            VK_QUEUE_GRAPHICS_BIT,
+            VK_QUEUE_COMPUTE_BIT,
+            VK_QUEUE_TRANSFER_BIT,
+        };
+
+        const char* queueTypeNames[] = {
+            "VK_QUEUE_GRAPHICS_BIT",
+            "VK_QUEUE_COMPUTE_BIT",
+            "VK_QUEUE_TRANSFER_BIT",
+        };
+
+        int i = 0;
+        for (const auto &queueFamily : queueFamilies)
+        {
+            std::cout << "Queue " << i << ": ";
+            for (int j = 0; j < 3; j++)
+            {
+                if (queueFamily.queueFlags & queueTypes[j])
+                {
+                    std::cout << queueTypeNames[j] << " ";
+                }
+            }
+            std::cout << std::endl;
+            i++;
+        }
     }
 
     SwapChainSupport QuerySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)

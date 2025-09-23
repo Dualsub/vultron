@@ -23,6 +23,32 @@ namespace Vultron
     constexpr RenderHandle c_invalidHandle = 0;
     constexpr PoolHandle c_invalidPoolHandle = 0;
 
+    // Type to alias RenderHandle
+    struct RenderResource
+    {
+        RenderHandle handle = c_invalidHandle;
+
+        RenderResource() = default;
+        RenderResource(RenderHandle handle) : handle(handle) {}
+        operator RenderHandle() const { return handle; }
+        bool IsValid() const { return handle != c_invalidHandle; }
+        bool IsInvalid() const { return handle == c_invalidHandle; }
+        bool operator==(const RenderResource &other) const { return handle == other.handle; }
+        bool operator!=(const RenderResource &other) const { return handle != other.handle; }
+        bool operator==(const RenderHandle &other) const { return handle == other; }
+        bool operator!=(const RenderHandle &other) const { return handle != other; }
+        RenderResource &operator=(const RenderHandle &other)
+        {
+            handle = other;
+            return *this;
+        }
+        RenderResource &operator=(const RenderResource &other)
+        {
+            handle = other.handle;
+            return *this;
+        }
+    };
+
     struct RenderBatch
     {
         RenderHandle mesh;

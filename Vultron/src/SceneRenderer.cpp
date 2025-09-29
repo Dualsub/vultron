@@ -265,6 +265,9 @@ namespace Vultron
             .texCoord = job.texCoord,
             .texSize = job.texSize,
             .color = job.color,
+            .borderRadius = glm::vec4(0.0f),
+            .rotation = job.rotation,
+            .zOrder = job.zOrder,
         });
     }
 

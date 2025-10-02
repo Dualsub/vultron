@@ -930,6 +930,37 @@ namespace Vultron
                 .depthWriteEnable = false,
             });
 
+        m_staticTransparentPipeline = VulkanMaterialPipeline::Create(
+            m_context, m_scenePass,
+            {
+                .vertexShader = m_staticVertexShader,
+                .fragmentShader = m_fragmentShader,
+                .descriptorSetLayouts = {m_staticSetLayout, m_environmentSetLayout},
+                .bindings = materialBindings,
+                .pushConstantRanges = {materialParameters},
+                .vertexDescription = StaticMeshVertex::GetVertexDescription(),
+                .colorBlendAttachments = {
+                    {
+                        .blendEnable = VK_TRUE,
+                        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .colorBlendOp = VK_BLEND_OP_ADD,
+                        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .alphaBlendOp = VK_BLEND_OP_ADD,
+                        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                    },
+                    {
+                        .blendEnable = VK_FALSE,
+                        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
+                    },
+                },
+                // Depth pass handles depth writing
+                .cullMode = CullMode::Back,
+                .depthFunction = DepthFunction::LessOrEqual,
+                .depthWriteEnable = false,
+            });
+
         m_skeletalPipeline = VulkanMaterialPipeline::Create(
             m_context, m_scenePass,
             {
@@ -3091,12 +3122,16 @@ namespace Vultron
                 const VulkanEnvironmentMap &environmentMap = m_resourcePool.GetEnvironmentMap(renderData.environmentMap.value());
                 VkDescriptorSet environmentDescriptorSet = environmentMap.GetEnvironmentDescriptorSet();
 
+                // Opaque objects
                 DrawWithPipeline<VulkanMesh>(commandBuffer, {frame.staticDescriptorSet, environmentDescriptorSet}, m_staticPipeline, renderData.staticBatches, viewportSize);
                 DrawWithPipeline<VulkanSkeletalMesh>(commandBuffer, {frame.skeletalDescriptorSet, environmentDescriptorSet}, m_skeletalPipeline, renderData.skeletalBatches, viewportSize);
+
+                // Transparent objects
+                DrawWithPipeline<VulkanMesh>(commandBuffer, {frame.staticDescriptorSet, environmentDescriptorSet}, m_staticTransparentPipeline, renderData.transparentStaticBatches, viewportSize);
                 if (renderData.particleAtlasMaterial.has_value())
                 {
                     DrawParticles(commandBuffer, frame.particleDrawCommandBuffer, {frame.particleDescriptorSet, environmentDescriptorSet}, renderData.particleAtlasMaterial.value(), viewportSize);
-                    DrawRibbons(commandBuffer, {frame.ribbonDescriptorSet, environmentDescriptorSet}, renderData.particleAtlasMaterial.value(), frame.ribbonVertexBuffer, frame.ribbonIndexBuffer, static_cast<uint32_t>(renderData.ribbonIndices.size()), viewportSize);
+                    DrawRibbons(commandBuffer, {frame.ribbonDescriptorSet, environmentDescriptorSet}, frame.ribbonVertexBuffer, frame.ribbonIndexBuffer, renderData.ribbonBatches, viewportSize);
                 }
             }
 
@@ -3326,14 +3361,8 @@ namespace Vultron
         vkCmdDrawIndexedIndirect(commandBuffer, drawCommandBuffer.GetBuffer(), 0, 1, sizeof(VkDrawIndexedIndirectCommand));
     }
 
-    void VulkanRenderer::DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, uint32_t ribbonIndexCount, glm::uvec2 viewportSize)
+    void VulkanRenderer::DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, const std::vector<RenderBatch> &ribbonBatches, glm::uvec2 viewportSize)
     {
-        const std::optional<VulkanMaterialInstance> &material = m_resourcePool.GetMaterialInstance(particleAtlasMaterial);
-        if (!material.has_value())
-        {
-            return;
-        }
-
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ribbonPipeline.GetPipeline());
 
         VkViewport viewport{};
@@ -3350,32 +3379,37 @@ namespace Vultron
         scissor.extent = {viewportSize.x, viewportSize.y};
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        std::vector<VkDescriptorSet> descriptorSetsCopy = descriptorSets;
-        descriptorSetsCopy.push_back(material->GetDescriptorSet());
-
-        const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSetsCopy.size());
-        for (uint32_t i = 0; i < numDescriptorSets; i++)
+        for (const RenderBatch &batch : ribbonBatches)
         {
-            if (descriptorSetsCopy[i] == VK_NULL_HANDLE)
+            const VulkanMaterialInstance &material = m_resourcePool.GetMaterialInstance(batch.material);
+
+            std::vector<VkDescriptorSet> descriptorSetsCopy = descriptorSets;
+            descriptorSetsCopy.push_back(material.GetDescriptorSet());
+
+            const uint32_t numDescriptorSets = static_cast<uint32_t>(descriptorSetsCopy.size());
+            for (uint32_t i = 0; i < numDescriptorSets; i++)
             {
-                continue;
+                if (descriptorSetsCopy[i] == VK_NULL_HANDLE)
+                {
+                    continue;
+                }
+
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ribbonPipeline.GetPipelineLayout(), i, 1, &descriptorSetsCopy[i], 0, nullptr);
             }
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ribbonPipeline.GetPipelineLayout(), i, 1, &descriptorSetsCopy[i], 0, nullptr);
+            std::vector<char> materialData = material.GetMaterialData();
+            if (!materialData.empty())
+            {
+                vkCmdPushConstants(commandBuffer, m_ribbonPipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
+            }
+
+            VkBuffer vertexBuffers[] = {ribbonVertexBuffer.GetBuffer()};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, ribbonIndexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+            vkCmdDrawIndexed(commandBuffer, batch.indexCount, 1, batch.firstIndex, 0, 0);
         }
-
-        std::vector<char> materialData = material->GetMaterialData();
-        if (!materialData.empty())
-        {
-            vkCmdPushConstants(commandBuffer, m_ribbonPipeline.GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(materialData.size()), materialData.data());
-        }
-
-        VkBuffer vertexBuffers[] = {ribbonVertexBuffer.GetBuffer()};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, ribbonIndexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdDrawIndexed(commandBuffer, ribbonIndexCount, 1, 0, 0, 0);
     }
 
     void VulkanRenderer::DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize)

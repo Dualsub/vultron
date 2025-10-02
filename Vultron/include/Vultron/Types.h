@@ -53,6 +53,10 @@ namespace Vultron
     {
         RenderHandle mesh;
         RenderHandle material;
+
+        uint32_t firstIndex;
+        uint32_t indexCount;
+
         uint32_t firstInstance;
         uint32_t instanceCount;
 
@@ -203,9 +207,14 @@ namespace Vultron
 
     struct RibbonRenderJob
     {
-        std::vector<struct RibbonControlPoint> points = {};
-        glm::vec2 texCoord = glm::vec2(0.0f);
-        glm::vec2 texSize = glm::vec2(1.0f);
+        RenderHandle material = {};
+        std::vector<RibbonVertex> vertices = {};
+        std::vector<uint32_t> indices = {};
+
+        uint64_t GetHash() const
+        {
+            return static_cast<uint64_t>(material);
+        }
     };
 
     struct ParticleRenderJob

@@ -84,8 +84,7 @@ namespace Vultron
         m_skeletalJobs.clear();
         m_animationInstances.clear();
         m_decalInstances.clear();
-        m_ribbonVertices.clear();
-        m_ribbonIndices.clear();
+        m_ribbonJobs.clear();
         m_lines.clear();
         m_spriteJobs.clear();
         m_fontJobs.clear();
@@ -302,62 +301,26 @@ namespace Vultron
 
     void SceneRenderer::SubmitRenderJob(const RibbonRenderJob &job)
     {
-        GenerateRibbonVertices(
-            job.points,
-            job.texCoord,
-            job.texCoord + job.texSize,
-            m_ribbonVertices,
-            m_ribbonIndices);
-    }
-
-    void SceneRenderer::SubmitRenderJob(const ParticleRenderJob &job)
-    {
-        constexpr std::array<glm::vec3, 4> offsets = {
-            glm::vec3{-1.0f, -1.0f, 0.0f},
-            glm::vec3{1.0f, -1.0f, 0.0f},
-            glm::vec3{1.0f, 1.0f, 0.0f},
-            glm::vec3{-1.0f, 1.0f, 0.0f},
-        };
-
-        constexpr std::array<glm::vec3, 4> normals = {
-            glm::vec3{0.0f, 0.0f, 1.0f},
-            glm::vec3{0.0f, 0.0f, 1.0f},
-            glm::vec3{0.0f, 0.0f, 1.0f},
-            glm::vec3{0.0f, 0.0f, 1.0f},
-        };
-
-        const std::array<glm::vec2, 4> texCoords = {
-            job.texCoord,
-            glm::vec2{job.texCoord.x + job.texSize.x, job.texCoord.y},
-            job.texCoord + job.texSize,
-            glm::vec2{job.texCoord.x, job.texCoord.y + job.texSize.y},
-        };
-
-        const uint32_t numVertices = 4;
-        const uint32_t numIndices = 6;
-
-        const uint32_t vertexOffset = static_cast<uint32_t>(m_ribbonVertices.size());
-        const uint32_t indexOffset = static_cast<uint32_t>(m_ribbonIndices.size());
-
-        m_ribbonVertices.resize(vertexOffset + numVertices);
-        m_ribbonIndices.resize(indexOffset + numIndices);
-
-        for (uint32_t i = 0; i < numVertices; i++)
+        if (job.vertices.empty() || job.indices.empty())
         {
-            m_ribbonVertices[vertexOffset + i] = RibbonVertex{
-                .position = job.transform * glm::vec4(offsets[i], 1.0f),
-                .normal = glm::normalize(glm::mat3(glm::transpose(glm::inverse(job.transform))) * normals[i]),
-                .texCoord = glm::vec3(texCoords[i], 0.0f),
-                .color = job.color,
-            };
+            return;
         }
 
-        m_ribbonIndices[indexOffset + 0] = vertexOffset + 0;
-        m_ribbonIndices[indexOffset + 1] = vertexOffset + 1;
-        m_ribbonIndices[indexOffset + 2] = vertexOffset + 2;
-        m_ribbonIndices[indexOffset + 3] = vertexOffset + 0;
-        m_ribbonIndices[indexOffset + 4] = vertexOffset + 2;
-        m_ribbonIndices[indexOffset + 5] = vertexOffset + 3;
+        uint64_t hash = job.GetHash();
+        auto it = m_ribbonJobs.find(hash);
+        if (it == m_ribbonJobs.end())
+        {
+            m_ribbonJobs.insert({hash, InstancedRibbonRenderJob{.mesh = m_quadMesh, .material = job.material, .vertices = {}, .indices = {}}});
+            it = m_ribbonJobs.find(hash);
+        }
+
+        auto &instancedJob = it->second;
+        uint32_t vertexOffset = static_cast<uint32_t>(instancedJob.vertices.size());
+        instancedJob.vertices.insert(instancedJob.vertices.end(), job.vertices.begin(), job.vertices.end());
+        for (const auto &index : job.indices)
+        {
+            instancedJob.indices.push_back(index + vertexOffset);
+        }
     }
 
     void SceneRenderer::SubmitRenderJob(const LineRenderJob &job)
@@ -374,17 +337,22 @@ namespace Vultron
     {
         std::vector<StaticInstanceData> staticInstances;
         std::vector<RenderBatch> staticBatches;
+        std::vector<RenderBatch> staticTransparentBatches;
         std::vector<InstancedStaticRenderJob> staticJobs;
+        std::vector<InstancedStaticRenderJob> staticTransparentJobs;
 
         staticJobs.reserve(m_staticJobs.size());
         for (auto &job : m_staticJobs)
         {
-            staticJobs.push_back(job.second);
+            if (job.second.transparent)
+            {
+                staticTransparentJobs.push_back(job.second);
+            }
+            else
+            {
+                staticJobs.push_back(job.second);
+            }
         }
-
-        // Maybe look over this sorting logic
-        std::sort(staticJobs.begin(), staticJobs.end(), [](const InstancedStaticRenderJob &a, const InstancedStaticRenderJob &b)
-                  { return a.transparent < b.transparent; });
 
         for (auto &job : staticJobs)
         {
@@ -396,9 +364,27 @@ namespace Vultron
                 .nonShadowCasterCount = job.nonShadowCasterCount,
             });
 
-            // This is a hack that works for a top-down game.
-            std::sort(job.instances.begin(), job.instances.end(), [](const StaticInstanceData &a, const StaticInstanceData &b)
-                      { return a.model[3].y < b.model[3].y; });
+            staticInstances.insert(staticInstances.end(), job.instances.begin(), job.instances.end());
+        }
+
+        for (auto &job : staticTransparentJobs)
+        {
+            staticTransparentBatches.push_back({
+                .mesh = job.mesh,
+                .material = job.material,
+                .firstInstance = static_cast<uint32_t>(staticInstances.size()),
+                .instanceCount = static_cast<uint32_t>(job.instances.size()),
+                .nonShadowCasterCount = job.nonShadowCasterCount,
+            });
+
+            glm::vec3 camPos = m_backend.GetCamera().position;
+            // Sort by distance from camera for proper transparency rendering
+            std::sort(job.instances.begin(), job.instances.end(), [camPos](const StaticInstanceData &a, const StaticInstanceData &b)
+                      {
+                          float distA = glm::length(camPos - glm::vec3(a.model[3]));
+                          float distB = glm::length(camPos - glm::vec3(b.model[3]));
+                          return distA > distB; // Farther objects first
+                      });
 
             staticInstances.insert(staticInstances.end(), job.instances.begin(), job.instances.end());
         }
@@ -415,6 +401,38 @@ namespace Vultron
                 .instanceCount = static_cast<uint32_t>(job.second.instances.size()),
             });
             skeletalInstances.insert(skeletalInstances.end(), job.second.instances.begin(), job.second.instances.end());
+        }
+
+        std::vector<RenderBatch> ribbonBatches;
+        std::vector<RibbonVertex> ribbonVertices;
+        std::vector<uint32_t> ribbonIndices;
+
+        for (auto &job : m_ribbonJobs)
+        {
+            uint32_t firstVertex = static_cast<uint32_t>(ribbonVertices.size());
+            uint32_t vertexCount = static_cast<uint32_t>(job.second.vertices.size());
+            uint32_t firstIndex = static_cast<uint32_t>(ribbonIndices.size());
+            uint32_t indexCount = static_cast<uint32_t>(job.second.indices.size());
+
+            if (vertexCount == 0 || indexCount == 0)
+            {
+                continue;
+            }
+
+            ribbonBatches.push_back(RenderBatch{
+                .mesh = job.second.mesh,
+                .material = job.second.material,
+                .firstIndex = firstIndex,
+                .indexCount = indexCount,
+            });
+
+            ribbonVertices.insert(ribbonVertices.end(), job.second.vertices.begin(), job.second.vertices.end());
+
+            // Adjust indices to account for the new vertex offset
+            for (const auto &index : job.second.indices)
+            {
+                ribbonIndices.push_back(index + firstVertex);
+            }
         }
 
         std::vector<SpriteInstanceData> spriteInstances;
@@ -468,6 +486,7 @@ namespace Vultron
 
         m_backend.Draw(RenderData{
             .staticBatches = staticBatches,
+            .transparentStaticBatches = staticTransparentBatches,
             .staticInstances = staticInstances,
             .skeletalBatches = skeletalBatches,
             .skeletalInstances = skeletalInstances,
@@ -484,8 +503,9 @@ namespace Vultron
             .decalAtlasMaterial = m_decalAtlasMaterial,
             .pointLights = m_pointLights,
             .lines = m_lines,
-            .ribbonVertices = m_ribbonVertices,
-            .ribbonIndices = m_ribbonIndices,
+            .ribbonBatches = ribbonBatches,
+            .ribbonVertices = ribbonVertices,
+            .ribbonIndices = ribbonIndices,
         });
 
         m_particleEmitters.clear();

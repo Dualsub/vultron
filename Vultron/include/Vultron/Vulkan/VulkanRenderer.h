@@ -513,6 +513,7 @@ namespace Vultron
     struct RenderData
     {
         const std::vector<RenderBatch> &staticBatches;
+        const std::vector<RenderBatch> &transparentStaticBatches;
         const std::vector<StaticInstanceData> &staticInstances;
         const std::vector<RenderBatch> &skeletalBatches;
         const std::vector<SkeletalInstanceData> &skeletalInstances;
@@ -529,6 +530,7 @@ namespace Vultron
         const std::optional<RenderHandle> decalAtlasMaterial;
         const std::array<PointLightData, 4> &pointLights;
         const std::vector<LineData> &lines;
+        const std::vector<RenderBatch> &ribbonBatches;
         const std::vector<RibbonVertex> &ribbonVertices;
         const std::vector<uint32_t> &ribbonIndices;
     };
@@ -598,6 +600,7 @@ namespace Vultron
 
         // Static pipeline
         VulkanMaterialPipeline m_staticPipeline;
+        VulkanMaterialPipeline m_staticTransparentPipeline;
         VulkanMaterialPipeline m_staticShadowPipeline;
         VulkanMaterialPipeline m_staticDepthPipeline;
         VkDescriptorSetLayout m_staticSetLayout;
@@ -768,7 +771,7 @@ namespace Vultron
         void DrawWithPipeline(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanMaterialPipeline &pipeline, const std::vector<RenderBatch> &batches, glm::uvec2 viewportSize, bool omitNonShadowCasters = false);
         void DrawSkybox(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, glm::uvec2 viewportSize);
         void DrawParticles(VkCommandBuffer commandBuffer, const VulkanBuffer &drawCommandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, glm::uvec2 viewportSize);
-        void DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, uint32_t ribbonIndexCount, glm::uvec2 viewportSize);
+        void DrawRibbons(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &ribbonVertexBuffer, const VulkanBuffer &ribbonIndexBuffer, const std::vector<RenderBatch> &ribbonBatches, glm::uvec2 viewportSize);
         void DrawLines(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, const VulkanBuffer &lineVertexBuffer, uint32_t lineCount, glm::uvec2 viewportSize);
         void DrawDecals(VkCommandBuffer commandBuffer, const std::vector<VkDescriptorSet> &descriptorSets, RenderHandle particleAtlasMaterial, uint32_t instanceCount, glm::uvec2 viewportSize);
         void WriteBloomDownsampleCommands(VkCommandBuffer commandBuffer);
@@ -848,8 +851,17 @@ namespace Vultron
         const ResourcePool &GetResourcePool() const { return m_resourcePool; }
         bool IsResourceValid(RenderHandle id) const { return m_resourcePool.IsValid(id); }
 
+        // The handeling of this is really ackward, should be changed
+
         template <typename T>
         RenderHandle CreateMaterial(const std::string &name, const T &materialCreateInfo)
+        {
+            assert(false && "Unsupported material type");
+            return c_invalidHandle;
+        }
+
+        template <>
+        RenderHandle CreateMaterial(const std::string &name, const PBRMaterial &materialCreateInfo)
         {
             if (OptionalRenderHandle handle = m_resourcePool.TryAcquireResource(name))
             {
@@ -860,7 +872,7 @@ namespace Vultron
             std::vector<char> materialData = materialCreateInfo.GetMaterialData();
             std::vector<RenderHandle> referencedResources = materialCreateInfo.GetReferencedResources();
             auto materialInstance = VulkanMaterialInstance::Create(
-                m_context, m_descriptorPool, m_staticPipeline,
+                m_context, m_descriptorPool, materialCreateInfo.transparent ? m_staticTransparentPipeline : m_staticPipeline,
                 {
                     bindings,
                     materialData,

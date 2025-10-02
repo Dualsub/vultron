@@ -37,6 +37,14 @@ namespace Vultron
         std::vector<struct SpriteInstanceData> instances = {};
     };
 
+    struct InstancedRibbonRenderJob
+    {
+        RenderHandle mesh = {};
+        RenderHandle material = {};
+        std::vector<RibbonVertex> vertices = {};
+        std::vector<uint32_t> indices = {};
+    };
+
     class SceneRenderer
     {
     private:
@@ -45,13 +53,13 @@ namespace Vultron
         std::map<uint64_t, InstancedSkeletalRenderJob> m_skeletalJobs;
         std::map<uint64_t, InstancedSpriteRenderJob> m_spriteJobs;
         std::map<uint64_t, InstancedSpriteRenderJob> m_fontJobs;
+        std::map<uint64_t, InstancedRibbonRenderJob> m_ribbonJobs;
         std::vector<ParticleEmitterData> m_particleEmitters;
         std::vector<AnimationInstanceData> m_animationInstances;
         std::vector<glm::mat4> m_boneInputTransforms;
         std::vector<DecalInstanceData> m_decalInstances;
         std::vector<LineData> m_lines;
-        std::vector<RibbonVertex> m_ribbonVertices;
-        std::vector<uint32_t> m_ribbonIndices;
+
         std::optional<RenderHandle> m_skybox;
         std::optional<RenderHandle> m_environmentMap;
         std::optional<RenderHandle> m_particleAtlasMaterial;
@@ -161,6 +169,7 @@ namespace Vultron
             return handle;
         }
 
+        // Extremely hacky way to handle transparent materials, very cool!
         template <>
         RenderHandle CreateMaterial<PBRMaterial>(const std::string &name, const PBRMaterial &materialCreateInfo)
         {

@@ -178,6 +178,14 @@ void main()
 
     // Simple rotation around the z-axis
     float angle = instance.sizeAndRotation.z;
+    vec3 v = instance.velocity;
+    float vlen = length(v);
+
+    if (vlen > 1e-6) {
+        vec3 vView = mat3(ubo.view) * v;
+        angle = atan(vView.y, vView.x);
+    }
+
     float c = cos(angle);
     float s = sin(angle);
     mat4 rotationZ = mat4(1.0);

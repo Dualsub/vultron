@@ -823,6 +823,13 @@ namespace Vultron
         return m.GetCenter();
     }
 
+    std::array<glm::vec3, 2> SceneRenderer::GetMeshBounds(const RenderHandle &mesh) const
+    {
+        const auto &rp = m_backend.GetResourcePool();
+        const auto &m = rp.GetMesh(mesh);
+        return {m.GetMinBounds(), m.GetMaxBounds()};
+    }
+
     const std::vector<glm::vec3> &SceneRenderer::GetMeshVertices(const RenderHandle &mesh) const
     {
         const auto &rp = m_backend.GetResourcePool();

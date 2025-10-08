@@ -128,6 +128,7 @@ namespace Vultron
         uint32_t GetBoneCount(RenderHandle skeletalMesh) const;
 
         glm::vec3 GetMeshCenterOffset(const RenderHandle &mesh) const;
+        std::array<glm::vec3, 2> GetMeshBounds(const RenderHandle &mesh) const;
         const std::vector<glm::vec3> &GetMeshVertices(const RenderHandle &mesh) const;
         const std::vector<uint32_t> &GetMeshIndices(const RenderHandle &mesh) const;
 

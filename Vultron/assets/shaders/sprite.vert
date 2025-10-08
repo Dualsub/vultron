@@ -1,5 +1,7 @@
 #version 460
 
+layout(push_constant) uniform PushConstants { uvec2 screenSize; };
+
 layout(location = 0) in vec2 inPosition;
 layout(location = 1) in vec2 inTexCoord;
 
@@ -10,7 +12,7 @@ layout(location = 3) out vec2 quadSize;
 layout(location = 4) out vec4 borderRadius;
 
 struct SpriteInstanceData {
-    vec4 positionAndSize;
+    vec4 positionAndSize;   // xy: center in screen space, zw: size
     vec4 texCoordAndSize;
     vec4 color;
     vec4 borderRadius;
@@ -23,20 +25,31 @@ layout(std140, set = 0, binding = 0) readonly buffer InstanceBufferObject {
 
 void main()
 {
-    vec2 position = instances[gl_InstanceIndex].positionAndSize.xy;
-    vec2 size = instances[gl_InstanceIndex].positionAndSize.zw;
-    vec4 texCoordAndSize = instances[gl_InstanceIndex].texCoordAndSize;
+    SpriteInstanceData d = instances[gl_InstanceIndex];
 
-    vec2 texCoord = inTexCoord * texCoordAndSize.zw + texCoordAndSize.xy;
+    vec2 pos  = d.positionAndSize.xy;
+    vec2 size = d.positionAndSize.zw;
 
-    float c = cos(instances[gl_InstanceIndex].rotation);
-    float s = sin(instances[gl_InstanceIndex].rotation);
-    mat2 rotationMatrix = mat2(c, -s, s, c);
+    vec2 tc = inTexCoord * d.texCoordAndSize.zw + d.texCoordAndSize.xy;
 
-    gl_Position = vec4(inPosition * rotationMatrix * size + position, 0.0, 1.0);
-    fragClipCoord = vec4(texCoordAndSize.xy, texCoordAndSize.xy + texCoordAndSize.zw);
-    fragTexCoord = texCoord;
-    fragColor = instances[gl_InstanceIndex].color;
-    quadSize = size;
-    borderRadius = instances[gl_InstanceIndex].borderRadius;
+    float c = cos(d.rotation);
+    float s = sin(d.rotation);
+    mat2  R = mat2(c, s, -s, c); // column-major
+
+    float aspect = float(screenSize.x) / float(screenSize.y);
+
+    vec2 local = inPosition * size;
+
+    local.x *= aspect;
+    local    = R * local;
+    local.x /= aspect;
+
+    vec2 world = pos + local;
+
+    gl_Position   = vec4(world, 0.0, 1.0);
+    fragClipCoord = vec4(d.texCoordAndSize.xy, d.texCoordAndSize.xy + d.texCoordAndSize.zw);
+    fragTexCoord  = tc;
+    fragColor     = d.color;
+    quadSize      = size;
+    borderRadius  = d.borderRadius;
 }

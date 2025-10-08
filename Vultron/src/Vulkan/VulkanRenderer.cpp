@@ -1109,7 +1109,7 @@ namespace Vultron
                 },
                 .pushConstantRanges = {
                     {
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
                         .offset = 0,
                         .size = sizeof(glm::uvec2),
                     },

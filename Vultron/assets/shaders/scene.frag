@@ -45,6 +45,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 lightSpaceMatrices[4];
 	vec4 lightCascadeSplits;
 	PointLight pointLights[4];
+    float grayscaleAmount;
 } ubo;
 
 layout(set = 0, binding = 2) uniform sampler2DArray shadowMap;
@@ -418,7 +419,7 @@ void main() {
 	vec3 emissive = texture(emissiveMap, fragTexCoord).rgb * materialParams.emissiveColor.rgb * fragEmissiveColor.rgb;
 
 	vec3 color = ambient + Lo * shadow + emissive;
-    
+    color = mix(color, vec3(dot(color, vec3(0.299, 0.587, 0.114))), ubo.grayscaleAmount);
 	// vec4 fogColor = vec4(vec3(0.0), 1.0);
 	// float fogStart = 2000.0;
 	// float fogEnd = 3000.0;

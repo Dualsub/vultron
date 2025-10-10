@@ -18,6 +18,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 lightSpaceMatrices[4];
     vec3 lightCascadeEnds;
 	PointLight pointLights[4];
+    float grayscaleAmount;
 } ubo;
 
 layout (location = 0) out vec3 outUVW;

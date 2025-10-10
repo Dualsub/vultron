@@ -143,6 +143,7 @@ namespace Vultron
         void SetCamera(const Camera &camera);
         void SetProjection(const glm::mat4 &projection);
         void SetDeltaTime(float deltaTime) { m_backend.SetDeltaTime(deltaTime); }
+        void SetGrayscaleAmount(float amount) { m_backend.SetGrayscaleAmount(amount); }
         void SetBloomSettings(const BloomSettings &bloomSettings) { m_backend.SetBloomSettings(bloomSettings); }
         void SetDebugCallback(std::function<void(const std::string &)> callback) { m_backend.SetDebugCallback(callback); }
 

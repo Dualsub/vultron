@@ -716,10 +716,9 @@ namespace Vultron
             m_context.GetDevice(),
             {
                 {
-                    // Scene data for skybox vertex shader
                     .binding = 0,
                     .type = DescriptorType::UniformBuffer,
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                 },
             });
 

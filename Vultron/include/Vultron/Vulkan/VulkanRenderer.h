@@ -496,6 +496,8 @@ namespace Vultron
         std::array<glm::mat4, c_numShadowCascades> lightViewProjections = {};
         std::array<float, c_numShadowCascades> lightCascadeSplits = {};
         std::array<PointLightData, 4> pointLights = {};
+        float grayscaleAmount = 1.0f;
+        float _padding3[3];
     };
 
     static_assert(sizeof(UniformBufferData) % 16 == 0);
@@ -813,6 +815,7 @@ namespace Vultron
         }
         void SetProjection(const glm::mat4 &projection) { m_uniformBufferData.proj = projection; }
         void SetDeltaTime(float deltaTime) { m_uniformBufferData.deltaTime = deltaTime; }
+        void SetGrayscaleAmount(float amount) { m_uniformBufferData.grayscaleAmount = amount; }
         void SetBloomSettings(const BloomSettings &settings) { m_bloomSettings = settings; }
         void SetDebugCallback(std::function<void(const std::string &)> callback) { m_debugCallback = callback; }
 

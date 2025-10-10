@@ -27,8 +27,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 lightDir;
     vec3 lightColor;
     mat4 lightSpaceMatrices[4];
-	vec4 lightCascadeSplits;
-	PointLight pointLights[4];
+    vec4 lightCascadeSplits;
+    PointLight pointLights[4];
+    float grayscaleAmount;
 } ubo;
 
 struct DecalInstanceData {

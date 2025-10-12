@@ -99,6 +99,11 @@ namespace Vultron
             glfwSetWindowTitle(m_windowHandle, title.c_str());
         }
 
+        glm::vec2 GetSize() const
+        {
+            return glm::vec2(m_width, m_height);
+        }
+
         void SetSize(uint32_t width, uint32_t height)
         {
             glfwSetWindowSize(m_windowHandle, width, height);
@@ -122,6 +127,11 @@ namespace Vultron
             }
 
             m_fullscreen = fullscreen;
+        }
+
+        void ToggleFullscreen()
+        {
+            SetFullscreen(!m_fullscreen);
         }
 
         static void CreateVulkanSurface(const Window &window, VkInstance instance, VkSurfaceKHR *surface);

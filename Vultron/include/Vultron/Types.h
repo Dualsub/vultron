@@ -191,6 +191,9 @@ namespace Vultron
         float scaleOut = 0.0f;
         float opacityIn = 0.0f;
         float opacityOut = 0.0f;
+        float curlNoiseAmplitude = 0.0f;
+        float curlNoiseFrequency = 0.0f;
+        float curlNoiseSpeed = 1.0f;
     };
 
     struct EnvironmentMapRenderJob

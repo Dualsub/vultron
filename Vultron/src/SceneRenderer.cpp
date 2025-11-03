@@ -296,6 +296,9 @@ namespace Vultron
             .scaleOut = job.scaleOut,
             .opacityIn = job.opacityIn,
             .opacityOut = job.opacityOut,
+            .curlNoiseAmplitude = job.curlNoiseAmplitude,
+            .curlNoiseFrequency = job.curlNoiseFrequency,
+            .curlNoiseSpeed = job.curlNoiseSpeed,
         });
     }
 

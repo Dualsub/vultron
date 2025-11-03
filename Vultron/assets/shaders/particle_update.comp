@@ -19,6 +19,7 @@ struct ParticleInstanceData {
     vec4 startColor;
     vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
+    vec4 curlAmpFreqSpeed;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer ParticleInstanceInputBuffer  {
@@ -33,6 +34,56 @@ layout(std140, set = 0, binding = 2) writeonly buffer ParticleInstanceOutputBuff
 
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
+float hash31(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+float noiseValue3D(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    float n000 = hash31(i + vec3(0,0,0));
+    float n100 = hash31(i + vec3(1,0,0));
+    float n010 = hash31(i + vec3(0,1,0));
+    float n110 = hash31(i + vec3(1,1,0));
+    float n001 = hash31(i + vec3(0,0,1));
+    float n101 = hash31(i + vec3(1,0,1));
+    float n011 = hash31(i + vec3(0,1,1));
+    float n111 = hash31(i + vec3(1,1,1));
+    float nx00 = mix(n000, n100, u.x);
+    float nx10 = mix(n010, n110, u.x);
+    float nx01 = mix(n001, n101, u.x);
+    float nx11 = mix(n011, n111, u.x);
+    float nxy0 = mix(nx00, nx10, u.y);
+    float nxy1 = mix(nx01, nx11, u.y);
+    return mix(nxy0, nxy1, u.z) * 2.0 - 1.0;
+}
+
+vec3 noiseVec3(vec3 p) {
+    return vec3(
+        noiseValue3D(p + vec3(37.1, 17.3, 11.7)),
+        noiseValue3D(p + vec3(5.2,  47.7, 23.9)),
+        noiseValue3D(p + vec3(19.1, 13.3, 57.5))
+    );
+}
+
+// Numerical curl of the vector noise
+vec3 curlOf(vec3 p, float eps) {
+    vec3 ex = vec3(eps,0,0), ey = vec3(0,eps,0), ez = vec3(0,0,eps);
+    vec3 Fx1 = noiseVec3(p + ex), Fx0 = noiseVec3(p - ex);
+    vec3 Fy1 = noiseVec3(p + ey), Fy0 = noiseVec3(p - ey);
+    vec3 Fz1 = noiseVec3(p + ez), Fz0 = noiseVec3(p - ez);
+    // curl(F) = (dFz/dy - dFy/dz, dFx/dz - dFz/dx, dFy/dx - dFx/dy)
+    float dFz_dy = (Fz1.z - Fz0.z) / (2.0*eps);
+    float dFy_dz = (Fy1.y - Fy0.y) / (2.0*eps);
+    float dFx_dz = (Fx1.x - Fx0.x) / (2.0*eps);
+    float dFz_dx = (Fz1.x - Fz0.x) / (2.0*eps);
+    float dFy_dx = (Fy1.y - Fy0.y) / (2.0*eps);
+    float dFx_dy = (Fx1.x - Fx0.x) / (2.0*eps);
+    return vec3(dFz_dy - dFy_dz, dFx_dz - dFz_dx, dFy_dx - dFx_dy);
+}
+
 void main()  {
     uint instanceIndex = gl_GlobalInvocationID.x;
     float deltaTime = ubo.viewPosAndDeltaTime.w;
@@ -45,6 +96,7 @@ void main()  {
 
     vec3 position = instance.positionAndLifeTime.xyz;
     float lifeTime = instance.positionAndLifeTime.w;
+    float lifeElapsed = instance.lifeDurationAndNumFramesAndFrameRate.x - instance.positionAndLifeTime.w;
     vec3 velocity = instance.velocity;
     vec3 acceleration = instance.acceleration;
     vec2 texCoord = instance.texCoordAndSize.xy;
@@ -57,6 +109,16 @@ void main()  {
     if (lifeTime <= 0.0) {
         return;
     }
+
+    // --- curl noise ---
+    float age = instance.lifeDurationAndNumFramesAndFrameRate.x - lifeTime; // lifeDuration − lifetime
+    float freq = instance.curlAmpFreqSpeed.y;   // or emitter.curlAmpFreq.y if you packed it
+    float amp  = instance.curlAmpFreqSpeed.x;   // or emitter.curlAmpFreq.x
+    float eps  = 0.5;
+    vec3 fieldP = position * freq + vec3(age * instance.curlAmpFreqSpeed.z);     // animate by particle age
+    vec3 curlForce = curlOf(fieldP, eps) * amp;
+    acceleration += curlForce;
+    // -------------------
     
     if (position.y > groundLevel)  {
         velocity += acceleration * deltaTime;

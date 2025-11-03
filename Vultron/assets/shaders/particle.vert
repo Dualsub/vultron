@@ -39,6 +39,7 @@ struct ParticleInstanceData {
     vec4 startColor;
     vec4 endColor;
     vec4 scaleFadeInOutAndOpacityFadeInOut;
+    vec4 curlAmpFreqSpeed;
 };
 
 layout(std140, set = 0, binding = 1) readonly buffer ParticleInstanceInputBuffer  {

@@ -414,6 +414,11 @@ namespace Vultron
         float scaleOut;
         float opacityIn;
         float opacityOut;
+
+        float curlNoiseAmplitude;
+        float curlNoiseFrequency;
+        float curlNoiseSpeed;
+        float _padding4;
     };
 
     static_assert(sizeof(ParticleEmitterData) % 16 == 0);
@@ -449,6 +454,11 @@ namespace Vultron
             float scaleOut;
             float opacityIn;
             float opacityOut;
+
+            float curlNoiseAmplitude;
+            float curlNoiseFrequency;
+            float curlNoiseSpeed;
+            float _padding4;
         };
 
         uint32_t numParticles;

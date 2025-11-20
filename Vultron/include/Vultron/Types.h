@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <optional>
+#include <span>
 
 #define VLT_INVALID_HANDLE 0
 
@@ -211,8 +212,8 @@ namespace Vultron
     struct RibbonRenderJob
     {
         RenderHandle material = {};
-        std::vector<RibbonVertex> vertices = {};
-        std::vector<uint32_t> indices = {};
+        std::span<RibbonVertex> vertices = {};
+        std::span<uint32_t> indices = {};
 
         uint64_t GetHash() const
         {

@@ -21,7 +21,7 @@ void main()
 	float y = pc.filterRadius;
 
     // Calculate the UV coordinates for the source image sample. They are the index of the pixel and need to be converted to texture coordinates.
-    vec2 texCoord = (vec2(gl_GlobalInvocationID.xy) / vec2(imageSize(dstImage)));
+	vec2 texCoord = (vec2(gl_GlobalInvocationID.xy) + vec2(0.5)) / vec2(imageSize(dstImage));
 
     vec3 upsample = vec3(0.0);
 	// Take 9 samples around current texel:
